@@ -14,7 +14,7 @@ def user_login(request) :
     client_id = os.getenv("GITHUB_CLIENT_ID")
     # redirect_uri : 로그인을 처리하는 url
     redirect_uri = 'http://localhost:8000/user/login_process'
-    github_auth_url = f'https://github.com/login/oauth/authorize?client_id={client_id}&redirect_uri={redirect_uri}&scope=read:user'
+    github_auth_url = f'https://github.com/login/oauth/authorize?client_id={client_id}&redirect_uri={redirect_uri}&scope=read:user&prompt=login'
     return redirect(github_auth_url)
 
 def user_login_process(request) :
