@@ -1,0 +1,130 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>GSLB 이용 방법</title>{% endblock %}    
+{% block content %}
+<h1>GSLB 이용 방법</h1>
+<h2>GSLB 리스트 화면 구성</h2>
+<hr>
+<p>
+    GSLB 신청<br>
+    새로운 GSLB 서비스를 신청하는 화면으로 전환 됩니다.
+</p>
+
+<img src="/static/images/network_gslb2.png" alt="GSLB 이용 방법 1" width="600"><br><br>
+
+<p>
+    Action<br>
+    새로운 GSLB 서비스를 신청하는 화면으로 전환 됩니다.<br>
+    GSLB 서비스 리스트 중 편집하고자 하는 GSLB의 체크박스를 선택한 뒤, GSLB의 설정을 변경하거나 이용 중인 GSLB를 삭제할 수 있습니다.
+</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>서비스 추가 : 이용 중인 GSLB에 새로운 back-end 서비스를 추가할 수 있습니다.</li>
+    <li>삭제 : 이용 중인 GSLB를 삭제합니다. 단, GSLB를 생성한 당일에는 삭제가 불가능 합니다.</li>
+</div><br>
+
+<p>
+    엑셀저장<br>
+    현재 사용 중인 GSLB 이용 정보를 엑셀로 내보내는 메뉴 입니다.<br><br>
+    상세정보<br>
+    GSLB 리스트에서 특정 항목을 선택하면 해당 GSLB에 등록된 back-end 서비스 리스트를 표출합니다.
+</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>변경 : 라디오 버튼에서 특정 서비스를 선택한 뒤 [변경] 버튼을 클릭하면, GSLB에서 특정 한 개의 back-end 서비스 IP를 변경할 수 있습니다.</li>
+    <li>삭제 : 라디오 버튼에서 특정 서비스를 선택한 뒤 [삭제] 버튼을 클릭하면, GSLB에서 특정 한 개의 back-end 서비스 IP를 삭제할 수 있습니다.</li>
+</div><br>
+
+<h2>GSLB 상품신청(최초 이용 시)</h2>
+<hr>
+<p>
+    https://cloud.kt.com/ 접속 후 상품 → 네트워크 → loadbalancer 선택 → 화면 우측 '상품 신청하기' 클릭 → 서비스 신청 확인 여부 팝업 창 생성 → '확인' 클릭<br><br>
+    ※ GSLB 서비스는 kt cloud server의 부가서비스로써, kt cloud server를 이용 중이어야 신청 가능 합니다.
+</p>
+
+<h2>GSLB 생성신청</h2>
+<hr>
+<p>1단계 - GSLB 정보입력</p>
+
+<img src="/static/images/network_gslb3.png" alt="GSLB 이용 방법 2" width="600"><br><br>
+
+<p>이름 입력</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>GSLB에 지정할 이름을 입력합니다.</li>
+</div>
+
+<p>도메인 입력</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>GSLB에 등록할 도메인 이름을 입력합니다.</li>
+    <li>kt cloud GSLB는 사용자가 입력한 도메인 이름을 기반으로 CNAME을 생성시켜 줍니다. CNAME 형식은 [*****.g.ucloudbiz.com]으로 만들어 집니다.</li>
+</div>
+
+<p>TTL 선택</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>GSLB 내 A Record로 기록 되는 back-end 서버에 대한 TTL 값을 설정합니다.</li>
+    <li>GSLB의 TTL은 30초~1분이 권장 사항이며, 보다 자세한 기술적인 사항은 4.6.2 GSLB 기타가이드 내 'GSLB의 TTL 값 선택 전략'을 참고하시기 바랍니다.</li>
+</div>
+
+<p>Persistence 사용 여부 선택</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>Persistence 옵션은 일반적으로 세션의 연결 유지(Stickiness)와 관련이 있습니다.</li>
+    <li>일반적인 웹 서비스 환경에서는 [미사용]이 권장 사항이며, 보다 자세한 기술적인 사항은 4.6.3 'GSLB의 Persistence 옵션에 대한 고려사항'을 참고하시기 바랍니다.</li>
+</div>
+
+<p>※ "GSLB 명칭", "도메인(CNAME)"은 신청 후 변경이 불가능합니다. 변경이 필요한 경우 GSLB를 완전히 삭제 한 뒤, 새롭게 작성해야 합니다.</p><br>
+<p>2단계 - 서비스(IP) 정보입력</p>
+
+<img src="/static/images/network_gslb4.png" alt="GSLB 이용 방법 3" width="600"><br><br>
+
+<p>
+    GSLB의 back-end가 되는 서비스 IP를 입력합니다.<br>
+    서비스 IP는 유효한 Public IP로 입력해야 정상 동작을 보장할 수 있습니다.<br><br>
+    IP를 입력하는 방법은 좌측의 드롭다운 박스에서 기 할당 된 kt cloud의 Public IP를 자동으로 입력할 수 있는 [보유IP선택]과 고객이 직접 IP를 작성할 수 있는 [IP 직접입력] 항목을 선택하실 수 있습니다.<br>
+    GSLB의 서비스 IP 지정은 Active-Active와 Active-Backup 두 가지 방법을 자유롭게 선택하여 구성할 수 있습니다.<br>
+    이 때, Active-Active는 통상적인 로드밸런싱 기법과 동일한 동작을 수행 하므로 부하 분산에 적합헌 방식입니다.<br><br>
+    Active-Backup으로 지정하는 경우 Active 서버가 유효한 한, Active의 IP 주소를 항상 리턴하기 때문에 DR 구성에 적합한 방식입니다.<br><br>
+    ※ 기본 2 개의 IP 를 등록하실 수 있으며, IP 등록 추가 시 추가요금이 부가됩니다.<br><br>
+    3단계 - 신청내역 확인
+</p>
+
+<img src="/static/images/network_gslb5.png" alt="GSLB 이용 방법 4" width="600"><br><br>
+
+<p>
+    신청한 GSLB 기본 정보와 연동 된 서비스(IP) 정보를 검토한 뒤 최종 신청을 요청 합니다. [신청] 버튼을 클릭한 뒤, 일정 시간 후에 GSLB가 생성 됩니다.<br><br>
+    GSLB 서비스를 정상적으로 사용하기 위해서는 고객이 소유한 도메인을 호스팅 받고 있는 도메인 등록기관에 GSLB로 연결되도록 하는 CNAME 등록이 필수적 입니다.<br><br>
+    CNAME 등록은 도메인 등록기관 별로 설정 방법이 다르며, 관련하여 4.6.1 'GSLB 사용 시 서비스 도메인 설정' 항목을 참고하시기 바랍니다.
+</p><br>
+
+<h2>GSLB 서비스(IP) 추가</h2>
+<hr>
+
+<img src="/static/images/network_gslb6.png" alt="GSLB 이용 방법 5" width="600"><br>
+<p>
+    GSLB의 back-end가 되는 서비스 IP의 추가 입력이 필요한 경우, GSLB 리스트 화면에서 편집하고자 하는 GSLB의 체크박스를 선택합니다.<br><br>
+    리스트 화면 우측의 [Action]을 클릭한 뒤, [서비스 추가] 메뉴를 선택합니다. 서비스 IP 입력 방식은 GSLB를 생성할 때의 방법과 동일합니다.<br><br>
+    ※ 기본 2 개의 IP 를 등록하실 수 있으며, IP 등록 추가 시 추가요금이 부가됩니다.
+</p><br>
+
+<h2>GSLB 서비스(IP) 변경</h2>
+<hr>
+<img src="/static/images/network_gslb7.png" alt="GSLB 이용 방법 6" width="600"><br>
+<p>
+    GSLB의 사용중인 서비스 IP를 변경할 수 있습니다.<br><br>
+    서버 IP 변경 등 각종 사유로 GSLB에 등록 된 서비스 back-end가 변동 된 경우, GSLB 리스트 화면에서 편집하고자 하는 GSLB의 체크박스를 선택합니다.<br>
+    화면 하단의 [상세정보] 탭에 현재 등록 된 서비스 IP 리스트가 조회 됩니다.<br>
+    변경 하시고자 하는 IP에 해당하는 행의 라디오 버튼을 클릭하신 뒤 우측의 [변경] 버튼을 클릭하시면 그림과 같은 팝업창이 생성 됩니다.<br><br>
+    팝업 창에서 변경하시고자하는 IP를 수기로 직접 입력한 뒤, [변경] 버튼을 클릭 합니다.<br>
+    수기로 입력해야 하기 때문에, 오입력이 발생하지 않도록 각별히 유의하시기 바랍니다.
+</p><br>
+
+<h2>GSLB 서비스(IP) 삭제</h2>
+<hr>
+<img src="/static/images/network_gslb8.png" alt="GSLB 이용 방법 7" width="600"><br><br>
+<p>
+    GSLB에서 더 이상 사용할 수 없거나 유효하지 않은 back-end 주소에 대하여 서비스 리스트에서 대상 IP를 삭제할 수 있습니다.<br><br>
+    GSLB 리스트 화면에서 편집하고자 하는 GSLB의 체크박스를 선택합니다. 화면 하단의 [상세정보] 탭에 현재 등록 된 서비스 IP 리스트가 조회 됩니다.<br><br>
+    변경 하시고자 하는 IP에 해당하는 행의 라디오 버튼을 클릭하신 뒤 우측의 [삭제] 버튼을 클릭 하시면 그림과 같이 삭제를 확인하는 팝업창이 생성 됩니다.<br><br>
+    삭제 하시고자 하는 정보를 정확히 확인하신 뒤, [확인] 버튼을 눌러 최종 삭제 요청을 처리하게 됩니다
+</p>
+
+{% enblock %}

@@ -1,0 +1,67 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>GSLB 상품 개요</title>{% endblock %}    
+{% block content %}
+
+<h1>GSLB 상품 개요</h1>
+<h2>목적/용도</h2>
+<hr>
+<p>
+    GSLB는 Global Server Load Balancing의 약어로 이용 목적은 이름과 달리 일반적인 로드밸런싱과는 다소 차이가 있습니다.<br><br>
+    GSLB는 전통적인 DNS와 같이 동작하며 추가적으로 health check와 active/backup을 지정 가능하게 하여<Br>
+    재해 복구(DR), 지역적인 부하분산, 응답시간 중심의 서비스를 제공 가능하게 할 수 있습니다.<br><br>
+    kt cloud 는 목동/천안에 GSLB를 4중화로 구성하여 DR에 특화된 GSLB 서비스를 제공하고 있습니다.
+</p><br>
+
+<h2>구조/원리</h2>
+<hr>
+<p>
+    GSLB의 이해<br>
+    GSLB는 IP 주소와 PORT를 기반으로 트래픽을 분산시키는 로드밸런서와는 다른 형태로 동작합니다.<br>
+    GSLB는 전통적인 DNS 서비스가 발전 된 형태로, 기존의 DNS가 back-end 서버의 상태와 상관 없이<br>
+    요청에 대한 IP 값을 제공하는 반면 서버의 상태정보를 확인한 후에 IP를 제공합니다.<br><br>
+    이러한 장점을 통해 지역별 트래픽 기반의 부하 분산, DR(Disaster Recovery) 구축,<br>
+    클라우드 서비스를 기존 고객 보유 시스템의 백업센터로 이용하는 등 다양한 응용 구성이 가능합니다.<br><br>
+    GSLB의 동작 원리
+</p>
+
+<img src="/static/images/network_gslb1.png" alt="GSLB 상품 개요 1" width="600"><br><br><br>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>클라이언트가 도메인(www.abc.com)을 입력하면 Local DNS는 상위 DNS로 DNS 질의를 요청 합니다.
+        DNS 질의를 전달 받은 Root DNS, .com DNS는 해당 질의를 'abc.com' DNS 서버로 전달합니다.
+        abc.com DNS 서버는 사전에 등록 된 www에 대한 CNAME 정보가 GSLB로 지정 되어 있기 때문에 DNS 질의는 최종적으로 GSLB에 전달됩니다.</li>
+    <li>GSLB(abc.g.ucloudbiz.com)에서는 요청 받은 DNS질의에 대해 그림과 같이 1.1.1.1[Active]와 2.2.2.2[Backup] 서버 리스트를 가지고 있습니다.</li>
+    <li>GSLB는 [Active]로 지정 된 1.1.1.1 IP주소를 반환해주며, [Active] 서버가 비 정상일 경우에 Backup 서버 주소인 2.2.2.2를 반환합니다.</li>
+    <li>Local DNS는 반환 받은 IP 주소를 클라이언트에 알려줍니다.</li>
+    <li>클라이언트는 최종적으로 반환 받은 IP 주소로 접속하여 서비스를 제공 받습니다.</li>
+</div>
+
+<p>
+    ※ 본 예시 그림의 동작 원리는 Active-Backup으로 구성한 경우이며 DR 구성에 적합한 사용예 입니다.<br>
+    만약 Active-Active로 구성하시는 경우 Round Robin 방식으로 동작하며 부하분산 구성에 적합합니다.<br><br>
+    KT Cloud GSLB 특장점
+</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>물리적인 4중화를 통한 최고의 안정성을 갖추고 있습니다.</li>
+    <li>목동 ICC, 천안 CDC에 각각 이중화하여 시스템을 구축, 최상의 안정적 서비스가 가능합니다.</li>
+    <li>kt cloud 포탈을 통해 간편한 사용이 가능합니다.</li>
+    <li>모든 기능을 웹을 통해 자동화 하여, 고객 편의성을 극대화 했습니다.</li>
+</div><br><br>
+
+<h2>유의사항/제약사항</h2>
+<hr>
+<p>GSLB와 서버 응답 성능</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>GSLB는 사용자가 지정한 기준(옵션)에 따라 Active-Active 또는 Active-Backup으로 로드밸런싱을 수행합니다.</li>
+    <li>따라서, 각각의 back-end 서버의 성능 또는 파라미터 설정에 따라 실제 서버에 로드되는 부하량은 언제나 균등하지 않을 수 있습니다.</li>
+    <li>수 차례의 테스트와 성능 검증을 진행 하시어 운영하고자 하는 서비스에 최적화 된 옵션을 설정 하시는 것을 권고하고 있습니다.</li>
+</div><br>
+
+
+
+
+{% endblock %}
