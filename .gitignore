@@ -1,6 +1,10 @@
 .env
+<<<<<<< HEAD
 .venv
 /node_modules
 
 # Next.js
 .next
+=======
+.venv
+>>>>>>> origin/feature-sjw99475

@@ -1,0 +1,7 @@
+django
+python-dotenv
+requests
+bs4
+ipykernel
+pandas
+selenium
