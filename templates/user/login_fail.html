@@ -1,9 +1,0 @@
-{% extends 'base/base.html' %}
-{% load static %}
-{% block css %}<link rel="stylesheet" href="{% static 'css/base.css' %}"> {% endblock %}
-{% block title %}<title>Error</title>{% endblock %}    
-{% block content %}
-<h1>로그인에 실패하였습니다!</h1>
-<button class="connect-button" 
-                onclick="location.href='{% url 'homepage' %}'">돌아가기</button>
-{% endblock %}

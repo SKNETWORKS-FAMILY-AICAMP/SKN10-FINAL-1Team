@@ -1,7 +1,10 @@
-django
+openai
+langchain
+langchain-community
+langchain-openai
+chromadb
+tiktoken
+beautifulsoup4
 python-dotenv
-requests
-bs4
-ipykernel
-pandas
-selenium
+chainlit
+sentence-transformers
