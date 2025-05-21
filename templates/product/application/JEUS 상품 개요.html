@@ -1,0 +1,61 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>JEUS 상품 개요</title>{% endblock %}    
+{% block content %}
+
+<h1>JEUS 상품 개요</h1>
+<h2>목적/용도</h2>
+<hr>
+<p>
+JEUS는 세계 상용 최초 국제 표준인 J2EE 1.4, Java EE 5, Java EE 6와 Java EE 7을 인증받으며 세계적으로 기술력을 인정받은 제품입니다.<br><br>
+    국제적으로 기술에 대한 리더쉽과 국내적으로 시장 1위 제품이라는 성과를 보여주고 있습니다.<Br>
+    애플리케이션의 트랜잭션 관리, 세션 유지, 부하 분산 등 다양한 기능을 제공합니다.<br><br>
+    또한 계층화된 구조로 유연성과 기능 확장성이 우수해 비즈니스 로직을 쉽고 효과적으로 구현할 수 있습니다.
+</p><br>
+
+<img src="/static/images/ai_serv_jeus1.png" alt="JEUS 상품 개요 1" width="600"><br><br><br>
+
+<h2>서비스 주요 기능</h2>
+<hr>
+<h3>무중단 배포</h3>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>애플리케이션 재배포가 필요한 경우, 배포 이전 세션의 요청 완료를 보장하는 무중단 서비스 환경을 제공하여 시간적인 비용을 절감하고 개발 생산성을 향상할 수 있습니다.</li>
+</div>
+
+<h3>인메모리 JSP Compilation</h3>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>변경된 JSP 애플리케이션에 대하여 메모리상에서 컴파일을 수행하는 방식을 채택하여 최초 서비스 시간을 줄일 수 있습니다.</li>
+    <li>JSP를 파일로 쓰지 않고 메모리를 통해 함으로써 파일 I/O 동작으로 인한 부하를 줄일 수 있습니다.</li>
+</div>
+
+<h3> JEUS Hot Swap </h3>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li> 애플리케이션 기능 변경 시, 전체 클래스를 리로드할 필요 없이 변경된 클래스만 재정의하여 개발 생산성을 획기적으로 향상시키는 기능입니다. </li>
+    <li> 클래스 생성자 추가 및 제거, 메소드 바디 변경에 효과적으로 활용이 됩니다. </li>
+</div>
+
+<h3> 개발자/관리자 편의성 </h3>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li> JEUS 8에서는 사용자 라이브러리 관리 기능과 클러스터 환경 서버자동생성 템플릿 기능이 추가되어 개발자와 관리자의 편의성을 개선하였습니다. </li>
+</div>
+
+<h3> Java EE 7 Full Platform Compatible 인증 및 Java EE 8 스펙 일부 구현 </h3>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li> Java EE 7 의 Full Spec. 및 Java EE 8 스펙 일부 구현(HTTP/2)으로 성능향상 및 확장성, 개발생산성을 향상시켰습니다. </li>
+</div>
+
+<img src="/static/images/ai_serv_jeus2.png" alt="JEUS 상품 개요 2" width="600"><br><br><br>
+
+<h2>서비스 아키텍처</h2>
+<hr>
+<img src="/static/images/ai_serv_jeus3.png" alt="JEUS 상품 개요 3" width="600"><br><br><br>
+
+
+
+
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>Private CA 개요</title>{% endblock %}    
+{% block content %}
+
+<h1>Private CA 개요</h1>
+<h2>목적/용도</h2>
+<hr>
+<p>사내망과 같이 한정된 기업 내부 환경 또는 제한된 네트워크 범위에서는 외부의 공인된 CA로 발급받은 인증서가 아닌 사설 인증서를<br>
+통해 별도의 인증 체계 구현이 가능하며 이용에 효과적입니다.<br>
+또한, 사설 인증서를 통해 서버 간 통신 구간 암호화, API 호출 대상 서버 식별/인증 등 다양한 목적에 활용이 가능합니다.<br>
+사설 인증서 생성은 사설 인증 기관(Certificate Authoruty,m CA)를 통해서 이뤄지며 CA와 같은 표준을 준수하며<br>
+민감한 데이터를 보호하기 위한 PKI(공개키 기반 구조) 인프라 구축 및 운영을 위해서는 많은 비용과 노력이 수반됩니다.<br><br>
+Private CA에서는 독립적인 나만의 사설 인증 기관(CA)를 운영하도록 지원하고, 이를 통해 용도에 따른 사설 인증서 생성과 이용을 편리하게 진행할 수 있습니다.<br>
+사용자만의 중앙집중 방식의 인증시스템 적용으로 보안성을 강화하되 Cloud 기반 서비스 이용으로 관리의 편리성은 증가합니다.</p>
+
+<h3>CA 계층 구조 관리</h3>
+<p>CA는 통상적으로 Root CA(최상위 인증 기관), 하위(Sub) CA, 사설 인증서와 같이 3단계 계층 구조를 가지게 되며 Private CA에서는 목적에 따라 필요한 CA 계층 구조를 구성할 수 있도록 지원합니다.<br>
+CA 분리를 통해 관리 위험을 분산하거나 CA 분리를 통해 시스템  또는 조직 간 서로 다른 인증 체계 운영이 가능합니다.</p>
+<img src="/static/images/ai_serv_security_waf62.png" alt="Private CA 개요 1" width="600"><br><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.8;">
+  <ul>
+    <li><strong>Root CA</strong><br>
+      - 최상위 인증 기관으로 자체 서명한(Self-sign) Root CA 인증서를 발급, 관리합니다.<br>
+      - Sub CA 인증서를 발급합니다.
+    </li>
+
+    <li><strong>Sub CA</strong><br>
+      - 중간 계층의 인증 기관이며 상위 인증 기관(Root CA 또는 Sub CA)으로부터 인증서를 발급 받습니다.<br>
+      - Sub CA는 사설 인증서를 발급하거나 또 다른 하위 Sub CA 인증서를 발급할 수 있습니다.
+    </li>
+
+    <li><strong>사설 인증서</strong><br>
+      - Private CA에서 관리하는 CA를 통해 발급하는 인증서입니다.
+    </li>
+
+    <li><strong>외부 CA</strong><br>
+      - Private CA가 관리하지 않는 외부 CA(Root 또는 Sub CA)에서 발급한 인증서를 등록하여 
+        Private CA의 Sub CA로 사용할 수 있습니다.
+    </li>
+  </ul>
+</div>
+
+<h2>Private CA 주요 기능 </h2>
+<hr>
+<img src="/static/images/ai_serv_security_waf63.png" alt="Private CA 개요 2" width="600"><br><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.8;">
+  <ul>
+    <li>Private CA에서는 사설 CA(인증 기관)를 생성하며 이후 CA를 통해 사설 인증서의 발급이 가능합니다.</li>
+    <li>사설 인증서는 목적에 따라 알고리즘, 키 길이, 유효기간을 지정하여 생성할 수 있습니다.</li>
+    <li>CA는 생성 후 기본적으로 활성화 상태가 되며, 비활성화/폐기/만료 등 라이프사이클에 따른 상태 변경/관리가 가능합니다.</li>
+    <li>
+      인증서 유효성 검증을 위한 CRL(인증서 폐기 목록, Certificate Revocation List), 
+      OCSP(온라인 인증서 상태 프로토콜, Online Certificate Status Protocol)을 지원하며 
+      인증서 생성 시 관련 URL을 포함할 수 있습니다.
+    </li>
+    <li>Private CA에서 생성된 각 CA의 키는 보안에 민감한 중요 데이터로 별도의 HSM(Hardware Security Module)에 안전하게 보관됩니다.</li>
+    <li>CA 운영을 지원하기 위한 사용자 대시보드, 감사로그 기능이 제공됩니다.</li>
+  </ul>
+</div>
+
+<h3>서비스 지원 범위</h3>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.8;">
+    <li>Private CA는 현재 DX-M1 , G1/G2존 에서 사용 가능하며 추후 G-Cloud 등으로 확대 지원 예정입니다.</li>
+</div>
+
+
+
+{% endblock %}

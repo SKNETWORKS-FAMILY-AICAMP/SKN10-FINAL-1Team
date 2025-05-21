@@ -1,0 +1,33 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>JEUS 상품 신청</title>{% endblock %}    
+{% block content %}
+
+<h1>JEUS 상품 신청</h1>
+<h2>서버 생성</h2>
+<hr>
+<p>
+JEUS 상품은 Computing 상품 신청 메뉴에 위치하며 상품 신청 후 JEUS 이용을 위한 상세한 세팅법은 하단의 세팅법을 참고해주세요.<br>
+※ 만약 kt cloud를 처음 사용하는 사용자는 청약 절차(결제 정보 입력)를 거쳐야 합니다.<br>
+결제 정보는 최초 상품 신청 한 번만 입력하면, 향후 신청하는 모든 상품의 요금이 입력한 결제 정보로 청구됩니다.<br><br>
+아래 방법은 G1/G2와 D1간 차이가 있을 수 있습니다.<br>
+(1) 상품 청약 : All Services > Computing > JEUS<br>
+</p><br>
+
+<img src="/static/images/ai_serv_jeus4.png" alt="JEUS 상품 신청 1" width="600"><br><br><br>
+
+<p>(2) 콘솔의 Server > Server > “서버 생성” 클릭</p>
+<img src="/static/images/ai_serv_jeus5.png" alt="JEUS 상품 신청 2" width="600"><br><br><br>
+
+<p>(3) 이미지는 Application > WAS > JEUS를 선택합니다.<br>
+    (이외의 설정들은 Server 설정과 동일합니다.)</p><br>
+<img src="/static/images/ai_serv_jeus6.png" alt="JEUS 상품 신청 3" width="600"><br><br><br>
+
+<p>(4) “생성하기” 버튼을 누르면 서버가 생성됩니다.<br>
+JEUS 상품이 정상적으로 생성되면 아래 그림과 같이 서버리스트에서 확인할 수 있습니다.<br>
+(JEUS 서비스가 정상적으로 배포될 수 있도록, 생성하고 수분 뒤 접속하시기 바랍니다.)</p><br>
+<img src="/static/images/ai_serv_jeus7.png" alt="JEUS 상품 신청 4" width="600"><br><br><br>
+
+
+{% endblock %}

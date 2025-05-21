@@ -1,0 +1,41 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>JEUS 이용 방법</title>{% endblock %}    
+{% block content %}
+
+<h1>JEUS 이용 방법</h1>
+<h2>포트포워딩</h2>
+<hr>
+<p>
+JJEUS 상품 신청이 완료되면 사용을 위해 포트포워딩이 필요합니다. 아래 정보를 확인하시어 포트포워딩을 진행해주세요.<br>
+콘솔에 정상 접근이 되지 않는 경우 8080 포트로 추가적인 포트포워딩 진행이 필요할 수 있습니다.<br>
+JEUS 포트포워딩<br>
+<img src="/static/images/ai_serv_jeus8.png" alt="JEUS 이용 방법 1" width="600"><br><br><br>
+</p><br>
+
+<h2>시작 스크립트</h2>
+<hr>
+<p>
+위의 포트포워딩 작업이 완료되고 나면 JEUS 서비스를 기동하기 위해 스크립트를 실행합니다.<br>
+Tmax계정에서 실행 가능합니다.(su - tmax)<br>
+<img src="/static/images/ai_serv_jeus9.png" alt="JEUS 이용 방법 2" width="600"><br><br><br>
+</p><br>
+
+<h2>정상 동작 확인</h2>
+<hr>
+<p>
+<img src="/static/images/ai_serv_jeus10.png" alt="JEUS 이용 방법 3" width="600"><br><br><br>
+</p><br>
+
+<h2>JEUS 콘솔툴</h2>
+<hr>
+<p>
+"dsa" 명령으로 관리자 콘솔툴에 접속해 상태를 확인할 수 있습니다.<br>
+관리콘솔에 접속 후 "si" 명령어로 server1 상태가 RUNNING인 것을 확인합니다.<br>
+관리콘솔에 접속 후 "appinfo" 명령어로 sample app 상태가 RUNNING인 것을 확인합니다.<br>
+<img src="/static/images/ai_serv_jeus11.png" alt="JEUS 이용 방법 4" width="600"><br><br><br>
+</p><br>
+
+
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>WAF 관리 도구</title>{% endblock %}    
+{% block content %}
+
+<h1>WAF 관리 도구</h1>
+<h2>웹방화벽의 탐지 및 차단 정책 설정, 로그 확인, 환경 설정 등을 수행할 수 있는 관리도구를 제어 하는 방법을 설명합니다.<br>
+* 2018년 8월 31일 이전 M2존 생성 및 2019년 12월 12일 이전 Central-A존 생성 웹방화벽의 경우,<br>
+1.9 웹방화벽 관리도구 - 4.0 Version을 참고하시기 바랍니다.</h2>
+<br><br>
+
+<h2>관리도구 실행</h2>
+<hr>
+<p>웹 방화벽 관리도구는 웹 서비스 구성 및 보안 탐지 정책을 세부적으로 설정할 때 이용할 수 있으며, 웹 브라우저를 이용하여 접속할 수 있습니다.</p>
+<img src="/static/images/ai_serv_security_waf17.png" alt="WAF 관리 도구 1" width="600"><br>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+  <ol>
+    <li>관리도구를 실행할 웹 방화벽을 선택하고, 우측 상단의 … 버튼을 클릭합니다.</li>
+    <li>스크롤 다운된 메뉴 중 콘솔 접속을 클릭합니다.</li>
+  </ol>
+<img src="/static/images/ai_serv_security_waf18.png" alt="WAF 관리 도구 2" width="600"><br>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+<ol>
+      <li>팝업된 웹 브라우저 창에 계정 정보를 입력하여 로그인합니다.</li>
+      <ul>
+        <li>GUI <strong>default</strong> 계정 정보는 <strong>Tech Center</strong>에 문의하시기 바랍니다.</li>
+        <li>초기 비밀번호 설정 후로는 비밀번호 5회 입력 오류 시 10분간 로그인 계정이 잠기게 됩니다.</li>
+      </ul>
+      <li>ID는 <strong>admin</strong>을 입력합니다.</li>
+      <li>비밀번호는 <code>penta7728</code>을 입력합니다. 상단의 &lt;로그인 후 사용자 정보 수정&gt; 체크박스를 클릭하여 비밀번호를 변경하시기 바랍니다.</li>
+    </ol>
+</div>
+
+<h3>웹서버 연결 점검</h3>
+<hr>
+<p>관리도구 실행 후, 웹서버와의 연결이 정상적으로 설정되었는지 확인합니다.</p>
+<img src="/static/images/ai_serv_security_waf19.png" alt="WAF 관리 도구 3" width="600"><br>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;"></div>
+  <ol>
+    <li>보호 설정을 클릭합니다.</li>
+    <li>네트워크 설정을 클릭합니다.</li>
+    <li>보호 대상 서버를 클릭합니다.</li>
+    <li>웹 방화벽으로 보호할 웹 서버의 사설 IP와 포트가 정상적으로 등록되어 있는지 확인합니다.</li>
+  </ol>
+  <p style="margin-top: 16px;">
+    <strong>※ 주의 :</strong> 해당 화면에서 보호할 웹 서버를 추가할 수도 있으나 이 경우 클라우드 콘솔과의 정보 불일치가 발생하여 기술 지원이 제약될 수 있으니 보호할 웹 서버의 등록은 클라우드 콘솔의 웹 서버 구성 기능을 활용하여 주시기를 바랍니다.
+  </p>
+</div>
+
+<h4>웹사이트 정책 점검</h4>
+<hr>
+<p>보호할 웹사이트가 정상적으로 등록되었는지 확인하고, 보호 수준에 대해 점검 및 수정합니다.</p>
+<img src="/static/images/ai_serv_security_waf20.png" alt="WAF 관리 도구 4" width="600"><br>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;"></div>
+  <ol>
+    <li>보안 설정을 클릭합니다.</li>
+    <li>정책 설정을 클릭합니다.</li>
+    <li>좌측에서 정책 리스트를 클릭하면, 정책의 상세 내역을 확인할 수 있습니다. 각각의 공격 또는 정책에 대한 탐지/차단/에러 메시지 발생 등을 어떻게 대응할지 확인이 가능합니다.</li>
+    <li>기존 정책을 기준으로 커스텀하여 신규 정책을 생성할 수 있습니다.</li>
+  </ol>
+  <p style="margin-top: 16px;">
+    <strong>※ 주의 :</strong> 해당 화면에서 보호할 웹사이트를 추가할 수도 있으나 이 경우, 클라우드 콘솔과의 정보가 불일치가 발생하여 기술 지원이 제약될 수 있으니, 보호할 웹사이트의 등록은 클라우드 콘솔의 웹사이트 구성 기능을 활용하여 주시기를 바랍니다.
+  </p>
+  <p style="margin-top: 12px;">
+    <strong>※ 참고 내용</strong><br>
+    룰 수정을 위해서는 관리자 도구에서 기존 정책 기준으로 신규 정책을 생성해야 룰 수정이 가능합니다.
+  </p>
+</div>
+
+
+{% endblock %}

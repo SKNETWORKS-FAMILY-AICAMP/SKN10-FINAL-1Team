@@ -1,0 +1,131 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>웹방화벽 이용방법 - 4.0 Version</title>{% endblock %}    
+{% block content %}
+
+<h1>웹방화벽 이용방법 - 4.0 Version</h1>
+<p>kt cloud 포탈에서 WAF 4.0 Version 서비스 구성 및 환경 설정하는 방법을 설명합니다.</p>
+
+<h2>웹방화벽의 생성 및 삭제</h2>
+<hr>
+<p>WAF은 일반적으로 다음과 같은 설치 순서에 따라 웹 방화벽 신청 팝업 화면에서 서비스 구성을 합니다.<br>
+상품소개에서 보안 -> 웹 방화벽을 선택 -> 웹 방화벽 신청 버튼 클릭<br>
+서비스 구성</p><br>
+<img src="/static/images/ai_serv_security_waf41.png" alt="웹방화벽 이용방법 - 4.0 Version 1" width="600"><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+  <ul>
+    <li>(1) WAF가 생성되기를 원하는 AZ(Availability zone)를 선택합니다.</li>
+    <li>(2) WAF 이름을 입력합니다.</li>
+    <li>(3) WAF 이름이 다른 VM의 이름과 중복되지 않는지 확인합니다.</li>
+    <li>(4) Single 선택, WAF의 이중화 구성을 하고자 하는 경우는 Single을 2개 생성하여 구성합니다.</li>
+    <li>(5) 사양: 필요 트래픽에 따라 상품(Basic, Standard, Advanced, Premium)을 선택합니다.
+      각 상품별 Throughput은 (200 / 300 / 500 / 700)이며 서비스 최대 트래픽을 고려하여 상품 선택이 필요하며,
+      안정적 서비스를 위해 반드시 이중화 하여 구성할 것을 권고합니다.
+    </li>
+    <li>(6) WAF가 사용하는 3개의 포트에 대한 포트포워딩 설정을 합니다.
+      SSH 접속을 위한 22번 포트 / DB가 사용하는 5433번 포트 / 관리도구&API가 사용하는 5000번 포트 각각에 대한 공인 포트를 입력하면 됩니다.
+    </li>
+    <li>(7) 포트포워딩 설정에 충돌이 없는지 포트 체크를 합니다.</li>
+    <li>고객의 웹서비스 환경에 따라 각 상품별 최대 throughput은 달라질 수 있습니다.</li>
+    <li>다음 버튼을 클릭하여 신청내역 확인 단계로 넘어갑니다.</li>
+  </ul>
+</div>
+
+<p>신청 내역 확인<br>
+신청 내역을 확인하고 확인 버튼을 클릭 후 웹방화벽 서버가 생성 완료될 때까지 대기합니다.</p>
+<img src="/static/images/ai_serv_security_waf42.png" alt="웹방화벽 이용방법 - 4.0 Version 2" width="600"><br>
+<p>서버 생성 및 구성이 완료되면 WAF 상태가 준비 중에서 사용 상태로 변경되고 WAF 의 SSH 접속 패스워드가 팝업 됩니다.<br>
+kt cloud 포탈 email 계정의 메일을 확인하셔서, SSH 접속 패스워드를 다시 확인 할 수 있습니다.</p>
+<img src="/static/images/ai_serv_security_waf43.png" alt="웹방화벽 이용방법 - 4.0 Version 3" width="600"><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+    <li>WAF VM 의 삭제는 WAF VM 이 정지된 상태에서 Action 버튼을 클릭하여 삭제 가능합니다.</li>
+    <li>엔터프라이즈 존에 WAF VM 을 생성하는 경우에는 WAF 초기화 및 업데이트 정보를 가져올 수 있도록 
+        &nbsp;&nbsp;&nbsp;&nbsp;3 개 IP (218.145.29.166, 218.145.29.168, 218.145.29.101)에 대한 방화벽 허용 설정이 필요 합니다.</li>
+</div>
+
+<h2>WAF VM의 시작/정지, SSH 접속 비밀번호 변경</h2><br>
+<hr>
+<p>시작 / 정지<br>
+WAF 신청 시 자동으로 시작 상태가 됩니다. 특별한 사유에 의해 WAF을 재부팅 하고자 할 때 다음과 같이 정지/시작 할 수 있습니다.</p><br>
+<img src="/static/images/ai_serv_security_waf44.png" alt="웹방화벽 이용방법 - 4.0 Version 4" width="600"><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+    <li>(1) 웹방화벽 선택 후, 우측 상단의 Action 위치에 마우스 커서 이동합니다.</li>
+    <li>(2) 정지 클릭 후, 웹방화벽 상태가 <정지>가 될 때까지 대기합니다.</li>
+    <li>웹방화벽 상태가 <정지>가 된 후, Action 위치에 마우스 커서를 이동하고, <시작> 클릭합니다.</li>
+</div>
+
+<p>SSH 접속 비밀번호 변경<br>
+WAF은 주로 닷넷 기반의 관리도구 어플리케이션을 사용하여 관리하며, 상태 점검 등 특별한 경우, SSH 접속을 하여 관리할 수도 있습니다.<br>
+SSH 접속 비밀번호는 다음과 같은 절차로 변경 가능합니다.</p><br>
+<img src="/static/images/ai_serv_security_waf45.png" alt="웹방화벽 이용방법 - 4.0 Version 5" width="600"><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+    <li>(1) 웹방화벽 선택 후, 우측 상단의 Action 위치에 마우스 커서 이동합니다.</li>
+    <li>(2) 비밀번호 변경 클릭 및 팝업 창에서 확인 클릭 시, 랜덤하게 비밀번호 변경됩니다.</li>
+</div>
+
+<h2>웹서버 구성 및 웹사이트 구성</h2>
+<hr>
+<p>웹서버 구성<br>
+웹방화벽과 웹서버간의 서비스 구성작업을 실시 합니다.</p>
+<img src="/static/images/ai_serv_security_waf46.png" alt="웹방화벽 이용방법 - 4.0 Version 6" width="600"><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+    <li>(1) 구성하고자 하는 웹방화벽을 선택 후, 우측 상단의 Action 위치로 마우스 커서를 이동합니다.</li>
+    <li>(2) 웹서버 구성 클릭합니다.</li>
+</div>
+<p>웹방화벽이 2개의 웹서버를 보호하는 경우를 가정하여 설명합니다.</p>
+<img src="/static/images/ai_serv_security_waf47.png" alt="웹방화벽 이용방법 - 4.0 Version 7" width="600"><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+  <ul>
+    <li>(1) 보호할 웹 서버를 선택합니다.</li>
+    <li>(2) 웹서버의 웹서비스 포트를 입력합니다.</li>
+    <li>(3) 웹방화벽의 Proxy 포트를 입력 
+      <span style="color:#555;">(트래픽은 웹방화벽IP:프록시포트 → 웹서버IP:서비스포트 형태로 전달 됩니다.)</span>
+    </li>
+    <li>(4) 웹방화벽이 이중화 구성일 경우, 부하분산 처리를 위한 로드밸런서를 선택해 줍니다.
+      LB에 별도 설정 필요 없이, 여기서 입력되는 값 기준으로 LB와 WAF, 웹서버간 연결이 형성 됩니다.
+    </li>
+    <li>(5) 설정값 입력이 완료되었다면, 추가를 클릭하면 하단에 입력 정보가 반영됩니다.</li>
+    <li>(6) 입력값이 잘못된 경우, 삭제 후 다시 입력할 수 있습니다.</li>
+  </ul>
+</div>
+<p>*참고. 이중화 구성 예제<br>
+2개의 웹방화벽으로 2개의 웹서버를 보호하는 경우 아래와 같이 설정해 줍니다. (서버 포트는 80을 가정합니다.)</p>
+<img src="/static/images/ai_serv_security_waf48.png" alt="웹방화벽 이용방법 - 4.0 Version 8" width="600"><br>
+<p>위와 같이 설정 시 로드밸런서는 다음과 같이 자동으로 설정됩니다.</p>
+<img src="/static/images/ai_serv_security_waf49.png" alt="웹방화벽 이용방법 - 4.0 Version 9" width="600"><br>
+<p>위와 같이 적용한 구성도는 아래와 같습니다.</p>
+<img src="/static/images/ai_serv_security_waf50.png" alt="웹방화벽 이용방법 - 4.0 Version 10" width="600"><br>
+<p>웹사이트 구성<br>
+웹사이트 구성은 웹방화벽과 웹서버의 서비스 구성이 완료된 상태에서 웹서버를 보호하기 위해 웹 서비스의 HTTP/HTTPS 메시지에서 사용되는 IP 또는 URL를 이용하여 설정 합니다.<br>
+즉, WAF에서 해당 웹서버로 연결되는 트래픽의 메시지 헤더 내용이 웹사이트 등록된 내용과 일치하여야 하여, 일치하지 않을 경우는 웹 서비스가 차단 됩니다.</p>
+<img src="/static/images/ai_serv_security_waf51.png" alt="웹방화벽 이용방법 - 4.0 Version 11" width="600"><br>
+<p>(1) 웹방화벽을 선택하고, 우측 상단의 Action 위치로 마우스 커서를 이동합니다.<br>
+(2) 웹사이트 구성을 클릭합니다.</p>
+<img src="/static/images/ai_serv_security_waf52.png" alt="웹방화벽 이용방법 - 4.0 Version 12" width="600"><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+  <ul>
+    <li>(1) 웹방화벽이 보호해야 하는 URI 또는 IP를 등록합니다.</li>
+    <li>
+      웹방화벽에서는 HTTP(S)의 메시지를 체크하여 외부 공격을 차단하기 때문에 
+      HTTP(S)의 메시지의 URI에 해당하는 부분을 웹사이트로 등록하여야 한다
+      <span style="color:#555;">(Client에서 입력되는 URL과 동일하게)</span>
+    </li>
+    <li>(2) 웹사이트 포트를 입력합니다.</li>
+    <li>(3) 사이트를 보호할 보안정책을 선택한 후, 추가를 클릭하면 아래에 입력 내용이 반영됩니다. 
+      확인을 클릭하여 구성을 완료합니다.
+    </li>
+    <li>보안정책은 웹방화벽 관리콘솔에서 세부 설정이 가능합니다.</li>
+    <li>보안 정책 수준에 의한 세부적인 탐지 룰에 대한 이음 방법 및 탐지로그를 확인하는 방법은 관리도구 매뉴얼을 참고하시기 바랍니다.</li>
+    <li>로드밸런서를 같이 이용하는 경우, 탐지로그에서 Client IP를 확인할 수 있도록 
+      웹서버와 LB에서 <code>X-Forwarded-For</code> 옵션 이용을 권장합니다.
+    </li>
+  </ul>
+</div>
+<p>*참고. 보안 정책</p>
+<img src="/static/images/ai_serv_security_waf53.png" alt="웹방화벽 이용방법 - 4.0 Version 13" width="600"><br>
+<p>보안 정책이 통과로 되어 있을 경우에는 악의적인 트래픽을 차단할 수 없으니,서비스 트래픽 분석 최적화된 정책 적용 및 탐지 차단 정책 이용을 권장합니다.</p>
+
+
+
+{% endblock %}

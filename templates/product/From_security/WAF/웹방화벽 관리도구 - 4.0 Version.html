@@ -1,0 +1,67 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>웹방화벽 관리도구 - 4.0 Version</title>{% endblock %}    
+{% block content %}
+
+<h1>웹방화벽 관리도구 - 4.0 Version</h1>
+<p>웹방화벽의 탐지 및 차단 정책 설정, 로그 확인, 환경 설정 등을 수행할 수 있는 관리도구를 제어 하는 방법을 설명합니다.<br>
+본 장에서는 관리도구에 대한 간략한 사용법을 안내하며, 세부적인 관리를 위한 상세 매뉴얼은 다음 링크를 클릭하여 확인하시기 바랍니다.</p>
+<a href="/static/images/ucloud_WAF4.0_Management.pdf" download>웹방화벽 관리콘솔 매뉴얼</a>
+
+<h2>관리도구 실행</h2>
+<hr>
+<p>웹방화벽 관리도구는 웹서비스 구성 및 보안 탐지 룰셋을 세부적으로 설정할 때 이용할 수 있으며, 익스플로러(IE) 웹브라우저를 이용하여 접속 가능합니다.(.net을 이용하고있어 다른 브라우저는 동작 하지 않습니다.).</p>
+<img src="/static/images/ai_serv_security_waf54.png" alt="웹방화벽 관리도구 - 4.0 Version 1" width="600"><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+    <li>(1) 관리도구를 실행할 웹방화벽을 선택하고, 우측 상단의 Action 위치에 마우스 커서를 이동합니다.</li>
+    <li>(2) 콘솔을 클릭합니다. 만약 Chrome을 사용 중이라면, 콘솔 클릭 후, 브라우저의 주소를 복사하여, 인터넷익스플로어 주소 창에 동일하게 입력해 줍니다.</li>
+</div> 
+<img src="/static/images/ai_serv_security_waf55.png" alt="웹방화벽 관리도구 - 4.0 Version 2" width="600"><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+    <li>상단의 화면에서 시작 버튼을 클릭하면, WAF Console GUI S/W가 설치 되는 등의 절차를 거처 Console 접속 초기 화면이 실행됩니다.</li>
+    <li>만일 관리자의 PC에 .Net 4.0버전이 설치 되어 있지 않은 경우, 이를 먼저 설치한 후에 관리도구 프로그램을 실행합니다.</li>
+</div> 
+<img src="/static/images/ai_serv_security_waf56.png" alt="웹방화벽 관리도구 - 4.0 Version 3 " width="600"><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+    <li>ID는 admin을 입력합니다.</li>
+    <li>비밀번호는 <penta>를 입력합니다. <로그인 후 사용자 정보 수정> 체크박스를 클릭하여 비밀번호를 변경하시기 바랍니다.</li>
+    <li>클라우드 콘솔에서 웹방화벽 신청 시, 입력했던 DB와 SSH 공인 포트를 입력한 후, 확인을 클릭하여 로그인 합니다.</li>
+</div> 
+<img src="/static/images/ai_serv_security_waf57.png" alt="웹방화벽 관리도구 - 4.0 Version 4 " width="600"><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+    <li>성공적으로 로그인 될 경우, 위와 같은 관리도구가 실행 됩니다.</li>
+    <li>초기 비밀번호 설정 이후 재 접속 시 비밀번호 3회 입력 오류 발생 시, 관리 도구가 종료되며, 10분간 로그인 계정이 잠기게 됩니다.</li>
+</div> 
+
+<h2>웹서버 연결 점검</h2>
+<hr>
+<p>관리도구 실행 후, 웹서버와의 연결이 정상적으로 설정되었는지 확인합니다.</p>
+<img src="/static/images/ai_serv_security_waf58.png" alt="웹방화벽 관리도구 - 4.0 Version 5 " width="600"><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+    <li>(1) 시스템 현황을 클릭합니다.</li>
+    <li>(2) WAF로 보호할 웹서버의 사설 IP와 서비스 포트가 정상적으로 등록되었는지 확인 합니다.</li>
+</div> 
+
+<h2>웹사이트 정책 점검</h2>
+<hr>
+<p>보호할 웹사이트가 정상적으로 등록되었는지 확인하고, 보호 수준에 대해 점검 및 수정합니다.</p>
+<img src="/static/images/ai_serv_security_waf59.png" alt="웹방화벽 관리도구 - 4.0 Version 6 " width="600"><br>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+  <ul>
+    <li>(1) 정책 설정을 클릭합니다.</li>
+    <li>(2) 클라우드 콘솔에서 설정한 웹사이트가 정상적으로 등록되었는지, 원하는 정책 수준이 맞는지 확인합니다.</li>
+    <li>
+      (3) 좌측에서 정책 리스트를 클릭하면, 해당 정책의 상세 내역을 확인할 수 있습니다.
+      각각의 공격 또는 정책에 대해 탐지 / 차단 / 에러메시지 발생 등 어떻게 대응할지 확인이 가능합니다.
+    </li>
+    <li>(4) 기존 Default 정책을 기준으로 신규 정책을 생성한 후, Customizing 할 수 있습니다.</li>
+    <li>
+      (5) 해당 화면에서 보호할 웹사이트를 추가할 수도 있으나 이 경우, 클라우드 콘솔과의 정보 불일치가 발생하여 기술지원이 제약될 수 있으니,
+      보호할 웹사이트의 등록은 클라우드 콘솔의 웹사이트 구성 기능을 활용하여 주시기 바랍니다.
+    </li>
+  </ul>
+</div>
+
+
+{% endblock %}

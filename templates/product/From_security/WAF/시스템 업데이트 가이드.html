@@ -1,0 +1,46 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>시스템 업데이트 가이드</title>{% endblock %}    
+{% block content %}
+
+<h1>시스템 업데이트 가이드</h1>
+<h2>시스템 업데이트 가이드</h2><br>
+<hr>
+<p>
+웹 방화벽의 안정적 운용을 위해 주기적인 업데이트 통해 최신 버전을 유지해 주어야 합니다.<br>
+WAF는 요청 시 수동 업데이트를 지원하고 있습니다.</p><br>
+
+<h3>1. 버전 정보 확인</h3>
+<p>1) SSH 접속</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+  <li>Enable 모드 → wapples → show version product</li>
+</div>
+<img src="/static/images/ai_serv_security_waf32.png" alt="시스템 업데이트 가이드 1" width="600"><br>
+<p>2) 관리도구 접속</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+  <li>환경설정 → 시스템 → 정보</li>
+</div>
+<img src="/static/images/ai_serv_security_waf33.png" alt="시스템 업데이트 가이드 2" width="600"><br>
+
+<h4>2. 설정 백업</h4>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+  <li>관리 도구 → 환경 설정 → 백업 → 백업/복원 실행 → 설정 DB 즉시 백업</li>
+</div>
+<img src="/static/images/ai_serv_security_waf34.png" alt="시스템 업데이트 가이드 3" width="600"><br>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+  <li>환경설정 → 백업 → 백업 목록</li>
+  <li>백업된 파일 클릭 후 다운로드 아이콘 클릭하여 저장</li>
+</div>
+<img src="/static/images/ai_serv_security_waf35.png" alt="시스템 업데이트 가이드 4" width="600"><br>
+
+<h5>3. 업데이트 요청 접수</h5>
+<p>Tech Center를 통한 패치 지원 요청을 접수 받고 있으며, 패치 일자는 제조사 협의 후 진행됩니다.</p>
+<img src="/static/images/ai_serv_security_waf36.png" alt="시스템 업데이트 가이드 5" width="600"><br>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+  <li>패치는 약 30분 소요되고, 패치 작업 간 재부팅이 발생하여 서비스 순단이 발생합니다.</li>
+  <li>LB-WAF-웹서버 구조에서 패치 작업 간 서비스 영향을 최소화하고자 할 경우 LB-웹서버로 트래픽 연동
+      &nbsp;&nbsp;&nbsp;&nbsp;구조를 변경한 후(또는 DNS에서 직접 웹서버를 바라보도록 설정) 업데이트하시기 바랍니다.</li>
+</div>
+
+{% endblock %}

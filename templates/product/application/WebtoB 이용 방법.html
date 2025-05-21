@@ -1,0 +1,42 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>WebtoB 이용 방법</title>{% endblock %}    
+{% block content %}
+
+<h1>WebtoB 이용 방법</h1>
+<h2>포트포워딩</h2>
+<hr>
+<p>
+WebtoB 상품 신청이 완료되면 사용을 위해 포트포워딩이 필요합니다. 아래 정보를 확인하시어 포트포워딩을 진행해주세요.<br>
+콘솔에 정상 접근이 되지 않는 경우 8081 포트로 추가적인 포트포워딩 진행이 필요할 수 있습니다.<br>
+WebtoB 포트포워딩<br>
+
+<img src="/static/images/ai_serv_webtodb6.png" alt="WebtoB 이용 방법 1" width="600"><br>
+
+<h2>시작 스크립트</h2>
+<hr>
+<p>
+위의 포트포워딩 작업이 완료되고 나면 JEUS 서비스를 기동하기 위해 스크립트를 실행합니다.<br>
+Tmax계정에서 실행 가능합니다.(su - tmax)<br>
+
+<img src="/static/images/ai_serv_webtodb7.png" alt="WebtoB 이용 방법 2" width="600"><br>
+
+<h2>정상 동작 확인</h2>
+<hr>
+<img src="/static/images/ai_serv_webtodb8.png" alt="WebtoB 이용 방법 3" width="600"><br>
+<p>
+ps -ef | egrep "wsm|hth|htl" 명령으로 세가지 프로세스가 정상적으로 기동되었는지 확인합니다.<br>
+<img src="/static/images/ai_serv_webtodb9.png" alt="WebtoB 이용 방법 4" width="600"><br>
+
+
+<h2>포트포워딩</h2>
+<hr>
+<p>
+WebtoB 상품 신청이 완료되면 사용을 위해 포트포워딩이 필요합니다. 아래 정보를 확인하시어 포트포워딩을 진행해주세요.<br>
+콘솔에 정상 접근이 되지 않는 경우 8081 포트로 추가적인 포트포워딩 진행이 필요할 수 있습니다.<br>
+WebtoB 포트포워딩<br>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+<li>위의 메시지를 확인하면 정상 기동이 완료된 것입니다.</li>
+</div>
+{% endblock %}

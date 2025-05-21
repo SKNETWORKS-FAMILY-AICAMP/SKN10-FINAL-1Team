@@ -1,0 +1,66 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>클린존 상품 개요</title>{% endblock %}    
+{% block content %}
+
+<h1>클린존 상품 개요</h1>
+<h2>클린존 주요 특징</h2>
+<hr>
+<p>클린존 서비스는 DDoS 공격 발생 시 유해 트래픽을 차단하고 정상 트래픽만을 서버로 전달하여 DDoS 공격 시에도 정상적으로 서비스를 운영할 수 있도록 제공하는 서비스입니다.<br>
+    kt cloud 인터넷 망에 구축된 DDoS 전용 탐지/방어 시스템을 통하여 최신 DDoS 공격 방어가 가능하며 국내 최고의 보안 전문가들이 24시간 365일 DDoS 보안관제를 수행하고 있습니다.</p>
+
+<h3>서비스 연속성 보장</h3>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>DDoS 공격 시 정상 트래픽만 고객 서버로 전달</li>
+    <li>국내 CSP(클라우드 제공 업체) 최고 수준의 방어 용량</li>
+</div>
+
+<h3>4/365 실시간 방어</h3>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>DDoS 보안 전문인력이 24시간 365일 실시간 대응 </li>
+    <li>국내 CSP(클라우드 제공 업체) 최고 수준의 방어 용량</li>
+    <li>행위 분석을 통해 신종 DDoS 보안 위협 대응</li>
+</div>
+
+<h3>비용절감</h3>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>고가의 구축형 DDoS 장비 도입 불필요</li>
+</div>
+
+<h3>운영 편의성</h3>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>쉽고 빠른 서비스 가입</li>
+    <li>고객사에서 별도의 설정 불필요</li>
+</div>
+
+<h2>클린존 예시</h2>
+<hr>
+<p>클린존 상품 가입 시, 고객님의 트래픽(bps, pps) 정보를 수집하여 탐지 시스템에서 24x365 보안관제를 진행하고 공격 트래픽 인입 시,<br>
+    클린존 방어 시스템으로 우회하여 공격 트래픽을 차단하고 정상 트래픽을 고객 서버로 전달 합니다.</p>
+<img src="/static/images/ai_serv_security_waf60.png" alt="클린존 상품 개요 5" width="600"><br><br>
+
+<h2>유의사항/제약사항</h2>
+<hr>
+<div style="background-color: #f0f8ff; padding: 16px; border-radius: 8px; line-height: 1.6;">
+  <ol>
+    <li>클린존 서비스의 기본 정책은 (1) 자동대응 (2) 보고서 미발송 (3) 대응훈련 미제공 입니다. 자세한 내용은 FAQ를 참조 바랍니다.</li>
+    <li>대용량 공격의 경우는 별도의 기준에 따라 자동으로 대응하며 기준 이하의 경우 DDoS 보안전문인력이 분석하여 대응 중 입니다.</li>
+    <li>공격 트래픽 탐지 전에는 트래픽 우회를 하지 않기 때문에 고객님의 트래픽에 영향을 주지 않습니다.</li>
+    <li>고객님께서 최초 가입 시 연락망과 Whitelist IP를 제공하고, 주기적으로 현행화 할 의무가 있습니다.</li>
+    <li>IP 변경 시, 클린존 운영팀으로 전달 해주셔야 탐지/방어 시스템에 적용됩니다.</li>
+    <li>자동대응은 당사의 탐지시스템에서 글로벌 정책에 따라 적용됩니다.</li>
+    <li>7L, 신규 유형의 공격 등은 패턴 업데이트가 늦게 되거나 탐지가 원활하지 않을 수 있습니다.</li>
+    <li>내부자 공격(내부 VM 간 통신 등)은 탐지되지 않을 수 있습니다.</li>
+    <li>사용 IP 의 변경 시 기존 축적된 Traffic Data가 삭제됩니다.</li>
+    <li>시스템 구조 상 탐지 및 대응까지 일정기간의 시간이 소요될 수 있습니다.</li>
+    <li>웹 공격 등 DDoS 공격과 무관한 DoS, 해킹, 바이러스의 경우 서비스 대상이 아닙니다.</li>
+    <li>클린존 후처리(수용) 시, 24시간 이내 후에 열림 합니다. 수용 후 해제를 원할 시 기술지원 문의 바랍니다.</li>
+    <li>클린존 후처리(수용)/원복 시 세션 끊김 현상이 발생할 수 있습니다.</li>
+    <li>최대 방어용량을 초과하거나 대응 이후에도 타 고객님의 서비스에 영향이 있을 경우 kt cloud 서비스 이용약관에 따라 Host가 차단될 수 있습니다.</li>
+  </ol>
+</div>
+
+
+
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>WebtoB 상품 개요</title>{% endblock %}    
+{% block content %}
+
+<h1>WebtoB 상품 개요</h1>
+<h2>목적/용도</h2>
+<hr>
+<p>
+WebtoB는 기존 웹서버가 가지고 있는 구조적인 문제를 혁신적으로 개선하여 성능 및 안정성에서 탁월한 기능을 제공하는 차세대 웹서버 제품입니다.<br>
+웹 상에서의 대규모 트랜잭션 처리에 적합하도록 설계되어 처리 속도 지연, 서버 다운 등 웹 시스템상의 문제들을 효과적으로 해결합니다.<br>
+웹서버로서의 기본 기능 외에 보안, 장애 대응, 대용량 처리 시 강력한 성능을 제공합니다.<br>
+</p><br>
+
+<h2>서비스 주요 기능</h2>
+<hr>
+<p>웹서버 기본기능</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>차세대 표준 프로토콜 HTTP 1.1 ,IPv6 지원</li>
+    <li>HTML, CGI, PHP, SSI, Servlet 지원</li>
+    <li>Alias기능으로 시스템 관리자에게 운영의 편의성 제공</li>
+    <li>가상 호스트(Virtual Host)기능 지원</li>
+</div>
+
+<h2>고성능</h2>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>멀티플렉싱 (Multiplexing I/O)을 통해 대용량 데이터를 빠르고 안정적 처리</li>
+    <li>메모리 캐싱 (Memory Caching)으로 자주 사용되는 웹서비스에 성능향상</li>
+    <li>사용자 요청에 대한 응답을 압축하여 출력함으로 네트워크 속도가 좋지 않을 경우 성능 향상</li>
+</div>
+
+<h2>고가용성</h2>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>애플리케이션의 장애 발생으로 시스템 다운 시 자동 재 기동</li>
+    <li>다양한 부하 분산 알고리즘 지원으로 클러스터링을 통해 장애 시 페일오버 기능 제공</li>
+    <li>런 타임시 노드나 서버 추가에 대한 동적 설정 기능 제공으로 중단 없는 서비스 지원</li>
+</div>
+
+<h2>기능/편의성</h2>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>WBAPI 제공</li>
+    <li>확장자 관리</li>
+    <li>Revers Proxy</li>
+    <li>보안기능</li>
+    <li>중앙 집중화된 시스템 관리</li>
+    <li>Reverse Proxy Group</li>
+    <li>WEBDAV 기능지원</li>
+</div>
+
+<h2>서비스 구성도</h2>
+
+<p>
+아키텍처 차별성으로 대용량 트랜잭션의 안정적 처리<br>
+WebtoB는 아파치 기반의 일반적인 웹 서버와는 달리 단일 프로세스를 통해 다수의 사용자 요청 분배 (Multiplexing)를 최적화 시킵니다.<br>
+이에 따라 대용량 트랜잭션 요청에 대해 일반적인 웹 서버 대비 자원 을 적게 소모하면서 빠르고 안정적으로 처리합니다.<br><br>
+WebtoB 5 신제품에서는 Multi-Thread 구조강화로 동시에 처리 가능한 최대 사용자 수가 증가되었습니다
+</p><br>
+</div>
+
+<img src="/static/images/ai_serv_webtodb1.png" alt="WebtoB 상품 개요 1" width="600"><br><br><br>
+
+
+{% endblock %}
