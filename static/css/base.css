@@ -61,11 +61,9 @@ body{
     background: linear-gradient(to right, #f0f4ff, #ffffff);
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
     color: #1e293b;
-    text-align: center;
     padding: 40px;
+    text-align: center;
 }
 
 .main-content h2 {
@@ -91,4 +89,79 @@ body{
 
 .instructions li {
     margin-bottom: 8px;
+}
+
+/* 
+max-width, max-height : 최대 가로, 세로
+padding : 안쪽 여백
+margin : 바깥쪽 여백
+border-radius : 둥근 모서리 정도
+background-color : 배경색 설정
+justify-content: center : 세로 중앙 정렬 
+align-items: center; : 가로 중앙 정렬 
+*/
+
+.chatbot-box {
+    width : auto;
+    max-width : 500px;
+    padding: 15px;
+    border-radius: 15px; 
+    height: auto;
+    background-color : rgb(224, 240, 252);
+    margin-top : 10px;
+    margin-right : auto;
+}
+
+.user-box {
+    width : auto;
+    max-width : 500px;
+    padding: 15px;
+    border-radius: 15px; 
+    height: auto;
+    background-color : rgb(239, 242, 245);
+    margin-top : 10px;
+    margin-left : auto;
+}
+
+.chat-area {
+    width: 100%;
+    height: 70%;
+    flex: 1;
+    background: linear-gradient(to right, #f0f4ff, #ffffff);
+    display: flex;
+    flex-direction: column;
+    color: #1e293b;
+    overflow-y: auto;
+}
+
+/*
+.input-box {
+    width: 1000px;
+    padding: 15px;
+    border-radius: 15px; 
+    height: auto;
+    background-color : rgb(246, 248, 249);
+    margin-top : 10px;
+    border-color: rgb(72, 13, 13);
+}
+*/
+.input-box {
+    width: 800px;
+    padding: 15px 20px;
+    border-radius: 25px; 
+    height: 50px;
+    background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
+    border: 2px solid #485563; /* 차분한 어두운 색 */
+    box-shadow: 0 4px 8px rgba(72, 85, 99, 0.2);
+    font-size: 18px;
+    color: #333;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    outline: none;
+    margin-top: 10px;
+}
+
+.input-box:focus {
+    border-color: #2979ff;
+    box-shadow: 0 0 8px rgba(41, 121, 255, 0.6);
+    background: #fff;
 }
