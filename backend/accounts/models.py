@@ -38,6 +38,15 @@ class UserManager(BaseUserManager):
         extra.setdefault("role", UserRole.ADMIN)
         extra.setdefault("is_staff", True)
         extra.setdefault("is_superuser", True)
+        
+        # Organization이 제공되지 않은 경우 기본 Organization 생성 또는 사용
+        if 'org' not in extra:
+            # 기본 조직이 있는지 확인
+            default_org, created = Organization.objects.get_or_create(
+                name="Default Organization"
+            )
+            extra["org"] = default_org
+            
         return self.create_user(email, password, **extra)
 
 
