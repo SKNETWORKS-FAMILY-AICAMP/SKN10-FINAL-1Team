@@ -3,5 +3,8 @@ python-dotenv
 requests
 bs4
 ipykernel
-pandas
-selenium
+langchain
+langchain_openai
+langchain_community
+transformers
+langchain_chroma

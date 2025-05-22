@@ -21,24 +21,27 @@
         <img src="https://cdn-icons-png.flaticon.com/512/25/25231.png" alt="GitHub Logo" width="40" />
         <p style="margin: 12px 0;">Connect your GitHub</p>
         <button onclick="location.href='{% url 'login' %}'">Connect GitHub Account</button>
+        <a href="{% url 'delete_message' %}" onclick="return confirm('대화를 정말 삭제하시겠습니까?');">
+        <button class="connect-button" type="button">채팅 초기화</button>
+        </a>
     </div>
 </div>
 
 <div class="main-content">
-    <h2>Welcome to GitHub History Chatbot!</h2>
-    <p>
-        Select a repository from the sidebar to start asking questions<br/>
-        about your code, or use the general chat to query across all<br/>
-        your synced projects.
-    </p>
-    <div class="instructions">
-        <strong>Getting Started:</strong>
-        <ol>
-        <li>Connect your GitHub account using the button in the sidebar.</li>
-        <li>Sync your repositories (manual or automatic).</li>
-        <li>Wait for the initial analysis to complete (status shown in sidebar).</li>
-        <li>Select a repository or start a general chat (default after login).</li>
-        </ol>
+    <h2>Product Chatbot</h2>
+    <div class="chat-area">
+        {% for msg in messages %}
+            {% if msg.is_human %}
+                <div class="user-box">{{msg.message}}</div>
+            {% else %}
+                <div class="chatbot-box">{{msg.message}}</div>
+            {% endif %}
+        {% endfor %}
     </div>
+    <form method="post">
+        {% csrf_token %}
+    <input type="text" class="input-box" name="input-box" placeholder="입력하세요" />
+    <button class="connect-button" type="submit">전송</button>
+    </form>
 </div>
 {% endblock %}
