@@ -1,9 +1,14 @@
-import requests
-import json
 import os
+import json
 from typing import List, Dict, Any, Tuple
+from pathlib import Path
+from dotenv import load_dotenv
 from openai import OpenAI
 from pinecone import Pinecone, ServerlessSpec
+
+# 환경 변수 로드
+env_path = Path(__file__).resolve().parent.parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 
 class HybridSearch:
@@ -12,15 +17,15 @@ class HybridSearch:
     
     Attributes:
         index_name (str): Pinecone 인덱스 이름
-        runpod_api_key (str): RunPod API 키
-        runpod_endpoint_id (str): RunPod 엔드포인트 ID
-        openai_api_key (str): OpenAI API 키
-        pinecone_api_key (str): Pinecone API 키
+        runpod_api_key (str): RunPod API 키 (환경 변수: RUNPOD_API_KEY)
+        runpod_endpoint_id (str): RunPod 엔드포인트 ID (환경 변수: RUNPOD_ENDPOINT_ID)
+        openai_api_key (str): OpenAI API 키 (환경 변수: OPENAI_API_KEY)
+        pinecone_api_key (str): Pinecone API 키 (환경 변수: PINECONE_API_KEY)
     """
     
     def __init__(
         self, 
-        index_name: str = "hybrid-search-index",
+        index_name: str = None,
         runpod_api_key: str = None,
         runpod_endpoint_id: str = None,
         openai_api_key: str = None,
@@ -32,34 +37,34 @@ class HybridSearch:
         하이브리드 검색 클래스 초기화
         
         Args:
-            index_name (str): Pinecone 인덱스 이름
-            runpod_api_key (str): RunPod API 키 (환경 변수에서 가져오지 못하면 필수)
-            runpod_endpoint_id (str): RunPod 엔드포인트 ID (환경 변수에서 가져오지 못하면 필수)
-            openai_api_key (str): OpenAI API 키 (환경 변수에서 가져오지 못하면 필수)
-            pinecone_api_key (str): Pinecone API 키 (환경 변수에서 가져오지 못하면 필수)
+            index_name (str, optional): Pinecone 인덱스 이름 (기본값: 환경 변수에서 PINECONE_INDEX 또는 'hybrid-search-index')
+            runpod_api_key (str, optional): RunPod API 키 (기본값: 환경 변수에서 RUNPOD_API_KEY)
+            runpod_endpoint_id (str, optional): RunPod 엔드포인트 ID (기본값: 환경 변수에서 RUNPOD_ENDPOINT_ID)
+            openai_api_key (str, optional): OpenAI API 키 (기본값: 환경 변수에서 OPENAI_API_KEY)
+            pinecone_api_key (str, optional): Pinecone API 키 (기본값: 환경 변수에서 PINECONE_API_KEY)
             cloud (str): 클라우드 제공업체 (aws, gcp, azure)
             region (str): 클라우드 리전
         """
-        # 설정 저장
-        self.index_name = index_name
-        self.cloud = cloud
-        self.region = region
+        # 환경 변수에서 기본값 로드
+        self.index_name = index_name or os.getenv("PINECONE_INDEX", "hybrid-search-index")
+        self.cloud = cloud or os.getenv("PINECONE_CLOUD", "aws")
+        self.region = region or os.getenv("PINECONE_REGION", "us-east-1")
         
-        # API 키 설정 (환경 변수 또는 직접 전달)
-        self.runpod_api_key = runpod_api_key or os.environ.get("RUNPOD_API_KEY")
-        self.runpod_endpoint_id = runpod_endpoint_id or os.environ.get("RUNPOD_ENDPOINT_ID")
-        self.openai_api_key = openai_api_key or os.environ.get("OPENAI_API_KEY")
-        self.pinecone_api_key = pinecone_api_key or os.environ.get("PINECONE_API_KEY")
+        # API 키 설정 (인수 우선, 없으면 환경 변수에서 로드)
+        self.runpod_api_key = runpod_api_key or os.getenv("RUNPOD_API_KEY")
+        self.runpod_endpoint_id = runpod_endpoint_id or os.getenv("RUNPOD_ENDPOINT_ID")
+        self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
+        self.pinecone_api_key = pinecone_api_key or os.getenv("PINECONE_API_KEY")
         
         # API 키 검증
         if not self.runpod_api_key:
-            raise ValueError("RunPod API 키가 필요합니다.")
+            raise ValueError("RunPod API 키가 필요합니다. 환경 변수 RUNPOD_API_KEY를 설정하거나 생성자에 직접 전달하세요.")
         if not self.runpod_endpoint_id:
-            raise ValueError("RunPod 엔드포인트 ID가 필요합니다.")
+            raise ValueError("RunPod 엔드포인트 ID가 필요합니다. 환경 변수 RUNPOD_ENDPOINT_ID를 설정하거나 생성자에 직접 전달하세요.")
         if not self.openai_api_key:
-            raise ValueError("OpenAI API 키가 필요합니다.")
+            raise ValueError("OpenAI API 키가 필요합니다. 환경 변수 OPENAI_API_KEY를 설정하거나 생성자에 직접 전달하세요.")
         if not self.pinecone_api_key:
-            raise ValueError("Pinecone API 키가 필요합니다.")
+            raise ValueError("Pinecone API 키가 필요합니다. 환경 변수 PINECONE_API_KEY를 설정하거나 생성자에 직접 전달하세요.")
         
         # RunPod API URL 및 헤더 설정
         self.runpod_url = f"https://api.runpod.ai/v2/{self.runpod_endpoint_id}/runsync"
@@ -68,11 +73,21 @@ class HybridSearch:
             "Content-Type": "application/json"
         }
         
-        # OpenAI 클라이언트 초기화
-        self.openai_client = OpenAI(api_key=self.openai_api_key)
-        
-        # Pinecone 클라이언트 초기화
-        self.pinecone_client = Pinecone(api_key=self.pinecone_api_key)
+        # 클라이언트 초기화
+        self._initialize_clients()
+    
+    def _initialize_clients(self):
+        """API 클라이언트 초기화"""
+        try:
+            # OpenAI 클라이언트 초기화
+            self.openai_client = OpenAI(api_key=self.openai_api_key)
+            
+            # Pinecone 클라이언트 초기화
+            self.pinecone_client = Pinecone(api_key=self.pinecone_api_key)
+            print("API 클라이언트 초기화 완료")
+        except Exception as e:
+            print(f"API 클라이언트 초기화 중 오류 발생: {e}")
+            raise
     
     def get_sparse_embeddings(self, texts: List[str], model: str = "dabitbol/bge-m3-sparse-elastic") -> List[Dict[str, List[float]]]:
         """
@@ -366,10 +381,10 @@ def example_usage():
     HybridSearch 클래스 사용 예시
     """
     # 설정 정보
-    runpod_api_key = os.environ.get("RUNPOD_API_KEY", "your_runpod_api_key")
-    runpod_endpoint_id = os.environ.get("RUNPOD_ENDPOINT_ID", "your_runpod_endpoint_id")
-    openai_api_key = os.environ.get("OPENAI_API_KEY", "your_openai_api_key")
-    pinecone_api_key = os.environ.get("PINECONE_API_KEY", "your_pinecone_api_key")
+    runpod_api_key = os.getenv("RUNPOD_API_KEY")
+    runpod_endpoint_id = os.getenv("RUNPOD_ENDPOINT_ID")
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    pinecone_api_key = os.getenv("PINECONE_API_KEY")
     
     # HybridSearch 인스턴스 생성
     search = HybridSearch(
