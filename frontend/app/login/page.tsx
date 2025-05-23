@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ArrowRightIcon } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { loginUser } from "@/lib/api/auth-service" // Import the auth service
 
 export default function LoginPage() {
   const router = useRouter()
@@ -15,7 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault()
     setError("")
 
@@ -26,25 +27,16 @@ export default function LoginPage() {
 
     setIsLoading(true)
 
-    // Simulate internal authentication process
-    setTimeout(() => {
-      // In a real app, this would validate against your internal auth system
-      if (email.includes("@") && password.length >= 4) {
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            id: "user123",
-            name: email.split("@")[0],
-            email: email,
-            avatar: "/placeholder.svg?height=40&width=40",
-          }),
-        )
-        router.push("/chat")
-      } else {
-        setError("Invalid credentials. Please try again.")
-        setIsLoading(false)
-      }
-    }, 1000)
+    // Use the auth service to login with Django backend
+    // This will connect to the User model in the Accounts section
+    const user = await loginUser({ email, password })
+
+    if (user) {
+      router.push("/chat")
+    } else {
+      setError("Invalid credentials. Please try again.")
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -88,7 +80,7 @@ export default function LoginPage() {
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <div className="text-sm text-center text-slate-500 dark:text-slate-400">
-            This is a demo application. Any email/password combination with valid format will work.
+            Sign in with your company credentials to access the platform.
           </div>
           <Button variant="link" className="w-full gap-1" onClick={() => router.push("/demo")}>
             Continue to demo without login

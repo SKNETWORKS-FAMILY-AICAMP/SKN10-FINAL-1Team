@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
+import { mockUser } from "@/lib/api/mock-data"
 
 export default function DemoPage() {
   const router = useRouter()
@@ -11,13 +12,13 @@ export default function DemoPage() {
     localStorage.setItem(
       "user",
       JSON.stringify({
-        id: "demo123",
-        name: "Demo User",
-        email: "demo@example.com",
-        avatar: "/placeholder.svg?height=40&width=40",
+        ...mockUser,
         isDemo: true,
       }),
     )
+
+    // Set a mock token
+    localStorage.setItem("token", "demo-token-123")
 
     // Redirect to chat interface
     router.push("/chat")
