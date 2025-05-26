@@ -7,3 +7,5 @@ langgraph-supervisor
 langgraph
 langchain_community
 langchain_openai
+langchain-core
+aiohttp
