@@ -1,0 +1,311 @@
+from __future__ import annotations
+
+import asyncio
+import os
+from typing import List, Dict, Any, Optional, Annotated
+
+from dotenv import load_dotenv
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI # Still needed if any direct use remains, or for type hinting if preferred
+from langchain.chat_models import init_chat_model
+from langgraph.prebuilt import create_react_agent # InjectedState will be used in tools.py
+from langgraph_supervisor import create_supervisor
+# Command will be used in tools.py
+# TypedDict, NotRequired will be used in state.py
+
+# .env 파일 로드 (프로젝트 루트에 있는 .env 파일을 기준으로 경로 설정)
+# 이 파일의 위치에 따라 경로 조정 필요 (my_langraph_agent/src/agent/.env 또는 my_langraph_agent/.env 등)
+dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env') # Assumes .env is in my_langraph_agent directory
+if not os.path.exists(dotenv_path):
+    dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', '.env') # Assumes .env is in SKN10-FINAL-1Team directory
+load_dotenv(dotenv_path=dotenv_path)
+
+# --- API Key Debug Print (Optional) ---
+OPENAI_API_KEY_ENV = os.environ.get('OPENAI_API_KEY')
+if OPENAI_API_KEY_ENV and len(OPENAI_API_KEY_ENV) > 10:
+    print(f"DEBUG graph.py: OPENAI_API_KEY seems set (length: {len(OPENAI_API_KEY_ENV)}, first 5 chars: {OPENAI_API_KEY_ENV[:5]}) ")
+else:
+    print("DEBUG graph.py: OPENAI_API_KEY is NOT SET or is very short.")
+# --- End API Key Debug Print ---
+
+# 1. 상태 및 도구 임포트
+from src.agent.state import MessagesState, WorkflowState # WorkflowState는 tools.py에서 사용되지만, graph.py에서도 직접 참조될 수 있으므로 유지
+from src.agent.tools import get_common_tools, data_analysis_tools, document_processing_tools, code_agent_tools, get_mcp_tools
+
+# 3. 에이전트 및 슈퍼바이저 직접 선언
+
+# 공통 LLM 설정
+MODEL_IDENTIFIER = "openai:gpt-4o-2024-08-06" # init_chat_model 형식
+LLM_TEMPERATURE = 0.7
+LLM_STREAMING = True
+
+# Analytics Agent Runnable
+analytics_agent_system_prompt_string = """당신은 데이터 분석 전문가입니다.
+데이터 시각화, 통계 분석, 예측 모델링과 같은 데이터 관련 작업을 수행합니다.
+복잡한 데이터셋을 처리하고 실행 가능한 인사이트를 도출할 수 있습니다.
+다른 전문가의 도움이 필요한 경우 적절하게 전환하세요.
+
+# 도구 사용 시나리오:
+1. analyze_data 도구 사용:
+   - 사용자가 "월별 판매 데이터의 통계적 특성이 궁금해요"라고 물으면 → analyze_data(data_description="월별 판매 데이터", analysis_type="descriptive") 호출
+   - 사용자가 "나이와 소득 간의 관계가 있을까요?"라고 물으면 → analyze_data(data_description="나이와 소득 데이터", analysis_type="correlation") 호출
+   - 사용자가 "어떤 요인이 주택 가격에 영향을 미치나요?"라고 물으면 → analyze_data(data_description="주택 가격 및 특성 데이터", analysis_type="regression") 호출
+
+2. create_visualization 도구 사용:
+   - 사용자가 "지역별 매출을 시각화해 주세요"라고 요청하면 → create_visualization(data_description="지역별 매출 데이터", visualization_type="bar") 호출
+   - 사용자가 "시간에 따른 주가 변동을 보여주세요"라고 요청하면 → create_visualization(data_description="주가 시계열 데이터", visualization_type="line") 호출
+   - 사용자가 "제품 카테고리별 판매 비중을 시각화해주세요"라고 요청하면 → create_visualization(data_description="제품 카테고리별 판매 데이터", visualization_type="pie") 호출
+
+3. predict_trend 도구 사용:
+   - 사용자가 "향후 3개월 동안의 매출을 예측해 주세요"라고 요청하면 → predict_trend(data_description="매출 데이터", time_horizon="3 months") 호출
+   - 사용자가 "내년에 사용자 수가 어떻게 변할까요?"라고 물으면 → predict_trend(data_description="사용자 수 데이터", time_horizon="1 year") 호출
+   - 사용자가 "5년 후 시장 점유율 예상은 어떻게 되나요?"라고 물으면 → predict_trend(data_description="시장 점유율 데이터", time_horizon="5 years") 호출
+
+사용자의 질문이나 요청에 적절한 도구를 사용하여 응답하세요. 적절한 도구가 없거나 다른 에이전트의 도움이 필요한 경우, 전환 도구를 사용하세요."""
+analytics_agent_tools = data_analysis_tools() + get_common_tools()
+analytics_agent_llm = init_chat_model(
+    MODEL_IDENTIFIER,
+    temperature=LLM_TEMPERATURE,
+    model_kwargs={"streaming": LLM_STREAMING}
+)
+analytics_agent_runnable = create_react_agent(
+    model=analytics_agent_llm,
+    tools=analytics_agent_tools,
+    prompt=analytics_agent_system_prompt_string,
+    name="analytics_agent"
+)
+print("Analytics Agent LLM 정의 완료 (using init_chat_model)")
+
+# RAG Agent LLM
+rag_agent_system_prompt_string = """당신은 문서 처리와 지식 검색 전문가입니다.
+문서 요약, 정보 추출, 질문 응답, 문서 변환과 같은 문서 관련 작업을 수행합니다.
+PDF, TXT, DOCX 등 다양한 형식의 문서를 처리할 수 있습니다.
+필요한 정보를 정확하고 빠르게 찾아 제공합니다.
+다른 전문가의 도움이 필요한 경우 적절하게 전환하세요.
+
+# 도구 사용 시나리오:
+1. summarize_document 도구 사용:
+   - 사용자가 "이 연구 보고서를 요약해 주세요"라고 요청하면 → summarize_document(document_content="[문서 내용]", max_length=500) 호출
+   - 사용자가 "이 계약서의 핵심 내용만 간략하게 알려주세요"라고 요청하면 → summarize_document(document_content="[계약서 내용]", max_length=300) 호출
+   - 사용자가 "너무 긴 이메일인데 짧게 요약해 줄래요?"라고 요청하면 → summarize_document(document_content="[이메일 내용]", max_length=200) 호출
+
+2. extract_information 도구 사용:
+   - 사용자가 "이 문서에서 모든 날짜를 추출해주세요"라고 요청하면 → extract_information(document_content="[문서 내용]", info_type="dates") 호출
+   - 사용자가 "이 논문에서 중요한 개체명을 찾아주세요"라고 요청하면 → extract_information(document_content="[논문 내용]", info_type="entities") 호출
+   - 사용자가 "이 보고서에서 핵심 요점만 뽑아주세요"라고 요청하면 → extract_information(document_content="[보고서 내용]", info_type="key_points") 호출
+
+3. answer_document_question 도구 사용:
+   - 사용자가 "이 논문에서 연구 방법론은 무엇인가요?"라고 물으면 → answer_document_question(document_content="[논문 내용]", question="연구 방법론은 무엇인가요?") 호출
+   - 사용자가 "이 계약서에 위약금 조항이 있나요?"라고 물으면 → answer_document_question(document_content="[계약서 내용]", question="위약금 조항이 있나요?") 호출
+   - 사용자가 "이 문서에 따르면 향후 사용자 수 예측은 어떻게 되나요?"라고 물으면 → answer_document_question(document_content="[문서 내용]", question="향후 사용자 수 예측은 어떻게 되나요?") 호출
+
+사용자의 문서 관련 요청에 적절한 도구를 사용하여 응답하세요. 적절한 도구가 없거나 다른 에이전트의 도움이 필요한 경우, 전환 도구를 사용하세요."""
+rag_agent_tools_list = document_processing_tools() + get_common_tools()
+rag_agent_llm = init_chat_model(
+    MODEL_IDENTIFIER,
+    temperature=LLM_TEMPERATURE,
+    model_kwargs={"streaming": LLM_STREAMING}
+)
+rag_agent_runnable = create_react_agent(
+    model=rag_agent_llm,
+    tools=rag_agent_tools_list,
+    prompt=rag_agent_system_prompt_string,
+    name="rag_agent"
+)
+print("RAG Agent LLM 정의 완료 (using init_chat_model)")
+
+# Code Agent LLM
+code_agent_system_prompt_string = """당신은 코드 분석 및 개발 전문가이자 일반적인 대화 상대입니다.
+코드 작성, 수정, 버그 수정, 코드 분석 등 프로그래밍 관련 작업을 전문적으로 수행합니다.
+또한, 일반적인 질문에 답하고 대화를 나눌 수 있습니다.
+여러 프로그래밍 언어와 프레임워크에 대한 지식을 갖추고 있습니다.
+다른 전문가의 도움이 필요한 경우 적절하게 전환하세요.
+
+# 도구 사용 시나리오:
+1. search_information 도구 사용:
+   - 사용자가 "파이썬에서 비동기 프로그래밍은 어떻게 하나요?"라고 물으면 → search_information(query="파이썬 비동기 프로그래밍 방법") 호출
+   - 사용자가 "React와 Vue의 차이점이 뭔가요?"라고 물으면 → search_information(query="React와 Vue 프레임워크 차이점") 호출
+   - 사용자가 "MCP란 무엇인가요?"라고 물으면 → search_information(query="MCP 의미와 활용") 호출
+   - 사용자가 "LangGraph에서 에이전트를 어떻게 만드나요?"라고 물으면 → search_information(query="LangGraph 에이전트 생성 방법") 호출
+
+2. get_recommendations 도구 사용:
+   - 사용자가 "데이터 분석에 좋은 파이썬 라이브러리를 추천해주세요"라고 요청하면 → get_recommendations(category="code_libraries", preferences="파이썬 데이터 분석") 호출
+   - 사용자가 "웹 개발을 배우고 싶은데 어떤 언어부터 시작하는 게 좋을까요?"라고 물으면 → get_recommendations(category="programming_languages", preferences="웹 개발 입문") 호출
+   - 사용자가 "AI 개발에 필요한 기술 스택을 추천해주세요"라고 요청하면 → get_recommendations(category="tech_stack", preferences="AI 개발") 호출
+
+3. track_conversation 도구 사용:
+   - 사용자의 중요한 선호도를 기록할 때 → track_conversation(current_agent_name="code_agent", note="사용자는 파이썬 기반 데이터 분석에 관심이 있음") 호출
+   - 진행 중인 작업을 추적할 때 → track_conversation(current_agent_name="code_agent", note="사용자는 웹 앱 개발 중으로 React 관련 정보 요청 중") 호출
+   - 다른 에이전트로 전환하기 전에 상태를 기록할 때 → track_conversation(current_agent_name="code_agent", note="코드 문제 해결 후 데이터 분석으로 전환 필요") 호출
+
+사용자의 코드 관련 질문이나 일반적인 질문에 적절한 도구를 사용하여 응답하세요. 코드 질문이 아닌 경우에도 general purpose 에이전트로서 일반적인 대화에 응답할 수 있습니다. 적절한 도구가 없거나 다른 에이전트의 도움이 필요한 경우, 전환 도구를 사용하세요."""
+code_agent_tools_list = code_agent_tools() + get_common_tools()
+code_agent_llm = init_chat_model(
+    MODEL_IDENTIFIER,
+    temperature=LLM_TEMPERATURE,
+    model_kwargs={"streaming": LLM_STREAMING}
+)
+
+# 모델에 get_recommendations 도구 강제 바인딩 (일시적으로 주석 처리하여 비활성화)
+# code_agent_llm_forced = code_agent_llm.bind_tools(
+#     tools=code_agent_tools_list,  # 전체 도구 목록 제공
+#     tool_choice={"type": "function", "function": {"name": "get_recommendations"}}
+# )
+print("Code Agent LLM 정의 완료 (using init_chat_model)")
+
+
+# 4. 슈퍼바이저 LLM 정의 (인스턴스화는 main에서)
+# Supervisor LLM Instance
+supervisor_llm_instance = init_chat_model(
+    MODEL_IDENTIFIER,
+    temperature=LLM_TEMPERATURE,
+    streaming=LLM_STREAMING,
+    # model_name="SupervisorLLM" # For clarity if using custom logging/tracing
+)
+print("Supervisor LLM 인스턴스 (모델 자체) 전역적 정의 완료.")
+
+# Agent runnables, agents_dict, and supervisor_graph will be defined in main()
+# 5. 메인 실행 로직
+async def main():
+    print("멀티 에이전트 시스템을 초기화합니다...")
+
+    # --- Determine base path for MCP server scripts ---
+    # Assumes mcp_servers directory is at 'my_langraph_agent/mcp_servers'
+    # and this graph.py is at 'my_langraph_agent/src/agent/graph.py'
+    project_base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    print(f"DEBUG graph.py: Project base path for MCP tools: {project_base_path}")
+
+    # --- Fetch MCP Tools ---
+    mcp_tools_list = await get_mcp_tools(project_base_path)
+    if mcp_tools_list:
+        print(f"DEBUG graph.py: Successfully loaded {len(mcp_tools_list)} MCP tools.")
+        # for t in mcp_tools_list:
+        #     print(f"  - MCP Tool: {t.name}")
+    else:
+        print("DEBUG graph.py: No MCP tools were loaded. Check server status and paths.")
+
+    # --- Define Tool Lists ---
+    common_tools_list = get_common_tools()
+    analytics_tools_list = data_analysis_tools() + common_tools_list
+    rag_tools_list = document_processing_tools() + common_tools_list
+    # Add MCP tools to the code_agent's tool list
+    code_agent_tools_list_updated = code_agent_tools() + common_tools_list + mcp_tools_list
+    
+    print(f"DEBUG graph.py: Analytics agent tools count: {len(analytics_tools_list)}")
+    print(f"DEBUG graph.py: RAG agent tools count: {len(rag_tools_list)}")
+    print(f"DEBUG graph.py: Code agent tools count (incl. MCP): {len(code_agent_tools_list_updated)}")
+
+    # --- Create Agent Runnables ---
+    analytics_agent_runnable_updated = create_react_agent(
+        model=analytics_agent_llm, # Uses globally defined LLM
+        tools=analytics_tools_list,
+        system_prompt=analytics_agent_system_prompt_string,
+        debug=True,
+        checkpointer=None,
+        name="analytics_agent"
+    )
+    print("Analytics Agent Runnable 정의 완료 (in main)")
+
+    rag_agent_runnable_updated = create_react_agent(
+        model=rag_agent_llm, # Uses globally defined LLM
+        tools=rag_tools_list,
+        system_prompt=rag_agent_system_prompt_string,
+        debug=True,
+        checkpointer=None,
+        name="rag_agent"
+    )
+    print("RAG Agent Runnable 정의 완료 (in main)")
+
+    code_agent_runnable_updated = create_react_agent(
+        model=code_agent_llm, # Uses globally defined LLM
+        tools=code_agent_tools_list_updated, # Uses updated list with MCP tools
+        system_prompt=code_agent_system_prompt_string,
+        debug=True,
+        checkpointer=None,
+        name="code_agent"
+    )
+    print("Code Agent Runnable 정의 완료 (in main, with MCP tools)")
+
+    # --- Create Agents Dictionary and Supervisor Graph ---
+    agents_dict_updated = {
+        "analytics_agent": analytics_agent_runnable_updated,
+        "rag_agent": rag_agent_runnable_updated,
+        "code_agent": code_agent_runnable_updated,
+    }
+
+    supervisor_system_prompt_text = (
+        "You are a supervisor of multiple AI agents. "
+        "You receive user requests and determine which agent is best suited to handle them. "
+        "The agents are:\n"
+        "- 'analytics_agent': Data analysis, visualization, statistics, prediction.\n"
+        "- 'rag_agent': Document summarization, information extraction, document-based Q&A.\n"
+        "- 'code_agent': Code writing, debugging, general questions, coding-related questions, advice, code snippets, programming concepts, and access to specialized tools like math calculations and weather information via MCP.\n" # Updated code_agent description for MCP tools
+        "Please respond in Korean, and the agents will respond in Korean as well. "
+        "If the request is unclear or requires additional information, you can ask the user a question. "
+        "When all tasks are complete or the user is satisfied, you can end the conversation by using 'FINISH'. "
+        "Agent switching should be done using the exact name of the agent (e.g. 'analytics_agent'). "
+        "If the request is a greeting, a simple question that doesn't require a specialized agent, "
+        "or if you can answer it directly, you can respond with 'FINISH'."
+    )
+
+    supervisor_graph_updated = create_supervisor(
+        agents=list(agents_dict_updated.values()),
+        model=supervisor_llm_instance, # Uses globally defined supervisor LLM
+        prompt=supervisor_system_prompt_text,
+    ).compile(checkpointer=None)
+    print("Supervisor 그래프가 컴파일되었습니다 (in main).")
+
+    # 대화 시작
+    while True:
+        user_input = input("사용자: ")
+        if user_input.lower() in ["exit", "quit"]:
+            print("대화를 종료합니다.")
+            break
+
+        # Supervisor는 메시지 목록을 입력으로 받습니다.
+        # WorkflowState를 직접 사용하기보다는, supervisor가 내부적으로 메시지를 관리하도록 함.
+        # `astream`은 일반적으로 최종 출력 스트림을 제공합니다.
+        # `astream_events`는 더 상세한 중간 단계 이벤트를 제공합니다.
+        # create_supervisor는 `astream_events`와 잘 작동합니다.
+        
+        # For `astream_events`, the input is a dictionary, often just `{"messages": [HumanMessage(content=user_input)]}`
+        # if not using a checkpointer with `thread_id`.
+        # If a checkpointer is used, a `configurable` dict with `thread_id` is needed.
+        
+        # Let's use astream_events for more detailed output, similar to common supervisor examples.
+        # The input to the supervisor graph is typically a dictionary with a "messages" key.
+        async for event in supervisor_graph_updated.astream_events(
+            {"messages": [HumanMessage(content=user_input)]},
+            version="v2", # Use v2 for the latest event structure
+            # config={"recursion_limit": 10} # Optional: set recursion limit
+        ):
+            kind = event["event"]
+            
+            if kind == "on_chat_model_stream":
+                content = event["data"]["chunk"].content
+                if content:
+                    print(content, end="", flush=True)
+            elif kind == "on_tool_start":
+                print(f"\n--- Executing Tool: {event['name']} ---")
+                print(f"    Args: {event['data'].get('input')}")
+            elif kind == "on_tool_end":
+                print(f"--- Tool End: {event['name']} ---")
+                # print(f"    Output: {event['data'].get('output')}") # Can be verbose
+                print(f"--- Tool Output (first 100 chars): {str(event['data'].get('output'))[:100]} ---")
+            elif kind == "on_chain_end" or kind == "on_chat_model_end" or kind == "on_llm_end":
+                # These can be noisy, print if useful for debugging
+                # print(f"Event: {kind}, Name: {event.get('name')}")
+                pass # Avoid too much noise
+            # else:
+                # print(f"Event: {kind}, Data: {event['data']}") # For debugging other events
+
+        print("\n---------------------")
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n사용자에 의해 중단됨.")

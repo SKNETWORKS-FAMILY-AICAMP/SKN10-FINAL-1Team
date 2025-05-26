@@ -6,6 +6,30 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { CodeIcon, FileTextIcon, BarChart3Icon, BotIcon, ChevronUpIcon } from "lucide-react"
 
+// Map Django AgentType enum values to display names and icons
+const agentTypeMap = {
+  code: {
+    icon: <CodeIcon className="h-4 w-4 text-blue-500" />,
+    name: "Code Analysis Agent",
+    description: "Code search, generation, and analysis",
+  },
+  rag: {
+    icon: <FileTextIcon className="h-4 w-4 text-purple-500" />,
+    name: "Document QA Agent",
+    description: "Internal document search and analysis",
+  },
+  analytics: {
+    icon: <BarChart3Icon className="h-4 w-4 text-green-500" />,
+    name: "Business Analysis Agent",
+    description: "Data visualization and business insights",
+  },
+  auto: {
+    icon: <BotIcon className="h-4 w-4 text-slate-500" />,
+    name: "Auto-detect Agent",
+    description: "Automatically route to the best agent",
+  },
+}
+
 export function AgentSelector({ selectedAgent, onAgentChange }) {
   return (
     <div className="border-t p-2 bg-slate-50 dark:bg-slate-900">
@@ -13,17 +37,8 @@ export function AgentSelector({ selectedAgent, onAgentChange }) {
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className="w-full justify-between">
             <div className="flex items-center gap-2">
-              {selectedAgent === "auto" && <BotIcon className="h-4 w-4 text-slate-500" />}
-              {selectedAgent === "code" && <CodeIcon className="h-4 w-4 text-blue-500" />}
-              {selectedAgent === "document" && <FileTextIcon className="h-4 w-4 text-purple-500" />}
-              {selectedAgent === "business" && <BarChart3Icon className="h-4 w-4 text-green-500" />}
-
-              <span>
-                {selectedAgent === "auto" && "Auto-detect Agent"}
-                {selectedAgent === "code" && "Code Analysis Agent"}
-                {selectedAgent === "document" && "Document QA Agent"}
-                {selectedAgent === "business" && "Business Analysis Agent"}
-              </span>
+              {agentTypeMap[selectedAgent].icon}
+              <span>{agentTypeMap[selectedAgent].name}</span>
             </div>
             <ChevronUpIcon className="h-4 w-4 opacity-50" />
           </Button>
@@ -35,10 +50,10 @@ export function AgentSelector({ selectedAgent, onAgentChange }) {
               <div className="flex items-center space-x-2 border rounded-md p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900">
                 <RadioGroupItem value="auto" id="auto" />
                 <Label htmlFor="auto" className="flex items-center gap-2 cursor-pointer">
-                  <BotIcon className="h-5 w-5 text-slate-500" />
+                  {agentTypeMap.auto.icon}
                   <div>
-                    <div>Auto-detect Agent</div>
-                    <div className="text-xs text-slate-500">Automatically route to the best agent</div>
+                    <div>{agentTypeMap.auto.name}</div>
+                    <div className="text-xs text-slate-500">{agentTypeMap.auto.description}</div>
                   </div>
                 </Label>
               </div>
@@ -46,32 +61,32 @@ export function AgentSelector({ selectedAgent, onAgentChange }) {
               <div className="flex items-center space-x-2 border rounded-md p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900">
                 <RadioGroupItem value="code" id="code" />
                 <Label htmlFor="code" className="flex items-center gap-2 cursor-pointer">
-                  <CodeIcon className="h-5 w-5 text-blue-500" />
+                  {agentTypeMap.code.icon}
                   <div>
-                    <div>Code Analysis Agent</div>
-                    <div className="text-xs text-slate-500">Code search, generation, and analysis</div>
+                    <div>{agentTypeMap.code.name}</div>
+                    <div className="text-xs text-slate-500">{agentTypeMap.code.description}</div>
                   </div>
                 </Label>
               </div>
 
               <div className="flex items-center space-x-2 border rounded-md p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900">
-                <RadioGroupItem value="document" id="document" />
-                <Label htmlFor="document" className="flex items-center gap-2 cursor-pointer">
-                  <FileTextIcon className="h-5 w-5 text-purple-500" />
+                <RadioGroupItem value="rag" id="rag" />
+                <Label htmlFor="rag" className="flex items-center gap-2 cursor-pointer">
+                  {agentTypeMap.rag.icon}
                   <div>
-                    <div>Document QA Agent</div>
-                    <div className="text-xs text-slate-500">Internal document search and analysis</div>
+                    <div>{agentTypeMap.rag.name}</div>
+                    <div className="text-xs text-slate-500">{agentTypeMap.rag.description}</div>
                   </div>
                 </Label>
               </div>
 
               <div className="flex items-center space-x-2 border rounded-md p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900">
-                <RadioGroupItem value="business" id="business" />
-                <Label htmlFor="business" className="flex items-center gap-2 cursor-pointer">
-                  <BarChart3Icon className="h-5 w-5 text-green-500" />
+                <RadioGroupItem value="analytics" id="analytics" />
+                <Label htmlFor="analytics" className="flex items-center gap-2 cursor-pointer">
+                  {agentTypeMap.analytics.icon}
                   <div>
-                    <div>Business Analysis Agent</div>
-                    <div className="text-xs text-slate-500">Data visualization and business insights</div>
+                    <div>{agentTypeMap.analytics.name}</div>
+                    <div className="text-xs text-slate-500">{agentTypeMap.analytics.description}</div>
                   </div>
                 </Label>
               </div>
