@@ -1,0 +1,37 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>MS-SQL 최초 설정 가이드</title>{% endblock %}    
+{% block content %}
+
+<h1>MS-SQL 최초 설정 가이드</h1>
+<h2>MS-SQL 최초 접속 설정 가이드</h2>
+<hr></hr>
+
+<div style="border-left: 4px solid #ccc; padding-left: 16px; font-style: italic;">
+    G1,G2 플랫폼의 경우 Server생성 시 MS-SQL이 자동 설치 됩니다.<br>
+    아래 가이드는 D 플랫폼에 대한 최초설정 가이드 입니다.
+</div><br>
+
+<div style="background-color: #f0f7ff; padding: 20px; border-radius: 8px;">
+    1. 매뉴얼 <a href="https://manual.cloud.kt.com/kt/compute-server-howto-d1">‘Computing’ > ‘Server’ > ‘Server D1 이용 방법’</a> 을 참고하여  Windows+MS-SQL 이미지로 Server 를 생성합니다.<br><br>
+    2. Server 에 접속 하기 위한 Networking 작업을 완료합니다.<br><br>
+    3. ‘원격 데스크톱 연결’을 실행하여 해당 Server 로 원격 접속 합니다.<br><br>
+    <img src="/static/images/mssql2.png" alt="MS-SQL 최초 설정 가이드 1" width="600"><br><br>
+    4. 포탈에서 확인한 Server 의 비밀번호를 사용하여 Admin 유저로 로그인 합니다.<br><br>
+    <img src="/static/images/mssql3.png" alt="MS-SQL 최초 설정 가이드 2" width="600"><br><br>
+    5. Server 접속 후 아래와 같은 팝업이 뜰 때까지 대기하여 주십시오.<br>
+        팝업이 뜨면 “예”를 눌러 MS-SQL 설치 작업을 시작합니다.<br>
+        ("아니요"를 누를 시 MS-SQL 설치가 진행되지 않습니다.)<br><br>
+    <img src="/static/images/mssql4.png" alt="MS-SQL 최초 설정 가이드 3" width="600"><br><br>
+    6. Server 접속할 때 사용했던 Admin 계정의 비밀번호를 정확하게 두 번 입력하여 주십시오.<br>
+        (비밀번호를 잘못 입력하시면 MS-SQL 설치가 진행되지 않습니다.)<br><br>
+    <img src="/static/images/mssql5.png" alt="MS-SQL 최초 설정 가이드 4" width="600"><br><br>
+    7. 비밀번호를 올바르게 입력 하셨다면 자동으로 MS-SQL 이 설치 됩니다. 설치가 완료되기까지 대기하여 주십시오.<br>
+        CMD 창이 종료된다면 설치가 완료된 것입니다.<br><br>
+    8. Microsoft SQL Server Management Studio 앱을 실행합니다.<br><br>
+    <img src="/static/images/mssql6.png" alt="MS-SQL 최초 설정 가이드 5" width="600"><br><br>
+    9. ‘서버 이름’은 자동으로 입력 됩니다.<br>
+        “연결” 버튼을 눌러 로그인 후 사용하실 수 있습니다.<br><br>
+    <img src="/static/images/mssql7.png" alt="MS-SQL 최초 설정 가이드 6" width="600"><br><br>
+</div><br>
