@@ -150,9 +150,7 @@ align-items: center; : 가로 중앙 정렬
     padding: 15px 20px;
     border-radius: 25px; 
     height: 50px;
-    background: linear-gradient(135deg, #f0f4f8, #d9e2ec);
-    border: 2px solid #485563; /* 차분한 어두운 색 */
-    box-shadow: 0 4px 8px rgba(72, 85, 99, 0.2);
+    border: 2px solid #dde4eb;
     font-size: 18px;
     color: #333;
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
