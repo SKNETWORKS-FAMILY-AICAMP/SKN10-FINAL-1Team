@@ -1,0 +1,63 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>DBaaS for MySQL 8 FAQ</title>{% endblock %}    
+{% block content %}
+
+<h1>FAQ</h1>
+<h2>FAQ</h2>
+<hr>
+
+<p>DBaaS for MySQL 8은 어떤 데이터베이스를 제공하나요 ?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>DBaaS for MySQL 8 서비스는 최신 MySQL 데이터베이스 엔진(MySQL 8.0.33) 기반의 관리형 DB 서비스를 제공합니다.</li>
+</div><br>
+
+<p>DBaaS for MySQL 8을 외부에서도 사용이 가능한가요?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>외부 접근 가능 (Access 설정)에 대한 옵션이 제공 되며, 해당 기능을 통해 외부에서도 접근 가능 합니다.</li>
+</div><br>
+
+<p>DBaaS for MySQL 8 서비스는 어느 위치(존)에서 사용이 가능한가요?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>현재, kt cloud의 DX-M1, DX-Central 존과  kt gcloud의 DX-G, DX-G-YS 존에서 사용 가능합니다.</li>
+</div><br>
+
+<p>DBaaS for MySQL 8에서 제공하는 DB 구성 방식(구조)은 어떤 종류가 있나요?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <ul>
+    <li>Standalone과 Cluster 구조가 있습니다.</li>
+    <li>Standalone은 단일 DB Server 로 구성되며, 단일 장애 지점이 될 수 있기에 테스트 용도의 사용을 권고합니다.</li>
+    <li>Cluster 구조는 3대 이상의 홀수대의 구성으로 MySQL 8 InnoDB Cluster를 UI로 손쉽게 구성할 수 있는 편의를 제공합니다.
+        부하 분산/자동 장애 대응(Auto FailOver) 기능이 지원됩니다. </li>
+    <ul>
+        <li>Single Primary 옵션은 Secondary(Read Only)노드들을 통한 Read 부하 분산에 적합합니다.</li>
+        <li>Multi Primary 옵션은 Cluster 내의 모든 노드가 Read/Write 요청을 처리할 수 있습니다. 단, Multi Primary 선택 시 Application에서 Write 충돌 상황에 대한 고려(Retry 요청 등)가 필요합니다.</li>
+    </ul>
+    </ul>
+</div><br>
+
+<p>DBaaS for MySQL 8에서 설정한 Alarm에 대한 메시지는 어떻게 받아 볼 수 있나요?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>kt cloud Messaging 서비스와의 연동을 통해서, Alarm 메시지를 발송하고 있습니다.</li>
+    <li>Alarm 메뉴에서 DB Instance 별로  Messaging 서비스의 토픽 정보를 관리 할 수 있습니다.</li>
+    <li>Messaging 서비스에서 해당 토픽에 대한 구독 설정(연락처 등록)을 통해서 Alarm 메시지를 받아 볼 수 있습니다.</li>
+    <li>kt cloud Messaging 서비스 매뉴얼 주소 : <a href="https://manual.cloud.kt.com/g/management-messaging-howto">https://manual.cloud.kt.com/g/management-messaging-howto</a></li>
+</div><br>
+
+<p>DBaaS for MySQL 8 이용 시, 테이블에 Primary Key 지정이 필수인가요?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <ul>
+        <li>DBaaS for MySQL 8 에서는 설정 파라미터 sql_require_primary_key  의 값이 ‘ON’ 으로 고정 설정되어 제공됩니다.</li>
+        <li>sql_require_primary_key 의 값을 ‘ON’ 으로 설정하는 경우, 테이블의 생성 및 변경 시 Primary Key 유무가 체크되며, 필수적으로 Primary Key 가 정의되어야 합니다.</li>
+        <li>sql_require_primary_key = ON 을 기본 설정으로 제공하는 사유 입니다.</li><br>
+        <ul>
+            <li>Cluster 구조의 경우 InnoDB Cluster 의 Group Replication 기반의 구조로 Group Replication 의 제약 사항 중, Primary Key 가 정의되지 않은 Table 에 대한 DML 사용을 허용하지 않습니다.</li>
+            <li>StandAlone 구조에서 Cluster 구조로의 구조 변경 기능 이용 시, 해당 제약 사항으로 인해 구조 변경이 정상적으로 수행되지 않을 수 있습니다.</li>
+        </ul><br>
+        <li>즉, Primary Key 가 정의된 테이블만 생성하여 사용하실 수 있으며, Primary Key 지정 시, 각 행을 고유하게 식별할 수 있고, 데이터베이스의 성능과 데이터 무결성을 유지할 수 있는 이점이 있습니다.</li>
+        <li>해당 파라미터와 값은 Default Parameter Group 을 통해 관리되고 있으며, 고객 측에서 값을 변경하여 사용하실 수 없습니다.</li>
+    </ul>
+</div><br>
+
+{% endblock %}

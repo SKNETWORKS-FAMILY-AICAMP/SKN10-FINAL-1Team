@@ -1,0 +1,36 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>MS-SQL 상품 개요</title>{% endblock %}    
+{% block content %}
+
+<h1>MS-SQL 상품 개요</h1>
+<h2>목적/용도</h2>
+<hr>
+<p>
+    Microsoft사의 MS-SQL DB를 월 비용으로 사용하실 수 있습니다.
+    MS-SQL은 kt cloud Server Image(머신이미지) 형태로 제공되어지며, 이에 사용되는 VM은 Server 상품으로 이용 가능합니다.
+</p>
+
+<h3>kt cloud 의 MS-SQL Server 상품에서 제공하는 기능</h3>
+<div style="background-color: #f0f7ff; padding: 20px; border-radius: 8px;">
+    1. 데이터베이스 엔진 서비스<br>
+    2. SQL Server 복제<br>
+    3. 검색을 위한 전체 텍스 및 의미 체계 추출<br>
+    4. SQL Server 관리 도구 (SSMS)
+</div>
+
+<p>추가로, kt cloud 에서 제공하는 MS-SQL은 서버 생성 후 자동 설치 되므로 MS-SQL 관리자 계정 패스워드는 VM의 패스워드로 설정 됩니다.</p><br>
+
+<h2>구조/원리</h2>
+<hr>
+<img src="/static/images/mssql1.png" alt="MS-SQL 상품 개요 1" width="600"><br><br>
+
+<h2>유의사항/제약사항</h2>
+<hr><br>
+<div style="background-color: #f0f7ff; padding: 20px; border-radius: 8px;">
+    <li>MS-SQL Server 2008/2008 R2, MS-SQL Server 2012 상품들은 EOS(End Of Service) 되었으므로 더 이상 지원하지 않습니다.
+        상품 신청에 참고하시기 바랍니다. MS-SQL 기술지원 종료에 대한 자세한 내용을 보려면 여기를 클릭해 주세요.</li>
+    <li><strong>MSSQL 서버는 VM 이미지를 생성할 수 없습니다.</strong></li>
+</div>
+{% endblock %}

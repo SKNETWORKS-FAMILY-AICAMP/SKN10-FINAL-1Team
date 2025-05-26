@@ -10,54 +10,84 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Switch } from "@/components/ui/switch"
 import { GithubIcon, ArrowLeftIcon, CheckIcon } from "lucide-react"
 import Link from "next/link"
+import { getCurrentUser, updateUserProfile, type User } from "@/lib/api/auth-service"
+import { addRepository } from "@/lib/api/code-service"
 
 export default function ProfilePage() {
   const router = useRouter()
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState<User | null>(null)
   const [isGithubConnected, setIsGithubConnected] = useState(false)
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [isSaved, setIsSaved] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [repoUrl, setRepoUrl] = useState("")
 
   useEffect(() => {
     // Check if user is logged in
-    const userData = localStorage.getItem("user")
-    if (!userData) {
-      router.push("/login")
-      return
+    const checkUser = async () => {
+      const currentUser = await getCurrentUser()
+      if (!currentUser) {
+        router.push("/login")
+        return
+      }
+
+      setUser(currentUser)
+      setName(currentUser.name || "")
+      setEmail(currentUser.email || "")
     }
 
-    const parsedUser = JSON.parse(userData)
-    setUser(parsedUser)
-    setName(parsedUser.name || "")
-    setEmail(parsedUser.email || "")
+    checkUser()
   }, [router])
 
-  const handleSaveProfile = () => {
-    // Update user in localStorage
-    if (user) {
-      const updatedUser = {
-        ...user,
-        name,
-        email,
-      }
-      localStorage.setItem("user", JSON.stringify(updatedUser))
-      setUser(updatedUser)
+  const handleSaveProfile = async () => {
+    if (!user) return
 
+    setIsLoading(true)
+
+    // Update user profile using the auth service
+    // This connects to the User model in the Accounts section
+    const updatedUser = await updateUserProfile({ name, email })
+
+    if (updatedUser) {
+      setUser(updatedUser)
       // Show saved indicator
       setIsSaved(true)
       setTimeout(() => setIsSaved(false), 2000)
     }
+
+    setIsLoading(false)
   }
 
   const connectGithub = () => {
-    // Simulate GitHub connection
+    // In a real implementation, this would redirect to GitHub OAuth
+    // For demo purposes, we'll just set the state
     setIsGithubConnected(true)
   }
 
   const disconnectGithub = () => {
-    // Simulate GitHub disconnection
+    // In a real implementation, this would revoke GitHub access
+    // For demo purposes, we'll just set the state
     setIsGithubConnected(false)
+  }
+
+  const handleAddRepository = async () => {
+    if (!repoUrl) return
+
+    setIsLoading(true)
+
+    // Add repository using the code service
+    // This connects to the GitRepository model in the Knowledge section
+    const repo = await addRepository(repoUrl)
+
+    if (repo) {
+      setRepoUrl("")
+      // Show success message
+      setIsSaved(true)
+      setTimeout(() => setIsSaved(false), 2000)
+    }
+
+    setIsLoading(false)
   }
 
   if (!user) {
@@ -105,11 +135,14 @@ export default function ProfilePage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled />
+                  <p className="text-xs text-slate-500">
+                    Email cannot be changed. Contact your administrator for assistance.
+                  </p>
                 </div>
               </CardContent>
               <CardFooter>
-                <Button onClick={handleSaveProfile} className="gap-2">
+                <Button onClick={handleSaveProfile} className="gap-2" disabled={isLoading}>
                   {isSaved && <CheckIcon className="h-4 w-4" />}
                   {isSaved ? "Saved" : "Save Changes"}
                 </Button>
@@ -147,6 +180,26 @@ export default function ProfilePage() {
                       </div>
                     </div>
                     <Button onClick={connectGithub}>Connect</Button>
+                  </div>
+                )}
+
+                {isGithubConnected && (
+                  <div className="mt-4">
+                    <Label htmlFor="repo-url">Add Repository</Label>
+                    <div className="flex gap-2 mt-2">
+                      <Input
+                        id="repo-url"
+                        placeholder="https://github.com/username/repo"
+                        value={repoUrl}
+                        onChange={(e) => setRepoUrl(e.target.value)}
+                      />
+                      <Button onClick={handleAddRepository} disabled={isLoading || !repoUrl}>
+                        Add
+                      </Button>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      This will index the repository for code search and analysis
+                    </p>
                   </div>
                 )}
 
