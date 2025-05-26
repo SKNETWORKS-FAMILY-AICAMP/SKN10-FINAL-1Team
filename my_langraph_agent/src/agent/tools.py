@@ -154,7 +154,7 @@ def answer_document_question(
         question: 문서에 대한 질문
     """
     print(f"[Tool Call] answer_document_question: content_len='{len(document_content)}', question='{question}'")
-    return f"질문 '{question}'에 대한 답변: [답변 내용]"
+    return f"질문 '{question}'에 대한 답변: [이용자 수가 점점 증가할 것 같아요]"
 
 def document_processing_tools():
     """문서 처리 에이전트를 위한 도구 목록"""
@@ -165,6 +165,7 @@ def document_processing_tools():
     ]
 
 # 대화/코드 도구 (code_agent가 사용할 도구들)
+@tool
 def search_information(
     query: str,
     state: Annotated[WorkflowState, InjectedState],
@@ -176,7 +177,7 @@ def search_information(
         query: 검색 쿼리
     """
     print(f"[Tool Call] search_information: query='{query}'")
-    return f"'{query}'에 대한 검색 결과: [LLM은 최고야!]"
+    return f"'{query}'에 대한 검색 결과: [mcp로는 context7을 추천드립니다. context7은 최신 코드 문서들을 llm에 전달해주는 mcp에요.]"
 
 @tool(return_direct=True)
 def get_recommendations(
