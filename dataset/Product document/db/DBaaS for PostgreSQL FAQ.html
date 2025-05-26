@@ -1,0 +1,44 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>DBaaS for PostgreSQL FAQ</title>{% endblock %}    
+{% block content %}
+
+<h1>FAQ</h1>
+<h2>FAQ</h2>
+<hr>
+<p>DBaaS for PostgreSQL은 어떤 데이터베이스를 제공하나요?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>DBaaS for PostgreSQL은 PostgreSQL 데이터베이스 기반의 관리형 DB 서비스를 제공합니다.</li>
+</div><br>
+
+<p>DBaaS for PostgreSQL을 외부에서도 사용이 가능한가요?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>외부 접근 가능 (Access 설정)에 대한 옵션이 제공 되며, 해당 기능을 통해 외부에서도 접근 가능 합니다.</li>
+</div><br>
+
+<p>DBaaS for PostgreSQL은 어느 위치(존)에서 사용이 가능한가요?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>현재, kt cloud의 DX-M1, DX-Central 존과  kt gcloud의 DX-G, DX-G-YS 존에서 사용 가능합니다.</li>
+</div><br>
+
+<p>DBaaS for PostgreSQL에서 제공하는 DB 구성 방식(구조)은 어떤 종류가 있나요?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>Standalone, Master/Replica 구조가 있습니다.</li>
+    <li>Standalone은 단일 DB Server 로 구성되며, 단일 장애 지점이 될 수 있기에 테스트 용도의 사용을 권고합니다.</li>
+    <li>Master/Replica는 모니터링 VM1 대를 추가 포함하여 DB 2대 이상 + 모니터링 1대 으로 구성하는 고가용성 구조입니다.</li>
+    <li>Master는 1대만 제공하며, Replica는 1대 이상 추가 구성 할 수 있습니다. </li>
+    <li>Replica 추가만으로 별도 설정 없이 Read 부하 분산이 가능합니다.</li>
+    <li>자동 장애 대응(Auto Fail Over / Fail Back) 기능이 지원됩니다.  </li>
+</div><br>
+
+<p>DBaaS for PostgreSQL에서 설정한 Alarm에 대한 메시지는 어떻게 받아 볼 수 있나요?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>kt cloud Messaging 서비스와의 연동을 통해서, Alarm 메시지를 발송하고 있습니다.</li>
+    <li>Alarm 메뉴에서 DB Instance 별로  Messaging 서비스의 토픽 정보를 관리 할 수 있습니다.</li>
+    <li>Messaging 서비스에서 해당 토픽에 대한 구독 설정(연락처 등록)을 통해서 Alarm 메시지를 받아 볼 수 있습니다.</li>
+    <li>kt cloud Messaging 서비스 매뉴얼 주소 : <a href="https://manual.cloud.kt.com/g/management-messaging-howto">https://manual.cloud.kt.com/g/management-messaging-howto</a></li>
+</div><br>
+
+
+{% endblock %}

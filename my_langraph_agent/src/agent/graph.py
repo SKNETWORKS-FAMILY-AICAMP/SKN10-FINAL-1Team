@@ -33,7 +33,7 @@ else:
 
 # 1. 상태 및 도구 임포트
 from src.agent.state import MessagesState, WorkflowState # WorkflowState는 tools.py에서 사용되지만, graph.py에서도 직접 참조될 수 있으므로 유지
-from src.agent.tools import get_common_tools, data_analysis_tools, document_processing_tools, code_agent_tools
+from src.agent.tools import get_common_tools, data_analysis_tools, document_processing_tools, code_agent_tools, get_mcp_tools
 
 # 3. 에이전트 및 슈퍼바이저 직접 선언
 
@@ -77,9 +77,9 @@ analytics_agent_runnable = create_react_agent(
     prompt=analytics_agent_system_prompt_string,
     name="analytics_agent"
 )
-print("Analytics Agent Runnable 정의 완료 (using init_chat_model)")
+print("Analytics Agent LLM 정의 완료 (using init_chat_model)")
 
-# RAG Agent Runnable
+# RAG Agent LLM
 rag_agent_system_prompt_string = """당신은 문서 처리와 지식 검색 전문가입니다.
 문서 요약, 정보 추출, 질문 응답, 문서 변환과 같은 문서 관련 작업을 수행합니다.
 PDF, TXT, DOCX 등 다양한 형식의 문서를 처리할 수 있습니다.
@@ -115,9 +115,9 @@ rag_agent_runnable = create_react_agent(
     prompt=rag_agent_system_prompt_string,
     name="rag_agent"
 )
-print("RAG Agent Runnable 정의 완료 (using init_chat_model)")
+print("RAG Agent LLM 정의 완료 (using init_chat_model)")
 
-# Code Agent Runnable
+# Code Agent LLM
 code_agent_system_prompt_string = """당신은 코드 분석 및 개발 전문가이자 일반적인 대화 상대입니다.
 코드 작성, 수정, 버그 수정, 코드 분석 등 프로그래밍 관련 작업을 전문적으로 수행합니다.
 또한, 일반적인 질문에 답하고 대화를 나눌 수 있습니다.
@@ -154,56 +154,109 @@ code_agent_llm = init_chat_model(
 #     tools=code_agent_tools_list,  # 전체 도구 목록 제공
 #     tool_choice={"type": "function", "function": {"name": "get_recommendations"}}
 # )
+print("Code Agent LLM 정의 완료 (using init_chat_model)")
 
-code_agent_runnable = create_react_agent(
-    model=code_agent_llm,  # 원본 LLM 사용 (강제 바인딩 없음)
-    tools=code_agent_tools_list,
-    prompt=code_agent_system_prompt_string,
-    name="code_agent"
-)
-print("Code Agent Runnable 정의 완료 (using init_chat_model, get_recommendations 강제 호출 설정됨)")
 
-# Supervisor
-# Supervisor LLM (can be same or different from agent LLMs)
+# 4. 슈퍼바이저 LLM 정의 (인스턴스화는 main에서)
+# Supervisor LLM Instance
 supervisor_llm_instance = init_chat_model(
     MODEL_IDENTIFIER,
     temperature=LLM_TEMPERATURE,
-    model_kwargs={"streaming": LLM_STREAMING}
+    streaming=LLM_STREAMING,
+    # model_name="SupervisorLLM" # For clarity if using custom logging/tracing
 )
-print("Supervisor LLM 인스턴스 생성 완료 (using init_chat_model)")
+print("Supervisor LLM 인스턴스 (모델 자체) 전역적 정의 완료.")
 
-agents_dict = {
-    "analytics_agent": analytics_agent_runnable,
-    "rag_agent": rag_agent_runnable,
-    "code_agent": code_agent_runnable,
-}
-
-supervisor_system_prompt_text = (
-    "You are a supervisor of multiple AI agents. "
-    "You receive user requests and determine which agent is best suited to handle them. "
-    "The agents are:\n"
-    "- 'analytics_agent': Data analysis, visualization, statistics, prediction.\n"
-    "- 'rag_agent': Document summarization, information extraction, document-based Q&A.\n"
-    "- 'code_agent': Code writing, debugging, general questions, coding-related questions, advice, code snippets, programming concepts, etc.\n"
-    "Please respond in Korean, and the agents will respond in Korean as well. "
-    "If the request is unclear or requires additional information, you can ask the user a question. "
-    "When all tasks are complete or the user is satisfied, you can end the conversation by using 'FINISH'. "
-    "Agent switching should be done using the exact name of the agent (e.g. 'analytics_agent'). "
-    "If the request is a greeting, a simple question that doesn't require a specialized agent, "
-    "or if you can answer it directly, you can respond with 'FINISH'."
-)
-
-supervisor_graph = create_supervisor(
-    agents=list(agents_dict.values()), # Pass the agent runnables
-    model=supervisor_llm_instance,
-    prompt=supervisor_system_prompt_text,
-).compile(checkpointer=None)
-print("Supervisor 그래프가 전역적으로 컴파일되었습니다.")
+# Agent runnables, agents_dict, and supervisor_graph will be defined in main()
 # 5. 메인 실행 로직
 async def main():
     print("멀티 에이전트 시스템을 초기화합니다...")
-    # 전역적으로 선언된 supervisor_graph를 사용합니다.
-    # (이전 create_main_supervisor_graph 호출 및 관련 print문은 제거됨)
+
+    # --- Determine base path for MCP server scripts ---
+    # Assumes mcp_servers directory is at 'my_langraph_agent/mcp_servers'
+    # and this graph.py is at 'my_langraph_agent/src/agent/graph.py'
+    project_base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    print(f"DEBUG graph.py: Project base path for MCP tools: {project_base_path}")
+
+    # --- Fetch MCP Tools ---
+    mcp_tools_list = await get_mcp_tools(project_base_path)
+    if mcp_tools_list:
+        print(f"DEBUG graph.py: Successfully loaded {len(mcp_tools_list)} MCP tools.")
+        # for t in mcp_tools_list:
+        #     print(f"  - MCP Tool: {t.name}")
+    else:
+        print("DEBUG graph.py: No MCP tools were loaded. Check server status and paths.")
+
+    # --- Define Tool Lists ---
+    common_tools_list = get_common_tools()
+    analytics_tools_list = data_analysis_tools() + common_tools_list
+    rag_tools_list = document_processing_tools() + common_tools_list
+    # Add MCP tools to the code_agent's tool list
+    code_agent_tools_list_updated = code_agent_tools() + common_tools_list + mcp_tools_list
+    
+    print(f"DEBUG graph.py: Analytics agent tools count: {len(analytics_tools_list)}")
+    print(f"DEBUG graph.py: RAG agent tools count: {len(rag_tools_list)}")
+    print(f"DEBUG graph.py: Code agent tools count (incl. MCP): {len(code_agent_tools_list_updated)}")
+
+    # --- Create Agent Runnables ---
+    analytics_agent_runnable_updated = create_react_agent(
+        model=analytics_agent_llm, # Uses globally defined LLM
+        tools=analytics_tools_list,
+        system_prompt=analytics_agent_system_prompt_string,
+        debug=True,
+        checkpointer=None,
+        name="analytics_agent"
+    )
+    print("Analytics Agent Runnable 정의 완료 (in main)")
+
+    rag_agent_runnable_updated = create_react_agent(
+        model=rag_agent_llm, # Uses globally defined LLM
+        tools=rag_tools_list,
+        system_prompt=rag_agent_system_prompt_string,
+        debug=True,
+        checkpointer=None,
+        name="rag_agent"
+    )
+    print("RAG Agent Runnable 정의 완료 (in main)")
+
+    code_agent_runnable_updated = create_react_agent(
+        model=code_agent_llm, # Uses globally defined LLM
+        tools=code_agent_tools_list_updated, # Uses updated list with MCP tools
+        system_prompt=code_agent_system_prompt_string,
+        debug=True,
+        checkpointer=None,
+        name="code_agent"
+    )
+    print("Code Agent Runnable 정의 완료 (in main, with MCP tools)")
+
+    # --- Create Agents Dictionary and Supervisor Graph ---
+    agents_dict_updated = {
+        "analytics_agent": analytics_agent_runnable_updated,
+        "rag_agent": rag_agent_runnable_updated,
+        "code_agent": code_agent_runnable_updated,
+    }
+
+    supervisor_system_prompt_text = (
+        "You are a supervisor of multiple AI agents. "
+        "You receive user requests and determine which agent is best suited to handle them. "
+        "The agents are:\n"
+        "- 'analytics_agent': Data analysis, visualization, statistics, prediction.\n"
+        "- 'rag_agent': Document summarization, information extraction, document-based Q&A.\n"
+        "- 'code_agent': Code writing, debugging, general questions, coding-related questions, advice, code snippets, programming concepts, and access to specialized tools like math calculations and weather information via MCP.\n" # Updated code_agent description for MCP tools
+        "Please respond in Korean, and the agents will respond in Korean as well. "
+        "If the request is unclear or requires additional information, you can ask the user a question. "
+        "When all tasks are complete or the user is satisfied, you can end the conversation by using 'FINISH'. "
+        "Agent switching should be done using the exact name of the agent (e.g. 'analytics_agent'). "
+        "If the request is a greeting, a simple question that doesn't require a specialized agent, "
+        "or if you can answer it directly, you can respond with 'FINISH'."
+    )
+
+    supervisor_graph_updated = create_supervisor(
+        agents=list(agents_dict_updated.values()),
+        model=supervisor_llm_instance, # Uses globally defined supervisor LLM
+        prompt=supervisor_system_prompt_text,
+    ).compile(checkpointer=None)
+    print("Supervisor 그래프가 컴파일되었습니다 (in main).")
 
     # 대화 시작
     while True:
@@ -224,7 +277,7 @@ async def main():
         
         # Let's use astream_events for more detailed output, similar to common supervisor examples.
         # The input to the supervisor graph is typically a dictionary with a "messages" key.
-        async for event in supervisor_graph.astream_events(
+        async for event in supervisor_graph_updated.astream_events(
             {"messages": [HumanMessage(content=user_input)]},
             version="v2", # Use v2 for the latest event structure
             # config={"recursion_limit": 10} # Optional: set recursion limit
