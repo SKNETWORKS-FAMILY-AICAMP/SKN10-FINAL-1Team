@@ -9,3 +9,6 @@ langchain_community
 langchain_openai
 langchain-core
 aiohttp
+PyPDF2
+ipykernel
+pdfplumber
