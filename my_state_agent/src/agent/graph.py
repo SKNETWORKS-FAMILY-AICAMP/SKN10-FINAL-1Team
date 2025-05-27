@@ -69,7 +69,7 @@ analytics_agent_llm = init_chat_model(
     temperature=LLM_TEMPERATURE,
     model_kwargs={"streaming": LLM_STREAMING}
 )
-analytics_agent_tools_list = data_analysis_tools() + get_common_tools()
+analytics_agent_tools_list = data_analysis_tools() 
 analytics_agent_system_prompt_string = """당신은 데이터 분석 전문가입니다.
 데이터 시각화, 통계 분석, 예측 모델링과 같은 데이터 관련 작업을 수행합니다.
 복잡한 데이터셋을 처리하고 실행 가능한 인사이트를 도출할 수 있습니다.
@@ -93,7 +93,7 @@ rag_agent_llm = init_chat_model(
     temperature=LLM_TEMPERATURE,
     model_kwargs={"streaming": LLM_STREAMING}
 )
-rag_agent_tools_list = document_processing_tools() + get_common_tools()
+rag_agent_tools_list = document_processing_tools()
 rag_agent_system_prompt_string = """당신은 문서 처리와 지식 검색 전문가입니다.
 문서 요약, 정보 추출, 질문 응답, 문서 변환과 같은 문서 관련 작업을 수행합니다.
 PDF, TXT, DOCX 등 다양한 형식의 문서를 처리할 수 있습니다.
@@ -115,7 +115,7 @@ code_agent_llm = init_chat_model(
     temperature=LLM_TEMPERATURE,
     model_kwargs={"streaming": LLM_STREAMING}
 )
-code_agent_tools_list = code_agent_tools() + get_common_tools()
+code_agent_tools_list = code_agent_tools()
 code_agent_system_prompt_string = """당신은 코딩 전문가이자 숙련된 개발자입니다.
 코드 작성, 디버깅, 일반적인 프로그래밍 질문에 대한 답변, 기술적 조언 제공 등 다양한 개발 관련 작업을 수행합니다.
 여러 프로그래밍 언어와 프레임워크에 대한 지식을 갖추고 있습니다.
@@ -146,10 +146,12 @@ supervisor_system_prompt_text = (
     "- 'code_agent': Code writing, debugging, general questions, coding-related questions, advice, code snippets, programming concepts, etc.\n"
     "Please respond in Korean, and the agents will respond in Korean as well. "
     "If the request is unclear or requires additional information, you can ask the user a question. "
-    "When all tasks are complete or the user is satisfied, you can end the conversation by using 'FINISH'. "
+    "When you decide to finish the conversation (using 'FINISH'), you MUST first provide a complete summary of all information the agents have provided, "
+    "including all outputs, code examples, and analysis results. DO NOT just say 'task completed' or refer to examples without showing them. "
+    "Your final response should contain ALL the information the user needs, exactly as provided by the agents. "
     "Agent switching should be done using the exact name of the agent (e.g. 'analytics_agent'). "
     "If the request is a greeting, a simple question that doesn't require a specialized agent, "
-    "or if you can answer it directly, you can respond with 'FINISH'."
+    "you can answer it directly and respond with 'FINISH'."
 )
 
 # Initialize the agent runnables
@@ -187,10 +189,35 @@ class SupervisorState(TypedDict):
 # 2. Define Nodes
 async def supervisor_router_node(state: SupervisorState, config: RunnableConfig):
     print("--- SUPERVISOR ROUTER ---")
+    
+    # Extract user messages and agent messages separately
+    user_messages = [msg for msg in state["messages"] if isinstance(msg, HumanMessage)]
+    agent_messages = [msg for msg in state["messages"] if isinstance(msg, AIMessage) and msg.content and not msg.content.lower().startswith("supervisor:")]
+    
+    # Prepare the complete prompt with system instructions, user input, and agent responses
     prompt_messages = [SystemMessage(content=supervisor_system_prompt_text)] + list(state["messages"])
     
+    # For finishing, add an extra instruction to include agent outputs
+    if len(agent_messages) > 0:
+        agent_outputs_summary = "\n\n지금까지 에이전트들이 제공한 정보:\n"
+        for i, msg in enumerate(agent_messages):
+            agent_type = "알 수 없는 에이전트"
+            if "analytics_agent" in str(msg.tags) if hasattr(msg, 'tags') else "":
+                agent_type = "분석 에이전트"
+            elif "rag_agent" in str(msg.tags) if hasattr(msg, 'tags') else "":
+                agent_type = "문서 에이전트"
+            elif "code_agent" in str(msg.tags) if hasattr(msg, 'tags') else "":
+                agent_type = "코드 에이전트"
+            
+            agent_outputs_summary += f"\n--- {agent_type} 응답 {i+1} ---\n{msg.content}\n"
+        
+        # Add agent outputs as a system message to ensure it's included in the summary
+        prompt_messages.append(SystemMessage(content=f"{agent_outputs_summary}\n\n위의 모든 에이전트 정보를 바탕으로 최종 응답을 생성하세요. 'FINISH'로 대화를 마칠 경우, 반드시 위 정보를 모두 포함한 완전한 요약을 제공하세요."))
+    
+    # Get response from the supervisor LLM
     response_ai_message = await supervisor_llm_instance.ainvoke(prompt_messages, config=config)
     
+    # Determine next node based on response
     next_agent_name = "FINISH" # Default to FINISH
     response_content = response_ai_message.content.lower() # Case-insensitive matching
 
@@ -203,6 +230,12 @@ async def supervisor_router_node(state: SupervisorState, config: RunnableConfig)
         next_agent_name = "code_agent"
     elif "finish" in response_content: # Explicitly check for FINISH
         next_agent_name = "FINISH"
+        
+        # For FINISH, ensure the response includes agent information by prepending "Supervisor Summary:" 
+        # and make sure it hasn't been truncated by checking length
+        if len(response_ai_message.content) < 100 and len(agent_messages) > 0:
+            # If response is too short and we have agent messages, force a more comprehensive summary
+            response_ai_message = AIMessage(content=f"슈퍼바이저 요약:\n\n{response_ai_message.content}\n\n---에이전트 제공 정보 요약---\n{agent_outputs_summary}")
     
     print(f"Supervisor decision: {next_agent_name}, Full response: {response_ai_message.content[:200]}...")
     return {
@@ -225,10 +258,6 @@ async def agent_node_wrapper(state: SupervisorState, agent_runnable, agent_name:
     
     return {"messages": new_messages}
 
-# Create partial functions for each agent node
-analytics_node = functools.partial(agent_node_wrapper, agent_runnable=analytics_agent_runnable, agent_name="analytics_agent")
-rag_node = functools.partial(agent_node_wrapper, agent_runnable=rag_agent_runnable, agent_name="rag_agent")
-code_node = functools.partial(agent_node_wrapper, agent_runnable=code_agent_runnable, agent_name="code_agent")
 
 # 3. Define Conditional Edges Logic
 def determine_next_node(state: SupervisorState):
@@ -239,9 +268,9 @@ def determine_next_node(state: SupervisorState):
 workflow = StateGraph(SupervisorState)
 
 workflow.add_node("supervisor_router", supervisor_router_node)
-workflow.add_node("analytics_agent", analytics_node)
-workflow.add_node("rag_agent", rag_node)
-workflow.add_node("code_agent", code_node)
+workflow.add_node("analytics_agent", analytics_agent_runnable)
+workflow.add_node("rag_agent", rag_agent_runnable)
+workflow.add_node("code_agent", code_agent_runnable)
 
 workflow.set_entry_point("supervisor_router")
 
