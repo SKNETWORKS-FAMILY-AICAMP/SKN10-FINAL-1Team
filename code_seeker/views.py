@@ -12,6 +12,7 @@ from langchain.chains import RetrievalQA
 def index(request) :
     if request.method == 'POST' :
         # 유저 메시지 저장
+        
         user_msg = request.POST.get('input-box').strip()
         user_chat = ChatMessage(is_human=True, message=user_msg)
         user_chat.save()
