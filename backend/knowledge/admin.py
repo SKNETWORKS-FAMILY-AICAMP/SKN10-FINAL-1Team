@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Document, GitRepository, CodeFile, EmbedChunk
+from .models import Document, GitRepository, CodeFile, EmbedChunk, NewsArticle, TelcoSubscriberStats, TelecomCustomers
 
 
 @admin.register(Document)
@@ -41,3 +41,24 @@ class EmbedChunkAdmin(admin.ModelAdmin):
     def hash_short(self, obj):
         return f"{obj.hash[:10]}..." if obj.hash else ""
     hash_short.short_description = 'Hash'
+
+@admin.register(NewsArticle)
+class NewsArticleAdmin(admin.ModelAdmin) :
+    list_display = ('id', 'corp', 'outlier_month', 'title')
+    list_filter = ('corp', 'outlier_month')
+    search_fields = ('title',)
+    readonly_fields = ('id',)
+
+@admin.register(TelcoSubscriberStats)
+class TelcoSubscriberStatsAdmin(admin.ModelAdmin) :
+    list_display = ('id', 'year_month', 'skt_subscribers', 'kt_subscribers', 'lguplus_subscribers', 'mvno_subscribers')
+    list_filter = ('year_month',)
+    search_fields = ('year_month',)
+    readonly_fields = ('id',)
+
+@admin.register(TelecomCustomers)
+class TelecomCustomersAdmin(admin.ModelAdmin) :
+    list_display = ('id', 'customer_id', 'gender', 'partner', 'dependents' ,'churn')
+    list_filter = ('dependents','churn', 'gender')
+    search_fields = ('id','customer_id')
+    readonly_fields = ('id', 'customer_id')
