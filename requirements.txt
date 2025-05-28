@@ -10,4 +10,4 @@ langchain_openai
 langchain-core
 aiohttp
 langchain-mcp-adapters
-
+pgvector
