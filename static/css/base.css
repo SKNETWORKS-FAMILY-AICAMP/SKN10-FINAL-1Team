@@ -22,14 +22,34 @@ body{
 
 .sidebar-header {
     font-weight: bold;
+    height : 15%;
     font-size: 20px;
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: start;
+    margin-bottom : 30px;
 }
 
-.connect-button {
-    background-color: #2563eb;
+.session-list {
+    font-weight: bold;
+    font-size: 20px;
+    height : 70%;
+    display: flex;
+    justify-content: center;     /* 가로 중앙 정렬 */
+    align-items: center;         /* 세로 중앙 정렬 */
+}
+
+.session-no-message {
+  font-weight: bold;
+  font-size: 20px;
+  color: #ffffff;
+  padding: 12px 20px;
+  text-align: center;
+  display: inline-block;
+}
+
+.session-button {
+    background-color: #304065;
     color: white;
     padding: 6px 12px;
     border-radius: 8px;
@@ -42,7 +62,19 @@ body{
 .github-connect {
     text-align: center;
     margin-top: auto;
-    margin-bottom: 40px;
+    height : 15%;
+    
+}
+
+.connect-button {
+    background-color: #2563eb;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
 }
 
 .github-connect button {

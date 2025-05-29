@@ -3,7 +3,6 @@
 {% block css %}<link rel="stylesheet" href="{% static 'css/base.css' %}"> {% endblock %}
 {% block title %}<title>Trace Hub</title>{% endblock %}    
 {% block content %}
-<
 <div class="sidebar">
     <div class="sidebar-header">
         <span>Trace Hub</span>
@@ -22,10 +21,12 @@
     <div class="session-list">
         {% if sessions %}
             {% for session in sessions %}
-                {{session.title}}
+                <a class="session-button" href="?session_id={{ session.id }}">
+                    {{ session.title }}
+                </a>
             {% endfor %}
         {% else %}
-            <button class="connect-button">존재하는 세션이 없습니다!</button>
+            <div class="session-no-message">존재하는 세션이 없습니다!</div>
         {% endif %}
     </div>
     <div class="github-connect">
