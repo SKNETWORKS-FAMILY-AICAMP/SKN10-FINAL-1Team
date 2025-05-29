@@ -4,7 +4,7 @@ import uuid
 from django.db import models
 from django.db.models import Q, CheckConstraint
 from accounts.models import Organization, User
-
+from pgvector.django import VectorField
 
 class DocType(models.TextChoices):
     POLICY = "policy", "Policy"
@@ -89,3 +89,67 @@ class EmbedChunk(models.Model):
 
     def __str__(self):
         return self.hash
+    
+class NewsArticle(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    corp = models.CharField(max_length=50, null=False)
+    outlier_month = models.DateField(null=False)
+    title = models.TextField(null=False)
+    publisher = models.CharField(max_length=255)
+    published_at = models.DateTimeField(auto_now_add=True)
+    content_url = models.TextField(null=False)
+    content_embedding = VectorField(dimensions=3072, default=[0.0]*3072)
+
+    class Meta:
+        db_table = "news_articles"
+    def __str__(self) :
+        return self.title
+    
+class TelcoSubscriberStats(models.Model) :
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    year_month = models.CharField(max_length=7, null=False)
+    skt_subscribers = models.BigIntegerField()
+    kt_subscribers = models.BigIntegerField()
+    lguplus_subscribers = models.BigIntegerField()
+    mvno_subscribers = models.BigIntegerField()
+    skt_delta = models.BigIntegerField()
+    kt_delta = models.BigIntegerField()
+    lguplus_delta = models.BigIntegerField()
+    mvno_delta = models.BigIntegerField()
+    skt_delta_pct = models.DecimalField(max_digits=6, decimal_places=2)
+    kt_delta_pct = models.DecimalField(max_digits=6, decimal_places=2)
+    lguplus_delta_pct = models.DecimalField(max_digits=6, decimal_places=2)
+    mvno_delta_pct = models.DecimalField(max_digits=6, decimal_places=2)
+    
+    class Meta:
+        db_table = "telco_subscriber_stats"
+
+
+class TelecomCustomers(models.Model) :
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    customer_id = models.CharField(max_length=20, null=False)
+    gender = models.CharField(max_length=6)
+    senior_citizen = models.BooleanField()
+    partner = models.BooleanField()
+    dependents = models.BooleanField()
+    tenure = models.IntegerField()
+    phone_service = models.BooleanField()
+    multiple_lines = models.CharField(max_length=20)
+    internet_serivce = models.CharField(max_length=20)
+    online_security = models.CharField(max_length=20)
+    online_backup = models.CharField(max_length=20)
+    device_protection = models.CharField(max_length=20)
+    tech_support = models.CharField(max_length=20)
+    streaming_tv = models.CharField(max_length=20)
+    streaming_movies = models.CharField(max_length=20)
+    contract = models.CharField(max_length=20)
+    paperless_billing = models.BooleanField()
+    payment_method = models.CharField(max_length=30)
+    monthly_charges = models.DecimalField(max_digits=10, decimal_places=2)
+    total_charges = models.DecimalField(max_digits=14, decimal_places=2)
+    churn = models.BooleanField()
+
+    class Meta:
+        db_table = "telecom_customers"
+
+
