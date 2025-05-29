@@ -21,17 +21,26 @@
     <div class="session-list">
         {% if sessions %}
             {% for session in sessions %}
-                <a class="session-button" href="?session_id={{ session.id }}">
-                    {{ session.title }}
-                </a>
+                {% if session.id == current_session.id %}
+                    <a class="current-session" href="?session_id={{ session.id }}">
+                        {{ session.title }}
+                    </a>
+                {% else %}
+                    <a class="session-button" href="?session_id={{ session.id }}">
+                        {{ session.title }}
+                    </a>
+                {% endif %}
             {% endfor %}
         {% else %}
             <div class="session-no-message">존재하는 세션이 없습니다!</div>
         {% endif %}
     </div>
     <div class="github-connect">
-        <a href="{% url 'delete_message' %}" onclick="return confirm('대화를 정말 삭제하시겠습니까?');">
-        <button class="connect-button" type="button">채팅 초기화</button>
+        <a href="{% url 'delete_message' %}" onclick="return confirm('모든 대화를 정말 삭제하시겠습니까?');">
+        <button class="connect-button" type="button">모든 채팅 초기화</button>
+        </a>
+        <a href="{% url 'add_session' %}" onclick="return confirm('새 채팅을 추가하시겠습니까?');">
+        <button class="connect-button" type="button">새 채팅</button>
         </a>
     </div>
 </div>
@@ -40,13 +49,15 @@
     <h2>Product Searcher</h2>
     <div class="chat-area">
         {% for msg in messages %}
-            {% if msg.is_human %}
-                <div class="user-box">{{msg.message}}</div>
+            {% if msg.role == "human" %}
+                <div class="user-box">{{msg.content}}</div>
             {% else %}
-                <div class="chatbot-box">{{msg.message}}</div>
+                <div class="chatbot-box">{{msg.content}}</div>
             {% endif %}
         {% endfor %}
     </div>
+    <!-- 여기서 중요점! post방식을 쓸때 action을 정의하지 않으면 현재 보고 있는 페이지 URL
+        즉 파라미터 ?session_id......까지도 전달이 된다!-->
     <form method="post">
         {% csrf_token %}
     <input type="text" class="input-box" name="input-box" placeholder="입력하세요" />

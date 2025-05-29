@@ -8,3 +8,4 @@ langchain_openai
 langchain_community
 transformers
 langchain_chroma
+chromadb

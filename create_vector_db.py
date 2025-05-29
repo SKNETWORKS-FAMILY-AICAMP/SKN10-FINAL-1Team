@@ -6,7 +6,7 @@ from langchain.schema import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
 from chromadb import Client
-
+from dotenv import load_dotenv
 """
 1. Loader로 파일 로드(html은 BeautifulSoup로 전처리하므로 필요 x)
 2. 전처리 후 Document() 객체 생성 (page_content, metadata)
@@ -51,7 +51,7 @@ def create_chroma_db(documents) :
     # 해당 Document 리스트를 기준으로 Chroma Db에 저장
     # 주의점 : 같은 문서를 두 번 저장하면, 덮어쓰기가 아니라 추가가 된다!
     db = Chroma.from_documents(
-        documents, OpenAIEmbeddings(), persist_directory="./chroma_db", collection_name="my_db"
+        documents, OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY")), persist_directory="./chroma_db", collection_name="my_db"
     )
     # 모든 문서 ID를 가져와 Chunk의 개수 확인(원본 문서 개수 x, chunk의 갯수 O)
     docs = db.get()
@@ -60,6 +60,7 @@ def create_chroma_db(documents) :
     print(docs)
 
 def main() :
+    load_dotenv()
     ai_computing_document = load_all_document("templates/product/ai_computing")
     db_document = load_all_document("templates/product/db")
     network = load_all_document("templates/product/network")

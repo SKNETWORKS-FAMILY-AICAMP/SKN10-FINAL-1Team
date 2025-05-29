@@ -7,7 +7,8 @@ from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.vectorstores import Chroma
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
-
+from .utils import summarize_message;
+from dotenv import load_dotenv
 """
 1. get 방식으로 파라미터 입력받음
 2. 파라미터가 있다면 해당 세션 선택, 없다면 세션들중에 가장 최근의 세션 선택
@@ -20,6 +21,7 @@ from langchain.chains import RetrievalQA
 
 # Create your views here.
 def index(request) :
+    load_dotenv()  # .env 로드
     session_id = request.GET.get('session_id') # GET 파라미터가 없다면, request.GET.get()은 기본적으로 None을 반환
     if session_id is None : 
         if ChatSession.objects.exists() : # 남은 세션이 1개라도 있다면 가장 최근의 세션을 선택
@@ -27,19 +29,27 @@ def index(request) :
         else : # 남은 세션이 없을때, 새 세션을 생성하여 선택
             new_session = ChatSession.objects.create()
             session_id = new_session.id
-    
+    # 현재 세션 정보를 받음.        
+    session = ChatSession.objects.get(id=session_id)
 
     if request.method == 'POST' :
-        # 유저 메시지 저장
-        
+        # 유저 입력을 post방식으로 받음.
         user_msg = request.POST.get('input-box').strip()
-        user_chat = ChatMessage(is_human=True, message=user_msg)
+
+        # 만약 세션 제목이 "새 세션"이면, 유저 입력을 요약해서 제목으로 설정
+        if session.title == "새 세션" :
+            content = summarize_message(user_msg)
+            session.title = content
+            session.save()
+
+        # 유저 입력 저장    
+        user_chat = ChatMessage(role="human", content=user_msg, session=session)
         user_chat.save()
         
         # 1. 기존에 만든 chroma_db 경로
         persist_directory = "./chroma_db"
         # 2. 임베딩 모델 (기존과 동일해야 함)
-        embedding_model = OpenAIEmbeddings()
+        embedding_model = OpenAIEmbeddings(openai_api_key=os.getenv("OPENAI_API_KEY"))
 
         # 3. 저장된 Chroma DB 불러오기
         vectordb = Chroma(
@@ -60,12 +70,20 @@ def index(request) :
 
         # 6. LangChain + RAG에 user_msg
         result = qa_chain(user_msg)
-        chatbot_chat = ChatMessage(is_human=False, message=result['result'])
+        chatbot_chat = ChatMessage(role="chatbot", content=result['result'], session=session)
         chatbot_chat.save()
 
-    content = {"messages" : ChatMessage.objects.all().order_by('created_at')}
+
+    content = {"messages" : ChatMessage.objects.filter(session=session).order_by('created_at'),
+               "sessions" : ChatSession.objects.all().order_by('-started_at'),
+               "current_session" : session}
     return render(request, "code_seeker/index.html", content)
 
 def delete_message(request) : 
     ChatMessage.objects.all().delete()
+    ChatSession.objects.all().delete()
+    return redirect("homepage")
+
+def add_session(request) : 
+    ChatSession.objects.create()
     return redirect("homepage")
