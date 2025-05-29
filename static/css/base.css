@@ -37,6 +37,8 @@ body{
     display: flex;
     justify-content: center;     /* 가로 중앙 정렬 */
     align-items: center;         /* 세로 중앙 정렬 */
+    flex-direction: column;
+    gap: 16px;
 }
 
 .session-no-message {
@@ -58,7 +60,16 @@ body{
     font-weight: bold;
     font-size: 14px;
 }
-
+.current-session {
+    background-color: #abb2c2;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+}
 .github-connect {
     text-align: center;
     margin-top: auto;

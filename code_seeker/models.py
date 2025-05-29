@@ -11,6 +11,7 @@ class ChatSession(models.Model):
 class ChatMessage(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="messages")
+    role = models.CharField(max_length=20) # system | human
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -26,3 +27,5 @@ class LlmCall(models.Model):
     cost_usd = models.DecimalField(max_digits=10, decimal_places=4)
     latency_ms = models.PositiveIntegerField(null=True, blank=True)
     called_at = models.DateTimeField(auto_now_add=True)
+
+

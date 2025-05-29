@@ -4,5 +4,6 @@ from .views import *
 
 urlpatterns = [
     path('', index, name='homepage'),
-    path('delete_message/', delete_message, name="delete_message")
+    path('delete_message/', delete_message, name="delete_message"),
+    path('add_session/', add_session, name="add_session")
 ]
