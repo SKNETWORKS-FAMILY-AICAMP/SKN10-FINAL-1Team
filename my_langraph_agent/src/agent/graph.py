@@ -1,7 +1,15 @@
-from __future__ import annotations
 
-import asyncio
+
+from __future__ import annotations
+import sys
 import os
+from pathlib import Path
+
+# Add the project root to the Python path
+project_root = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(project_root))
+import asyncio
+
 from typing import List, Dict, Any, Optional, Annotated
 
 from dotenv import load_dotenv
@@ -13,6 +21,13 @@ from langchain_openai import ChatOpenAI # Still needed if any direct use remains
 from langchain.chat_models import init_chat_model
 from langgraph.prebuilt import create_react_agent # InjectedState will be used in tools.py
 from langgraph_supervisor import create_supervisor
+
+# --- PostgreSQL Checkpointer Imports ---
+from psycopg_pool import AsyncConnectionPool
+from psycopg.rows import dict_row
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+# --- End PostgreSQL Checkpointer Imports ---
+
 # Command will be used in tools.py
 # TypedDict, NotRequired will be used in state.py
 
@@ -29,7 +44,10 @@ if OPENAI_API_KEY_ENV and len(OPENAI_API_KEY_ENV) > 10:
     print(f"DEBUG graph.py: OPENAI_API_KEY seems set (length: {len(OPENAI_API_KEY_ENV)}, first 5 chars: {OPENAI_API_KEY_ENV[:5]}) ")
 else:
     print("DEBUG graph.py: OPENAI_API_KEY is NOT SET or is very short.")
-# --- End API Key Debug Print ---
+
+# --- PostgreSQL Env Var Debug Print (Optional) ---
+print(f"DEBUG graph.py: DB_HOST={os.getenv('DB_HOST')}, DB_NAME={os.getenv('DB_NAME')}")
+# --- End PostgreSQL Env Var Debug Print ---
 
 # 1. 상태 및 도구 임포트
 from src.agent.state import MessagesState, WorkflowState # WorkflowState는 tools.py에서 사용되지만, graph.py에서도 직접 참조될 수 있으므로 유지
@@ -148,23 +166,15 @@ code_agent_llm = init_chat_model(
     temperature=LLM_TEMPERATURE,
     model_kwargs={"streaming": LLM_STREAMING}
 )
-
-# 모델에 get_recommendations 도구 강제 바인딩 (일시적으로 주석 처리하여 비활성화)
-# code_agent_llm_forced = code_agent_llm.bind_tools(
-#     tools=code_agent_tools_list,  # 전체 도구 목록 제공
-#     tool_choice={"type": "function", "function": {"name": "get_recommendations"}}
-# )
-
 code_agent_runnable = create_react_agent(
-    model=code_agent_llm,  # 원본 LLM 사용 (강제 바인딩 없음)
+    model=code_agent_llm,
     tools=code_agent_tools_list,
     prompt=code_agent_system_prompt_string,
     name="code_agent"
 )
-print("Code Agent Runnable 정의 완료 (using init_chat_model, get_recommendations 강제 호출 설정됨)")
+print("Code Agent Runnable 정의 완료 (using init_chat_model)")
 
 # Supervisor
-# Supervisor LLM (can be same or different from agent LLMs)
 supervisor_llm_instance = init_chat_model(
     MODEL_IDENTIFIER,
     temperature=LLM_TEMPERATURE,
@@ -193,66 +203,134 @@ supervisor_system_prompt_text = (
     "or if you can answer it directly, you can respond with 'FINISH'."
 )
 
-supervisor_graph = create_supervisor(
-    agents=list(agents_dict.values()), # Pass the agent runnables
-    model=supervisor_llm_instance,
-    prompt=supervisor_system_prompt_text,
-).compile(checkpointer=None)
-print("Supervisor 그래프가 전역적으로 컴파일되었습니다.")
+# PostgreSQL 연결 정보 (환경 변수에서 로드)
+# .env 파일에 다음 변수들이 설정되어 있어야 합니다:
+# DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DB_SSLMODE (optional, e.g., 'prefer' or 'require')
+DB_CONNECT_STRING = (
+    f"postgresql://{os.environ.get('DB_USER')}:{os.environ.get('DB_PASSWORD')}"
+    f"@{os.environ.get('DB_HOST')}:{os.environ.get('DB_PORT', '5432')}"
+    f"/{os.environ.get('DB_NAME')}"
+)
+# SSL mode can be added later if needed
+# if os.environ.get('DB_SSLMODE'):
+#     DB_CONNECT_STRING += f"?sslmode={os.environ.get('DB_SSLMODE')}"
+
+# supervisor_graph를 전역 변수로 선언 (main 함수 내에서 설정됨)
+supervisor_graph = None
+
 # 5. 메인 실행 로직
 async def main():
+    global supervisor_graph # 전역 supervisor_graph 사용 선언
+
     print("멀티 에이전트 시스템을 초기화합니다...")
-    # 전역적으로 선언된 supervisor_graph를 사용합니다.
-    # (이전 create_main_supervisor_graph 호출 및 관련 print문은 제거됨)
 
-    # 대화 시작
-    while True:
-        user_input = input("사용자: ")
-        if user_input.lower() in ["exit", "quit"]:
-            print("대화를 종료합니다.")
-            break
+    # PostgreSQL 연결 풀 및 checkpointer 설정
+    async with AsyncConnectionPool(
+        conninfo=DB_CONNECT_STRING,
+        max_size=20,
+        kwargs={
+            "autocommit": True,
+            "prepare_threshold": 0,
+            "row_factory": dict_row,
+        },
+    ) as pool:
+        memory_saver = AsyncPostgresSaver(pool)
+        # 중요: 처음 DB 테이블을 생성할 때만 다음 줄의 주석을 해제하고 실행하세요.
+        # await memory_saver.setup()
+        # print("PostgreSQL checkpointer 테이블 설정 완료 (필요한 경우).")
 
-        # Supervisor는 메시지 목록을 입력으로 받습니다.
-        # WorkflowState를 직접 사용하기보다는, supervisor가 내부적으로 메시지를 관리하도록 함.
-        # `astream`은 일반적으로 최종 출력 스트림을 제공합니다.
-        # `astream_events`는 더 상세한 중간 단계 이벤트를 제공합니다.
-        # create_supervisor는 `astream_events`와 잘 작동합니다.
-        
-        # For `astream_events`, the input is a dictionary, often just `{"messages": [HumanMessage(content=user_input)]}`
-        # if not using a checkpointer with `thread_id`.
-        # If a checkpointer is used, a `configurable` dict with `thread_id` is needed.
-        
-        # Let's use astream_events for more detailed output, similar to common supervisor examples.
-        # The input to the supervisor graph is typically a dictionary with a "messages" key.
-        async for event in supervisor_graph.astream_events(
-            {"messages": [HumanMessage(content=user_input)]},
-            version="v2", # Use v2 for the latest event structure
-            # config={"recursion_limit": 10} # Optional: set recursion limit
-        ):
-            kind = event["event"]
+        supervisor_graph = create_supervisor(
+            agents=list(agents_dict.values()), # Pass the agent runnables
+            model=supervisor_llm_instance,
+            prompt=supervisor_system_prompt_text,
+        ).compile(checkpointer=memory_saver) # checkpointer 추가
+        print("Supervisor 그래프가 PostgreSQL checkpointer와 함께 컴파일되었습니다.")
+
+        # 대화 스레드 ID (고정 또는 동적 할당 가능)
+        # 간단한 예시로 고정된 thread_id를 사용합니다.
+        # 실제 애플리케이션에서는 사용자별 또는 세션별 고유 ID를 사용하는 것이 좋습니다.
+        thread_id = "default_chat_thread_v2" # 이전 버전과 구분하기 위해 _v2 추가 가능
+        print(f"현재 대화 스레드 ID: {thread_id}")
+
+
+        # 이전 대화 불러오기 (선택 사항)
+        # config = {"configurable": {"thread_id": thread_id}}
+        # past_messages = await memory_saver.aget(config)
+        # if past_messages:
+        #     print("\n--- 이전 대화 내용 ---")
+        #     for msg_type, content_list in past_messages.items():
+        #         if msg_type == "messages": # messages 키 아래에 실제 메시지들이 있음
+        #             for msg_data in content_list: # LangGraph 메시지 객체
+        #                 if isinstance(msg_data, HumanMessage):
+        #                     print(f"사용자: {msg_data.content}")
+        #                 elif isinstance(msg_data, AIMessage):
+        #                     print(f"AI: {msg_data.content}")
+        #     print("--- 이전 대화 끝 ---\n")
+        # else:
+        #     print(f"'{thread_id}'에 대한 이전 대화 내용이 없습니다.")
+
+
+        # 대화 시작
+        while True:
+            user_input = input("사용자: ")
+            if user_input.lower() in ["exit", "quit"]:
+                print("대화를 종료합니다.")
+                break
+
+            # Supervisor는 메시지 목록을 입력으로 받습니다.
+            # Checkpointer를 사용하므로 `configurable`에 `thread_id`를 전달해야 합니다.
+            config = {"configurable": {"thread_id": thread_id}}
             
-            if kind == "on_chat_model_stream":
-                content = event["data"]["chunk"].content
-                if content:
-                    print(content, end="", flush=True)
-            elif kind == "on_tool_start":
-                print(f"\n--- Executing Tool: {event['name']} ---")
-                print(f"    Args: {event['data'].get('input')}")
-            elif kind == "on_tool_end":
-                print(f"--- Tool End: {event['name']} ---")
-                # print(f"    Output: {event['data'].get('output')}") # Can be verbose
-                print(f"--- Tool Output (first 100 chars): {str(event['data'].get('output'))[:100]} ---")
-            elif kind == "on_chain_end" or kind == "on_chat_model_end" or kind == "on_llm_end":
-                # These can be noisy, print if useful for debugging
-                # print(f"Event: {kind}, Name: {event.get('name')}")
-                pass # Avoid too much noise
-            # else:
-                # print(f"Event: {kind}, Data: {event['data']}") # For debugging other events
+            current_input_messages = [HumanMessage(content=user_input)]
 
-        print("\n---------------------")
+            async for event in supervisor_graph.astream_events(
+                {"messages": current_input_messages},
+                config=config, # config 전달
+                version="v2",
+                # output_keys=None, # 모든 output key를 스트리밍 (기본값)
+                # input_keys=None, # 모든 input key를 스트리밍 (기본값)
+                # stream_mode="values" # "values" | "updates" | "debug" (기본값 "values")
+            ):
+                kind = event["event"]
+                
+                if kind == "on_chat_model_stream":
+                    content = event["data"]["chunk"].content
+                    if content:
+                        print(content, end="", flush=True)
+                elif kind == "on_tool_start":
+                    print(f"\n--- Executing Tool: {event['name']} ({event['tags']}) ---")
+                    print(f"    Args: {event['data'].get('input')}")
+                elif kind == "on_tool_end":
+                    tool_output = str(event['data'].get('output'))
+                    print(f"--- Tool End: {event['name']} ---")
+                    if len(tool_output) > 200:
+                        print(f"--- Tool Output (first 200 chars): {tool_output[:200]}... ---")
+                    else:
+                        print(f"--- Tool Output: {tool_output} ---")
+
+                # 디버깅을 위해 추가적인 이벤트 로깅 (필요시 주석 해제)
+                # elif kind in ["on_chain_start", "on_chain_end", "on_llm_start", "on_llm_end", "on_retriever_start", "on_retriever_end"]:
+                #     print(f"\n--- Event: {kind} | Name: {event['name']} | Tags: {event['tags']} | ID: {event['run_id']} ---")
+                #     if event['data'].get('input'):
+                #         print(f"    Input: {str(event['data']['input'])[:150]}")
+                #     if event['data'].get('output') and kind.endswith("_end"):
+                #         print(f"    Output: {str(event['data']['output'])[:150]}")
+                # elif kind not in ["on_chat_model_stream", "on_tool_start", "on_tool_end"]:
+                #      print(f"Event: {kind}, Name: {event.get('name')}, Data: {event['data']}")
+
+
+            print("\n---------------------")
 
 if __name__ == "__main__":
+    # Windows에서 asyncio 사용 시 SelectorEventLoopPolicy 설정 (Python 3.8+ 에서는 기본값일 수 있음)
+    if os.name == 'nt' and sys.version_info >= (3, 8):
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\n사용자에 의해 중단됨.")
+    except Exception as e:
+        print(f"\n오류 발생: {e}")
+        import traceback
+        traceback.print_exc()

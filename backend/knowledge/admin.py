@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Document, GitRepository, CodeFile, EmbedChunk, NewsArticle, TelcoSubscriberStats, TelecomCustomers
+from .models import Document, GitRepository, CodeFile, EmbedChunk, TelecomCustomers, SummaryNewsKeywords
 
 
 @admin.register(Document)
@@ -42,19 +42,9 @@ class EmbedChunkAdmin(admin.ModelAdmin):
         return f"{obj.hash[:10]}..." if obj.hash else ""
     hash_short.short_description = 'Hash'
 
-@admin.register(NewsArticle)
-class NewsArticleAdmin(admin.ModelAdmin) :
-    list_display = ('id', 'corp', 'outlier_month', 'title')
-    list_filter = ('corp', 'outlier_month')
-    search_fields = ('title',)
-    readonly_fields = ('id',)
 
-@admin.register(TelcoSubscriberStats)
-class TelcoSubscriberStatsAdmin(admin.ModelAdmin) :
-    list_display = ('id', 'year_month', 'skt_subscribers', 'kt_subscribers', 'lguplus_subscribers', 'mvno_subscribers')
-    list_filter = ('year_month',)
-    search_fields = ('year_month',)
-    readonly_fields = ('id',)
+
+
 
 @admin.register(TelecomCustomers)
 class TelecomCustomersAdmin(admin.ModelAdmin) :
@@ -62,3 +52,25 @@ class TelecomCustomersAdmin(admin.ModelAdmin) :
     list_filter = ('dependents','churn', 'gender')
     search_fields = ('id','customer_id')
     readonly_fields = ('id', 'customer_id')
+
+
+@admin.register(SummaryNewsKeywords)
+class SummaryNewsKeywordsAdmin(admin.ModelAdmin):
+    list_display = ('date', 'keyword_display', 'title_short', 'url_short')
+    list_filter = ('date', 'keyword')
+    search_fields = ('title', 'summary', 'keyword')
+    list_select_related = ()
+    date_hierarchy = 'date'
+    ordering = ('-date', 'keyword')
+    
+    def keyword_display(self, obj):
+        return obj.keyword
+    keyword_display.short_description = 'Keyword'
+    
+    def title_short(self, obj):
+        return f"{obj.title[:50]}..." if len(obj.title) > 50 else obj.title
+    title_short.short_description = 'Title'
+    
+    def url_short(self, obj):
+        return format_html('<a href="{}" target="_blank">Link</a>', obj.url)
+    url_short.short_description = 'URL'
