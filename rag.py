@@ -4,7 +4,7 @@ from pinecone import Pinecone, ServerlessSpec
 from openai import OpenAI
 
 load_dotenv()
-
+#안녕
 def init_clients():
     """
     OpenAI 및 Pinecone 클라이언트를 초기화하고
