@@ -85,32 +85,32 @@ class ReadOnlyAdmin(admin.ModelAdmin):
         return None
 
 class CheckpointAdmin(ReadOnlyAdmin):
-    list_display = ('thread_id', 'checkpoint_ns', 'checkpoint_id', 'parent_checkpoint_id', 'type', 'display_checkpoint_summary', 'display_metadata_summary')
+    list_display = ('thread_id', 'checkpoint_ns', 'checkpoint_id', 'parent_checkpoint_id', 'type', 'display_checkpoint', 'display_metadata')
     list_filter = ('thread_id', 'checkpoint_ns', 'type')
     search_fields = ('thread_id', 'checkpoint_id')
 
-    def display_checkpoint_summary(self, obj):
+    def display_checkpoint(self, obj):
         if obj.checkpoint:
             # JSON 데이터의 처음 100자만 보여주거나, 특정 키 값만 추출
             # 예시: return str(obj.checkpoint)[:100] + '...' if len(str(obj.checkpoint)) > 100 else str(obj.checkpoint)
             # 더 안전한 방법은 json.dumps를 사용하는 것입니다.
             try:
                 summary = json.dumps(obj.checkpoint, ensure_ascii=False, indent=2)
-                return summary[:200] + '...' if len(summary) > 200 else summary
+                return summary
             except TypeError:
-                return str(obj.checkpoint)[:200] + '...' if len(str(obj.checkpoint)) > 200 else str(obj.checkpoint)
+                return str(obj.checkpoint)
         return None
-    display_checkpoint_summary.short_description = 'Checkpoint (요약)'
+    display_checkpoint.short_description = 'Checkpoint (전체)'
 
-    def display_metadata_summary(self, obj):
+    def display_metadata(self, obj):
         if obj.metadata:
             try:
                 summary = json.dumps(obj.metadata, ensure_ascii=False, indent=2)
-                return summary[:200] + '...' if len(summary) > 200 else summary
+                return summary
             except TypeError:
-                return str(obj.metadata)[:200] + '...' if len(str(obj.metadata)) > 200 else str(obj.metadata)
+                return str(obj.metadata)
         return None
-    display_metadata_summary.short_description = 'Metadata (요약)'
+    display_metadata.short_description = 'Metadata (전체)'
 
 class CheckpointBlobAdmin(ReadOnlyAdmin):
     list_display = ('thread_id', 'checkpoint_ns', 'channel', 'version', 'type', 'display_blob_info')

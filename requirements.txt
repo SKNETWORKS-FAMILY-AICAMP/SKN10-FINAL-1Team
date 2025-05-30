@@ -11,7 +11,7 @@ langchain-core
 aiohttp
 langchain-mcp-adapters
 pgvector
-
+django-cors-headers
 # Embedding tools dependencies
 openai>=1.0.0
 

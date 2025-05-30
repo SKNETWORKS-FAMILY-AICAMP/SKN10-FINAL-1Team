@@ -30,7 +30,8 @@ interface LoginCredentials {
 // Login response from Django
 interface LoginResponse {
   user: User
-  token: string
+  access: string
+  refresh: string
 }
 
 // Base URL for API calls
@@ -41,17 +42,26 @@ const API_BASE_URL = "/api"
  * Connects to Django's authentication system (likely using DRF TokenAuthentication)
  */
 export async function loginUser(credentials: LoginCredentials): Promise<User | null> {
-  // Use mock data in preview environment
-  if (isPreviewEnvironment()) {
+  // 디버깅 모드에서는 항상 실제 API 사용
+  const forceRealApi = true; // 로그인은 항상 실제 API 사용
+  
+  // Use mock data in preview environment - but only if not forcing real API
+  if (!forceRealApi && isPreviewEnvironment()) {
+    console.log("테스트 모드 - 모의 로그인 사용")
     // Simple validation for demo
     if (credentials.email && credentials.password.length >= 4) {
       // Store mock user data
       localStorage.setItem("user", JSON.stringify(mockUser))
-      localStorage.setItem("token", "mock-token-123")
+      localStorage.setItem("accessToken", "mock-token-123")
+      localStorage.setItem("refreshToken", "mock-refresh-token-123")
       return mockUser
     }
     return null
   }
+  
+  // 실제 API 사용을 위해 상태 설정
+  localStorage.setItem("forceRealApi", "true");
+  localStorage.setItem("backendAvailable", "true");
 
   try {
     const response = await fetch(`${API_BASE_URL}/auth/login/`, {
@@ -69,14 +79,15 @@ export async function loginUser(credentials: LoginCredentials): Promise<User | n
 
     const data: LoginResponse = await response.json()
 
-    // Store token in localStorage for subsequent API calls
-    localStorage.setItem("token", data.token)
+    // Store JWT tokens in localStorage for subsequent API calls
+    localStorage.setItem("accessToken", data.access)
+    localStorage.setItem("refreshToken", data.refresh)
 
     // Store user data
     localStorage.setItem("user", JSON.stringify(data.user))
 
     return data.user
-  } catch (error) {
+  } catch (error: any) {
     console.error("Login error:", error)
     toast({
       title: "Login failed",
@@ -101,27 +112,37 @@ export async function getCurrentUser(): Promise<User | null> {
     return null
   }
 
-  // If no stored user but token exists, fetch user data
-  const token = localStorage.getItem("token")
-  if (token) {
+  // If no stored user but access token exists, fetch user data
+  const accessToken = localStorage.getItem("accessToken")
+  if (accessToken) {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/me/`, {
         headers: {
-          Authorization: `Token ${token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
       })
 
       if (!response.ok) {
+        // If token is expired, try refreshing it
+        if (response.status === 401) {
+          const refreshed = await refreshToken()
+          if (refreshed) {
+            // Retry with new token
+            return getCurrentUser()
+          }
+        }
         throw new Error("Failed to get user data")
       }
 
       const user: User = await response.json()
       localStorage.setItem("user", JSON.stringify(user))
       return user
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching current user:", error)
-      // Clear invalid token
-      localStorage.removeItem("token")
+      // Clear invalid tokens
+      localStorage.removeItem("accessToken")
+      localStorage.removeItem("refreshToken")
+      localStorage.removeItem("user")
       return null
     }
   }
@@ -136,35 +157,80 @@ export async function getCurrentUser(): Promise<User | null> {
 export async function logoutUser(): Promise<boolean> {
   // In preview environment, just clear local storage
   if (isPreviewEnvironment()) {
-    localStorage.removeItem("token")
+    localStorage.removeItem("accessToken")
+    localStorage.removeItem("refreshToken")
     localStorage.removeItem("user")
     return true
   }
 
-  const token = localStorage.getItem("token")
+  const accessToken = localStorage.getItem("accessToken")
 
-  if (token) {
+  if (accessToken) {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/logout/`, {
         method: "POST",
         headers: {
-          Authorization: `Token ${token}`,
+          Authorization: `Bearer ${accessToken}`,
         },
       })
 
       if (!response.ok) {
         console.warn("Logout API call failed, clearing local storage anyway")
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Logout error:", error)
     }
   }
 
   // Clear local storage regardless of API success
-  localStorage.removeItem("token")
+  localStorage.removeItem("accessToken")
+  localStorage.removeItem("refreshToken")
   localStorage.removeItem("user")
 
   return true
+}
+
+/**
+ * Refresh the JWT token using the refresh token
+ * @returns boolean indicating if the refresh was successful
+ */
+async function refreshToken(): Promise<boolean> {
+  const refreshToken = localStorage.getItem("refreshToken")
+  
+  if (!refreshToken) {
+    return false
+  }
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/token/refresh/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refresh: refreshToken }),
+    })
+    
+    if (!response.ok) {
+      throw new Error("Failed to refresh token")
+    }
+    
+    const data = await response.json()
+    localStorage.setItem("accessToken", data.access)
+    
+    // If the API also returns a new refresh token, update it
+    if (data.refresh) {
+      localStorage.setItem("refreshToken", data.refresh)
+    }
+    
+    return true
+  } catch (error: any) {
+    console.error("Token refresh error:", error)
+    // Clear tokens if refresh fails
+    localStorage.removeItem("accessToken")
+    localStorage.removeItem("refreshToken")
+    localStorage.removeItem("user")
+    return false
+  }
 }
 
 /**
@@ -184,9 +250,9 @@ export async function updateUserProfile(userData: Partial<User>): Promise<User |
     return null
   }
 
-  const token = localStorage.getItem("token")
+  const accessToken = localStorage.getItem("accessToken")
 
-  if (!token) {
+  if (!accessToken) {
     toast({
       title: "Authentication error",
       description: "You must be logged in to update your profile",
@@ -200,12 +266,20 @@ export async function updateUserProfile(userData: Partial<User>): Promise<User |
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Token ${token}`,
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify(userData),
     })
 
     if (!response.ok) {
+      // If token is expired, try refreshing it
+      if (response.status === 401) {
+        const refreshed = await refreshToken()
+        if (refreshed) {
+          // Retry with new token
+          return updateUserProfile(userData)
+        }
+      }
       throw new Error("Failed to update profile")
     }
 
@@ -215,7 +289,7 @@ export async function updateUserProfile(userData: Partial<User>): Promise<User |
     localStorage.setItem("user", JSON.stringify(updatedUser))
 
     return updatedUser
-  } catch (error) {
+  } catch (error: any) {
     console.error("Profile update error:", error)
     toast({
       title: "Update failed",
