@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LangGraph 체크포인트 대화형 가이드 (Gemini API 연동)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Visualization & Content Choices:
+        - 개요: Text. Goal: Inform. Method: HTML.
+        - 핵심 구성 요소: Text, Python code block, HTML/CSS diagram (LangGraph->DB). Goal: Inform, Organize. Interaction: Click diagram elements. Method: HTML/CSS/JS.
+        - 체크포인트 스키마: Tabbed/expandable HTML tables for DB schema, HTML/CSS/JS interactive diagram for checkpoint relationships (parent_id), expandable JSON view. Goal: Organize, Inform, Explore. Interaction: Click tabs, hover/click elements. Method: HTML/CSS/JS. Gemini API for schema table explanations.
+        - 구현 전략: Side-by-side/tabbed text, HTML/CSS/JS flowcharts for strategies. Goal: Compare, Inform, Organize. Interaction: Click flowchart steps. Method: HTML/CSS/JS. Gemini API for strategy comparison.
+        - 상세 구현: "Code explorer" with selectable Python snippets and explanations. Goal: Inform, Explore. Interaction: Select code examples. Method: HTML/JS. Gemini API for code commenting/explanation.
+        - 고급 고려 사항: Expandable text sections. Goal: Inform. Interaction: Click to expand. Method: HTML/JS.
+        - CONFIRMATION: No complex Chart.js charts planned beyond simple illustrative diagrams made with HTML/CSS. All visualizations will be HTML/CSS/JS based to avoid SVG/Mermaid.
+    -->
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .tab-button { transition: all 0.3s ease; }
+        .tab-button.active { border-color: #0284c7; color: #0284c7; background-color: #e0f2fe; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .code-block { background-color: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-family: 'Courier New', Courier, monospace; font-size: 0.875rem; }
+        .code-block pre { margin: 0; }
+        .diagram-box { border: 1px solid #cbd5e1; padding: 0.75rem; border-radius: 0.375rem; text-align: center; background-color: #f8fafc; margin: 0.5rem; }
+        .diagram-arrow { display: flex; align-items: center; justify-content: center; margin: 0 0.25rem; font-size: 1.5rem; color: #64748b; }
+        .schema-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        .schema-table th, .schema-table td { border: 1px solid #e2e8f0; padding: 0.75rem; text-align: left; }
+        .schema-table th { background-color: #f1f5f9; font-weight: 600; }
+        .strategy-step { border: 1px dashed #94a3b8; padding: 1rem; margin-top: 0.75rem; border-radius: 0.375rem; background-color: #f8fafc; cursor: pointer; }
+        .strategy-step:hover { background-color: #f1f5f9; }
+        .json-viewer { background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.375rem; padding: 1rem; font-family: monospace; white-space: pre-wrap; word-break: break-all; }
+        .json-key { color: #7c3aed; }
+        .json-string { color: #059669; }
+        .json-number { color: #db2777; }
+        .json-boolean { color: #ea580c; }
+        .json-null { color: #4b5563; }
+        .collapsible-header { cursor: pointer; padding: 0.5rem; background-color: #eef2ff; border-radius: 0.25rem; margin-top: 0.5rem; font-weight: 500;}
+        .collapsible-content { display: none; padding: 0.5rem; border: 1px solid #e0e7ff; border-top: none; border-radius: 0 0 0.25rem 0.25rem;}
+        .gemini-button {
+            background-color: #6366f1; /* Indigo 500 */
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            transition: background-color 0.2s ease-in-out;
+            margin-top: 0.75rem;
+            border: none;
+            cursor: pointer;
+        }
+        .gemini-button:hover {
+            background-color: #4f46e5; /* Indigo 600 */
+        }
+        /* Modal styles */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.5); /* Black w/ opacity */
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto; /* 10% from the top and centered */
+            padding: 2rem;
+            border: 1px solid #888;
+            width: 80%; /* Could be more or less, depending on screen size */
+            max-width: 700px;
+            border-radius: 0.5rem;
+            position: relative;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+        }
+        .modal-close-button:hover,
+        .modal-close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .loading-spinner {
+            border: 4px solid #f3f3f3; /* Light grey */
+            border-top: 4px solid #6366f1; /* Indigo */
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-700 antialiased">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-6xl">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl sm:text-4xl font-bold text-sky-700">LangGraph 체크포인트 대화형 가이드</h1>
+            <p class="mt-2 text-lg text-slate-600">메시지 수정 및 재실행 기능 심층 분석 (✨ Gemini API 연동)</p>
+        </header>
+
+        <nav class="mb-8 flex flex-wrap justify-center gap-2">
+            <button class="tab-button active text-sm sm:text-base px-4 py-2 border-b-2 border-transparent hover:border-sky-500 hover:text-sky-600 rounded-md" onclick="showTab('overview')">1. 개요</button>
+            <button class="tab-button text-sm sm:text-base px-4 py-2 border-b-2 border-transparent hover:border-sky-500 hover:text-sky-600 rounded-md" onclick="showTab('core_components')">2. 핵심 구성</button>
+            <button class="tab-button text-sm sm:text-base px-4 py-2 border-b-2 border-transparent hover:border-sky-500 hover:text-sky-600 rounded-md" onclick="showTab('schema')">3. 스키마 분석</button>
+            <button class="tab-button text-sm sm:text-base px-4 py-2 border-b-2 border-transparent hover:border-sky-500 hover:text-sky-600 rounded-md" onclick="showTab('strategies')">4. 구현 전략</button>
+            <button class="tab-button text-sm sm:text-base px-4 py-2 border-b-2 border-transparent hover:border-sky-500 hover:text-sky-600 rounded-md" onclick="showTab('implementation')">5. 상세 구현</button>
+            <button class="tab-button text-sm sm:text-base px-4 py-2 border-b-2 border-transparent hover:border-sky-500 hover:text-sky-600 rounded-md" onclick="showTab('advanced')">6. 고급 고려 사항</button>
+        </nav>
+
+        <main class="bg-white p-6 sm:p-8 rounded-xl shadow-xl min-h-[400px]">
+            <div id="overview" class="tab-content active">
+                <h2 class="text-2xl font-semibold text-sky-600 mb-4">1. 개요</h2>
+                <p class="mb-3 leading-relaxed">본 섹션에서는 LangGraph 프레임워크와 PostgreSQL을 사용한 체크포인트 시스템의 기본 개념을 소개합니다. 특히, 대화형 AI 에이전트에서 사용자의 과거 메시지를 수정하거나 특정 지점에서 대화를 다시 시작하는 기능의 필요성과 이를 LangGraph 환경에서 어떻게 접근할 수 있는지에 대한 전반적인 그림을 제공합니다. LangGraph는 복잡한 AI 에이전트 시스템 구축을 위한 강력한 도구이며, 체크포인트 기능은 이러한 시스템의 상태를 지속적으로 관리하고 대화의 흐름을 보존하는 데 핵심적인 역할을 합니다.</p>
+                <p class="leading-relaxed">사용자가 실수로 정보를 잘못 입력했거나, 다른 가정 하에 대화를 진행하고 싶을 때 메시지 수정 및 재실행 기능은 매우 유용합니다. 이 가이드는 `AsyncPostgresSaver`를 중심으로 PostgreSQL에 저장된 체크포인트 데이터를 활용하여 이러한 기능을 구현하는 방안을 단계별로 심층 분석합니다. ✨ 새로운 Gemini API 연동 기능을 통해 각 섹션의 내용을 더욱 깊이 있게 탐색할 수 있습니다.</p>
+            </div>
+
+            <div id="core_components" class="tab-content">
+                <h2 class="text-2xl font-semibold text-sky-600 mb-4">2. 핵심 구성 요소: `AsyncPostgresSaver`</h2>
+                <p class="mb-4 leading-relaxed">LangGraph에서 대화 상태의 영속성을 확보하는 핵심은 체크포인터이며, PostgreSQL 연동 시 `AsyncPostgresSaver`가 이 역할을 수행합니다. `AsyncPostgresSaver`는 LangGraph 실행의 각 단계마다 그래프 상태를 스냅샷으로 만들어 PostgreSQL 데이터베이스에 저장합니다. 이 가이드에서는 `AsyncPostgresSaver`의 초기화 방법과 주요 개념인 `thread_id`, `checkpoint_id`에 대해 설명합니다.</p>
+                
+                <div class="my-6 p-4 border border-slate-200 rounded-lg bg-slate-50">
+                    <h3 class="text-xl font-medium text-indigo-600 mb-3">시스템 아키텍처 (개념도)</h3>
+                    <div class="flex flex-col sm:flex-row items-center justify-around p-4 bg-white rounded-md shadow">
+                        <div class="diagram-box w-full sm:w-auto">LangGraph Agent</div>
+                        <div class="diagram-arrow hidden sm:flex">&#10230;</div>
+                        <div class="text-2xl sm:hidden my-2">&#11015;</div>
+                        <div class="diagram-box w-full sm:w-auto" title="psycopg_pool.AsyncConnectionPool을 통해 비동기적으로 PostgreSQL과 통신">AsyncPostgresSaver</div>
+                        <div class="diagram-arrow hidden sm:flex">&#10230;</div>
+                        <div class="text-2xl sm:hidden my-2">&#11015;</div>
+                        <div class="diagram-box w-full sm:w-auto">PostgreSQL DB</div>
+                    </div>
+                    <p class="mt-3 text-sm text-slate-500 text-center">`AsyncPostgresSaver`는 `AsyncConnectionPool`을 사용하여 PostgreSQL과 효율적으로 상호작용합니다.</p>
+                </div>
+
+                <h3 class="text-xl font-medium text-indigo-600 mb-3 mt-6">`AsyncPostgresSaver` 초기화 예시</h3>
+                <p class="mb-2 leading-relaxed">`AsyncPostgresSaver`를 사용하기 위해서는 `psycopg_pool.AsyncConnectionPool`을 설정하고, `checkpointer.setup()`을 (최초 1회) 호출하여 필요한 데이터베이스 테이블을 생성해야 합니다.</p>
+                <div class="code-block">
+<pre>
+from psycopg_pool import AsyncConnectionPool
+from psycopg.rows import dict_row
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
+DB_URI = "postgresql://user:password@host:port/database"
+pool_kwargs = {
+    "autocommit": True,
+    "prepare_threshold": 0,
+    "row_factory": dict_row,
+}
+
+async def initialize_checkpointer():
+    # 실제 애플리케이션에서는 checkpointer를 적절히 관리
+    async with AsyncConnectionPool(conninfo=DB_URI, max_size=20, kwargs=pool_kwargs) as pool:
+        checkpointer = AsyncPostgresSaver(pool)
+        # await checkpointer.setup() # 최초 1회 실행 필요
+        return checkpointer
+</pre>
+                </div>
+                <p class="mt-4 leading-relaxed"><strong>주요 개념:</strong></p>
+                <ul class="list-disc list-inside space-y-1 pl-2">
+                    <li><strong>`thread_id`:</strong> 특정 대화 세션 또는 실행 흐름을 고유하게 식별합니다.</li>
+                    <li><strong>`checkpoint_id`:</strong> 특정 `thread_id` 내에서 저장된 개별 상태 스냅샷의 고유 ID입니다. 이를 통해 특정 과거 시점으로 "시간 여행"이 가능합니다.</li>
+                </ul>
+            </div>
+
+            <div id="schema" class="tab-content">
+                <h2 class="text-2xl font-semibold text-sky-600 mb-4">3. PostgreSQL 체크포인트 스키마 분석</h2>
+                <p class="mb-4 leading-relaxed">`AsyncPostgresSaver`가 PostgreSQL에 생성하고 사용하는 테이블 스키마를 이해하는 것은 메시지 수정 및 재실행 기능 구현에 매우 중요합니다. `checkpointer.setup()` 실행 시 생성되는 주요 테이블과 그 역할은 다음과 같습니다. 이 정보는 보고서의 분석을 기반으로 하며, 실제 LangGraph 버전에 따라 약간의 차이가 있을 수 있습니다.</p>
+
+                <div class_id="schema-tabs-buttons" class="mb-4 border-b border-slate-200">
+                    <button class="schema-tab-button active px-4 py-2 -mb-px border-b-2 border-sky-500 text-sky-600" onclick="showSchemaTable('checkpoints_table_content', this)">checkpoints</button>
+                    <button class="schema-tab-button px-4 py-2 -mb-px border-b-2 border-transparent hover:border-sky-500 hover:text-sky-600" onclick="showSchemaTable('checkpoint_blobs_table_content', this)">checkpoint_blobs</button>
+                    <button class="schema-tab-button px-4 py-2 -mb-px border-b-2 border-transparent hover:border-sky-500 hover:text-sky-600" onclick="showSchemaTable('checkpoint_writes_table_content', this)">checkpoint_writes</button>
+                    <button class="schema-tab-button px-4 py-2 -mb-px border-b-2 border-transparent hover:border-sky-500 hover:text-sky-600" onclick="showSchemaTable('checkpoint_migrations_table_content', this)">checkpoint_migrations</button>
+                </div>
+
+                <div id="checkpoints_table_content" class="schema-tab-content active">
+                    <h3 class="text-xl font-medium text-indigo-600 mb-2">`checkpoints` 테이블</h3>
+                    <p class="mb-2 text-sm text-slate-500">핵심 테이블로, 각 대화 스레드의 상태 스냅샷(체크포인트) 정보를 저장합니다.</p>
+                    <button class="gemini-button" onclick="requestSchemaExplanation('checkpoints', 'checkpoints_table_content')">✨ 이 테이블 설명 요청</button>
+                    <div class="overflow-x-auto mt-2">
+                        <table class="schema-table">
+                            <thead>
+                                <tr><th>컬럼명</th><th>타입</th><th>설명</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>thread_id</td><td>TEXT NOT NULL</td><td>대화 스레드 고유 식별자</td></tr>
+                                <tr><td>checkpoint_ns</td><td>TEXT NOT NULL DEFAULT ''</td><td>체크포인트 네임스페이스 (루트는 "", 서브그래프는 경로)</td></tr>
+                                <tr><td>checkpoint_id</td><td>TEXT NOT NULL</td><td>체크포인트 고유 식별자 (PK 일부)</td></tr>
+                                <tr><td>parent_checkpoint_id</td><td>TEXT</td><td>부모 체크포인트 ID (분기 추적용)</td></tr>
+                                <tr><td>type</td><td>TEXT</td><td>`checkpoint` 객체 타입 (serde용)</td></tr>
+                                <tr><td>checkpoint</td><td>JSONB NOT NULL</td><td>그래프 상태 스냅샷 (메시지 포함)</td></tr>
+                                <tr><td>metadata</td><td>JSONB NOT NULL DEFAULT '{}'</td><td>추가 메타데이터</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="mt-3 leading-relaxed"><strong>`parent_checkpoint_id` 관계 시각화 (개념):</strong></p>
+                    <div class="flex items-start justify-center p-4 mt-2 border rounded-md bg-slate-50 overflow-x-auto">
+                        <div class="flex flex-col items-center">
+                            <div class="diagram-box text-xs">CP1 (parent: null)</div>
+                            <div class="h-4 border-l-2 border-slate-400"></div>
+                            <div class="diagram-box text-xs">CP2 (parent: CP1)</div>
+                            <div class="h-4 border-l-2 border-slate-400"></div>
+                            <div class="flex">
+                                <div class="flex flex-col items-center mr-8">
+                                    <div class="h-4 border-l-2 border-slate-400 transform translate-x-[-50%] relative left-[50%]"></div>
+                                    <div class="diagram-box text-xs">CP3 (parent: CP2)</div>
+                                </div>
+                                <div class="flex flex-col items-center">
+                                     <div class="h-4 border-l-2 border-red-400 border-dashed transform translate-x-[-50%] relative left-[50%]"></div>
+                                    <div class="diagram-box text-xs border-red-400">CP4 (parent: CP2)<br/><span class="text-red-600 text-xxs">(수정 후 분기)</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                     <h4 class="text-lg font-medium text-indigo-500 mt-6 mb-2">`checkpoint` (JSONB) 내부 구조 예시</h4>
+                    <div class="json-viewer">
+                        <span class="json-key">"v"</span>: <span class="json-number">1</span>,
+                        <span class="json-key">"ts"</span>: <span class="json-string">"2024-07-31T20:14:19.804Z"</span>,
+                        <span class="json-key">"id"</span>: <span class="json-string">"uuid-of-checkpoint"</span>,
+                        <span class="json-key">"channel_values"</span>: {
+                          <span class="json-key">"messages"</span>: [
+                            { <span class="json-key">"type"</span>: <span class="json-string">"human"</span>, <span class="json-key">"content"</span>: <span class="json-string">"안녕하세요"</span> },
+                            { <span class="json-key">"type"</span>: <span class="json-string">"ai"</span>, <span class="json-key">"content"</span>: <span class="json-string">"반갑습니다!"</span> }
+                          ],
+                          <span class="json-key">"other_state_key"</span>: <span class="json-string">"some_value"</span>
+                        },
+                        <span class="json-key">"channel_versions"</span>: { ... },
+                        <span class="json-key">"versions_seen"</span>: { ... }
+                    </div>
+                    <p class="mt-2 text-sm text-slate-500">`channel_values.messages`에 대화 메시지 목록이 저장되며, 수정 시 이 부분을 주로 다루게 됩니다.</p>
+                </div>
+
+                <div id="checkpoint_blobs_table_content" class="schema-tab-content">
+                    <h3 class="text-xl font-medium text-indigo-600 mb-2">`checkpoint_blobs` 테이블</h3>
+                    <p class="mb-2 text-sm text-slate-500">(선택적 최적화) 채널 값 정규화 및 저장 공간 최적화를 위해 사용될 수 있습니다.</p>
+                    <button class="gemini-button" onclick="requestSchemaExplanation('checkpoint_blobs', 'checkpoint_blobs_table_content')">✨ 이 테이블 설명 요청</button>
+                    <div class="overflow-x-auto mt-2">
+                        <table class="schema-table">
+                            <thead>
+                                <tr><th>컬럼명</th><th>타입</th><th>설명</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>checkpoint_id</td><td>FK</td><td>`checkpoints` 테이블 참조</td></tr>
+                                <tr><td>key</td><td>TEXT</td><td>채널(상태) 키</td></tr>
+                                <tr><td>blob</td><td>BYTEA 또는 JSONB</td><td>실제 데이터 blob</td></tr>
+                                <tr><td>version</td><td>INTEGER</td><td>데이터 버전</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="checkpoint_writes_table_content" class="schema-tab-content">
+                    <h3 class="text-xl font-medium text-indigo-600 mb-2">`checkpoint_writes` 테이블</h3>
+                    <p class="mb-2 text-sm text-slate-500">(부분적 실행) 노드 실패 시 성공한 노드의 임시 쓰기를 저장하여, 재개 시 중복 실행을 방지합니다.</p>
+                    <button class="gemini-button" onclick="requestSchemaExplanation('checkpoint_writes', 'checkpoint_writes_table_content')">✨ 이 테이블 설명 요청</button>
+                    <div class="overflow-x-auto mt-2">
+                        <table class="schema-table">
+                            <thead>
+                                <tr><th>컬럼명</th><th>타입</th><th>설명</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>thread_id</td><td>TEXT</td><td>스레드 ID</td></tr>
+                                <tr><td>checkpoint_ns</td><td>TEXT</td><td>네임스페이스</td></tr>
+                                <tr><td>checkpoint_id</td><td>TEXT</td><td>체크포인트 ID</td></tr>
+                                <tr><td>task_id</td><td>TEXT</td><td>노드(작업) 식별자</td></tr>
+                                <tr><td>idx</td><td>INTEGER</td><td>쓰기 순서</td></tr>
+                                <tr><td>type</td><td>TEXT</td><td>데이터 타입</td></tr>
+                                <tr><td>blob</td><td>BYTEA 또는 JSONB</td><td>실제 데이터</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="checkpoint_migrations_table_content" class="schema-tab-content">
+                    <h3 class="text-xl font-medium text-indigo-600 mb-2">`checkpoint_migrations` 테이블</h3>
+                    <p class="mb-2 text-sm text-slate-500">데이터베이스 스키마 마이그레이션 버전을 추적합니다.</p>
+                    <button class="gemini-button" onclick="requestSchemaExplanation('checkpoint_migrations', 'checkpoint_migrations_table_content')">✨ 이 테이블 설명 요청</button>
+                    <div class="overflow-x-auto mt-2">
+                        <table class="schema-table">
+                            <thead>
+                                <tr><th>컬럼명</th><th>타입</th><th>설명</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>v</td><td>INTEGER PK</td><td>적용된 마이그레이션 버전</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="strategies" class="tab-content">
+                <h2 class="text-2xl font-semibold text-sky-600 mb-4">4. 메시지 수정 및 재실행 구현 전략</h2>
+                <p class="mb-4 leading-relaxed">과거 메시지 수정 및 재실행 기능 구현 시 핵심 원칙은 **체크포인트의 불변성**을 유지하는 것입니다. 즉, 기존 체크포인트를 직접 수정하는 대신, 수정된 내용을 기반으로 새로운 대화 분기(branch)를 생성합니다. 보고서에서 제시된 두 가지 주요 전략을 설명합니다.</p>
+                <button class="gemini-button mb-4" onclick="requestStrategyAnalysis()">✨ 두 전략 심층 비교 분석 요청</button>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="p-4 border rounded-lg shadow-sm bg-slate-50">
+                        <h3 class="text-xl font-medium text-indigo-600 mb-3">전략 1: 상태 로드 후 새 분기 생성 (권장)</h3>
+                        <p class="text-sm mb-3">사용자가 과거 메시지를 수정하면, 해당 시점의 상태를 로드하고 수정된 메시지를 포함하여 새로운 대화 흐름을 만듭니다. 기존 대화는 보존됩니다.</p>
+                        <div class="strategy-flow text-sm">
+                            <div class="strategy-step" onclick="showStrategyDetail('strategy1_step1')">1. UI에서 수정 대상 메시지 및 `checkpoint_id` 식별</div>
+                            <div class="text-center my-1 text-slate-400">&#11015;</div>
+                            <div class="strategy-step" onclick="showStrategyDetail('strategy1_step2')">2. `checkpointer.aget_tuple()`로 해당 `checkpoint_id`의 상태 로드</div>
+                            <div class="text-center my-1 text-slate-400">&#11015;</div>
+                            <div class="strategy-step" onclick="showStrategyDetail('strategy1_step3')">3. 로드된 상태에서 수정 이전 메시지 목록 추출</div>
+                            <div class="text-center my-1 text-slate-400">&#11015;</div>
+                            <div class="strategy-step" onclick="showStrategyDetail('strategy1_step4')">4. 수정된 새 메시지로 새 메시지 목록 구성</div>
+                            <div class="text-center my-1 text-slate-400">&#11015;</div>
+                            <div class="strategy-step" onclick="showStrategyDetail('strategy1_step5')">5. `graph.ainvoke()` 호출 (원본 `thread_id`, 수정 직전 `checkpoint_id`, 새 입력) <span class="text-green-600 font-semibold">&rarr; 새 분기 생성</span></div>
+                        </div>
+                        <div id="strategy1_detail" class="mt-3 p-3 bg-white border rounded text-xs text-slate-600 hidden">상세 설명이 여기에 표시됩니다.</div>
+                    </div>
+
+                    <div class="p-4 border rounded-lg shadow-sm bg-slate-50">
+                        <h3 class="text-xl font-medium text-indigo-600 mb-3">전략 2: "시간 여행" 후 재실행</h3>
+                        <p class="text-sm mb-3">특정 과거 `checkpoint_id`로 돌아가, 그 시점부터 완전히 새로운 입력(수정된 메시지 포함)으로 그래프를 다시 실행합니다. 이 역시 새 분기를 만듭니다.</p>
+                        <div class="strategy-flow text-sm">
+                            <div class="strategy-step" onclick="showStrategyDetail('strategy2_step1')">1. 재실행할 과거 시점의 `checkpoint_id` 식별</div>
+                            <div class="text-center my-1 text-slate-400">&#11015;</div>
+                            <div class="strategy-step" onclick="showStrategyDetail('strategy2_step2')">2. `graph.ainvoke()` 호출 (`thread_id`, 해당 `checkpoint_id`, 새 수정 입력) <span class="text-green-600 font-semibold">&rarr; 새 분기 생성</span></div>
+                        </div>
+                         <div id="strategy2_detail" class="mt-3 p-3 bg-white border rounded text-xs text-slate-600 hidden">상세 설명이 여기에 표시됩니다.</div>
+                    </div>
+                </div>
+                <p class="mt-6 leading-relaxed"><strong>핵심:</strong> 두 전략 모두 기존 데이터를 변경하지 않고, `parent_checkpoint_id`를 통해 연결되는 새로운 체크포인트를 생성하여 분기를 만듭니다. 이를 통해 데이터 일관성과 추적 가능성을 보장합니다.</p>
+            </div>
+
+            <div id="implementation" class="tab-content">
+                <h2 class="text-2xl font-semibold text-sky-600 mb-4">5. 상세 구현 방안 (Python 코드 예시)</h2>
+                <p class="mb-4 leading-relaxed">여기서는 전략 1을 중심으로 `AsyncPostgresSaver`를 사용한 Python 코드 예시를 보여줍니다. 실제 구현 시에는 에러 처리, 로깅 등을 추가해야 합니다. 아래 드롭다운 메뉴에서 보고자 하는 코드 조각을 선택하세요.</p>
+                
+                <div class="mb-4">
+                    <label for="code_snippet_selector" class="block text-sm font-medium text-slate-700 mb-1">코드 조각 선택:</label>
+                    <select id="code_snippet_selector" class="w-full p-2 border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500" onchange="showCodeSnippet(this.value)">
+                        <option value="init_saver">AsyncPostgresSaver 초기화</option>
+                        <option value="list_checkpoints">스레드 체크포인트 목록 조회 (alist)</option>
+                        <option value="get_checkpoint">특정 체크포인트 조회 (aget_tuple)</option>
+                        <option value="modify_message">메모리에서 메시지 수정</option>
+                        <option value="resume_graph">수정된 메시지로 그래프 재호출</option>
+                    </select>
+                </div>
+
+                <div id="code_display_area_container">
+                    <div id="code_display_area">
+                        </div>
+                    <button id="gemini_code_comment_button" class="gemini-button hidden" onclick="requestCodeComments()">✨ 이 코드 주석/설명 요청</button>
+                </div>
+                <p class="mt-4 leading-relaxed"><strong>그래프 입력 스키마와 재개(Resumption)의 관계:</strong><br>
+                `ainvoke`를 `checkpoint_id`와 함께 호출할 때, LangGraph는 해당 체크포인트로부터 상태를 로드합니다. 이때 `ainvoke`에 전달되는 `inputs` 인자는 로드된 상태 위에서 *새롭게* 처리될 데이터를 의미합니다. 따라서 그래프의 시작 노드와 상태 정의는 로드된 과거 상태에 새로운 `inputs`를 올바르게 통합할 수 있도록 설계되어야 합니다.</p>
+            </div>
+
+            <div id="advanced" class="tab-content">
+                <h2 class="text-2xl font-semibold text-sky-600 mb-4">6. 고급 고려 사항 및 결론</h2>
+                <p class="mb-4 leading-relaxed">메시지 수정 및 재실행 기능을 구현할 때 추가적으로 고려해야 할 사항들과 본 보고서의 주요 결론을 요약합니다. 각 항목을 클릭하여 상세 내용을 확인하세요.</p>
+
+                <div id="advanced_considerations_list">
+                    <div class="collapsible-header" onclick="toggleCollapsible(this)">데이터 무결성을 위한 불변성의 중요성</div>
+                    <div class="collapsible-content">
+                        <p>데이터베이스에 이미 저장된 과거 체크포인트 레코드를 직접 수정하는 것은 지양해야 합니다. 이는 예측 불가능한 오류를 발생시키고 데이터 추적을 어렵게 만들 수 있습니다. 항상 새로운 분기를 생성하여 변경 사항을 반영하는 것이 중요합니다.</p>
+                    </div>
+
+                    <div class="collapsible-header" onclick="toggleCollapsible(this)">오류 처리 및 테스트의 필요성</div>
+                    <div class="collapsible-content">
+                        <p>데이터베이스 연동, 체크포인트 조회, 그래프 재호출 등 모든 과정에서 발생할 수 있는 예외 상황에 대한 견고한 오류 처리 로직을 구현해야 합니다. 또한, 다양한 시나리오에 대한 철저한 테스트를 통해 기능의 안정성과 정확성을 검증해야 합니다.</p>
+                    </div>
+                    
+                    <div class="collapsible-header" onclick="toggleCollapsible(this)">사용자 경험(UX) 고려 사항</div>
+                    <div class="collapsible-content">
+                        <p>기술적 구현 외에도, 분기된 대화 흐름을 사용자에게 어떻게 효과적으로 제시하고 관리할 것인지에 대한 깊이 있는 고민이 필요합니다. 사용자가 여러 대화 버전을 쉽게 탐색하고, 원하는 분기로 전환할 수 있는 직관적인 UI/UX 설계는 기능의 실용성을 크게 좌우합니다. `parent_checkpoint_id`를 활용하여 대화의 계층 구조를 시각화하는 것이 도움이 될 수 있습니다.</p>
+                    </div>
+
+                    <div class="collapsible-header" onclick="toggleCollapsible(this)">스키마 진화 가능성 및 LangGraph 업데이트 주시</div>
+                    <div class="collapsible-content">
+                        <p>LangGraph 및 관련 라이브러리는 지속적으로 발전하고 있습니다. 체크포인트 스키마 또한 향후 버전에서 변경될 가능성이 있으므로, 공식 문서와 릴리스 노트를 주기적으로 확인하는 것이 좋습니다. `AsyncPostgresSaver` API를 통해 상호작용하고 직접적인 스키마 조작은 피하는 것이 안전합니다.</p>
+                    </div>
+
+                    <div class="collapsible-header" onclick="toggleCollapsible(this)">성능 고려</div>
+                    <div class="collapsible-content">
+                        <p>대화가 매우 길어지고 체크포인트 수가 많아질 경우, 성능 문제가 발생할 수 있습니다. `alist` 메서드의 `limit` 및 `before` 인자를 활용한 페이지네이션, 적절한 인덱싱이 중요합니다.</p>
+                    </div>
+                     <div class="collapsible-header" onclick="toggleCollapsible(this)">서브그래프 환경에서의 `checkpoint_ns` 처리</div>
+                    <div class="collapsible-content">
+                        <p>React Agent 또는 Supervisor Agent가 서브그래프를 활용한다면, `checkpoint_ns` (체크포인트 네임스페이스) 처리가 중요합니다. `checkpoint_ns`는 체크포인트가 루트 그래프 또는 특정 서브그래프 중 어디에서 발생했는지를 구분합니다. 수정 대상 상태나 재실행 시작점이 서브그래프 내부에 있다면, 체크포인트 조회 및 그래프 재호출 시 정확한 `checkpoint_ns`를 `configurable`에 명시해야 합니다. 이는 상태 수정 및 실행 재개의 정확성과 격리 수준을 보장합니다.</p>
+                    </div>
+                </div>
+
+                <h3 class="text-xl font-medium text-indigo-600 mb-3 mt-8">결론</h3>
+                <p class="leading-relaxed">LangGraph와 PostgreSQL `AsyncPostgresSaver`를 활용하면, 체크포인트의 불변성을 유지하면서 과거 메시지 수정 및 대화 재실행이라는 강력한 기능을 구현할 수 있습니다. 핵심은 기존 데이터를 변경하지 않고 새로운 대화 분기를 생성하는 것입니다. 본 가이드에서 제시된 스키마 분석, 구현 전략, 코드 예시, 그리고 ✨ Gemini API 연동 기능들이 실제 개발에 도움이 되기를 바랍니다.</p>
+            </div>
+        </main>
+
+        <footer class="mt-12 text-center text-sm text-slate-500">
+            <p>&copy; 2024 LangGraph 대화형 가이드. 이 애플리케이션은 제공된 보고서 내용을 기반으로 생성되었습니다.</p>
+        </footer>
+    </div>
+
+    <div id="geminiModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close-button" onclick="closeModal()">&times;</span>
+            <h3 id="geminiModalTitle" class="text-xl font-semibold text-indigo-600 mb-4">Gemini API 응답</h3>
+            <div id="geminiModalBody" class="text-sm leading-relaxed whitespace-pre-wrap">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        const tabs = ['overview', 'core_components', 'schema', 'strategies', 'implementation', 'advanced'];
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const schemaTabButtons = document.querySelectorAll('.schema-tab-button');
+        const schemaTabContents = document.querySelectorAll('.schema-tab-content');
+        
+        const geminiModal = document.getElementById('geminiModal');
+        const geminiModalTitle = document.getElementById('geminiModalTitle');
+        const geminiModalBody = document.getElementById('geminiModalBody');
+        let currentCodeSnippetKey = 'init_saver';
+
+
+        function showTab(tabId) {
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabId).classList.add('active');
+
+            tabButtons.forEach(button => {
+                button.classList.remove('active');
+                if (button.getAttribute('onclick').includes(tabId)) {
+                    button.classList.add('active');
+                }
+            });
+        }
+        
+        function showSchemaTable(tableContentId, clickedButton) {
+            schemaTabContents.forEach(content => content.classList.remove('active'));
+            document.getElementById(tableContentId).classList.add('active');
+
+            schemaTabButtons.forEach(button => button.classList.remove('active', 'border-sky-500', 'text-sky-600'));
+            clickedButton.classList.add('active', 'border-sky-500', 'text-sky-600');
+        }
+        
+        const strategyDetails = {
+            'strategy1_step1': '사용자 인터페이스는 수정할 메시지와 그 메시지에 가장 가까운 체크포인트의 `checkpoint_id`를 결정합니다. 이는 메시지 타임스탬프나 순서를 기반으로 할 수 있습니다.',
+            'strategy1_step2': '`checkpointer.aget_tuple({"configurable": {"thread_id": "...", "checkpoint_id": "..."}})`을 호출하여, 해당 `checkpoint_id` 시점의 전체 상태 (`CheckpointTuple` 객체)를 비동기적으로 가져옵니다.',
+            'strategy1_step3': '로드된 `checkpoint_tuple.checkpoint.channel_values.messages` (메시지 리스트)에서, 사용자가 수정한 메시지 이전까지의 메시지들을 그대로 유지합니다.',
+            'strategy1_step4': '이전 단계의 메시지 리스트에 사용자가 새로 수정한 메시지를 추가하여 새로운 전체 메시지 목록을 구성합니다. 수정된 메시지 이후의 기존 메시지들은 버려지거나, 사용자가 새 대화를 이어가도록 할 수 있습니다.',
+            'strategy1_step5': '`graph.ainvoke(new_input, config={"configurable": {"thread_id": "...", "checkpoint_id": "checkpoint_id_before_modification"}})`를 호출합니다. `checkpoint_id_before_modification`은 수정된 메시지가 발생하기 직전의 체크포인트 ID입니다. `new_input`은 수정된 메시지 또는 이를 포함하는 새로운 입력입니다. LangGraph는 지정된 상태에서 시작하여 새 입력을 처리하고, 새로운 체크포인트들을 생성하여 분기를 형성합니다.',
+            'strategy2_step1': '사용자가 대화를 특정 과거 지점부터 다시 시작하고 싶을 때, 그 지점에 해당하는 `checkpoint_id`를 UI 등에서 결정합니다.',
+            'strategy2_step2': '`graph.ainvoke(new_user_input_from_that_point, config={"configurable": {"thread_id": "...", "checkpoint_id": "chosen_past_checkpoint_id"}})`를 호출합니다. LangGraph는 `chosen_past_checkpoint_id`의 상태를 로드한 후, `new_user_input_from_that_point`를 새로운 입력으로 그래프 실행을 재개합니다. 이로 인해 새 체크포인트가 생성되며 분기됩니다.'
+        };
+
+        function showStrategyDetail(stepId) {
+            const detailDivId = stepId.startsWith('strategy1') ? 'strategy1_detail' : 'strategy2_detail';
+            const detailDiv = document.getElementById(detailDivId);
+            if (detailDiv) {
+                detailDiv.textContent = strategyDetails[stepId] || '상세 설명을 불러올 수 없습니다.';
+                detailDiv.classList.remove('hidden');
+            }
+        }
+
+        const codeSnippets = {
+            init_saver: {
+                title: '`AsyncPostgresSaver` 초기화',
+                code: `
+from psycopg_pool import AsyncConnectionPool
+from psycopg.rows import dict_row
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+import copy 
+
+DB_URI = "postgresql://user:password@host:port/database"
+pool_kwargs = {
+    "autocommit": True,
+    "prepare_threshold": 0,
+    "row_factory": dict_row,
+}
+
+# graph 변수는 이미 컴파일된 LangGraph 객체라고 가정
+# checkpointer 변수는 초기화된 AsyncPostgresSaver 인스턴스
+
+async def get_checkpointer_instance():
+    async with AsyncConnectionPool(conninfo=DB_URI, max_size=20, kwargs=pool_kwargs) as pool:
+        checkpointer = AsyncPostgresSaver(pool)
+        # await checkpointer.setup() # 초기 1회 실행
+        return checkpointer
+`
+            },
+            list_checkpoints: {
+                title: '특정 스레드의 체크포인트 목록 조회 (`alist`)',
+                code: `
+async def list_checkpoints_for_thread(checkpointer: AsyncPostgresSaver, thread_id: str):
+    list_config = {"configurable": {"thread_id": thread_id}}
+    all_checkpoints_in_thread = []
+    # alist는 CheckpointTuple을 반환합니다.
+    async for checkpoint_tuple in checkpointer.alist(list_config):
+        all_checkpoints_in_thread.append(checkpoint_tuple)
+    
+    # 필요시 타임스탬프(cp_tuple.checkpoint['ts']) 또는 parent_checkpoint_id 기준 정렬
+    # UI 표시용: {'message_content': msg.content, 'checkpoint_id': cp_tuple.checkpoint['id']}
+    return all_checkpoints_in_thread
+`
+            },
+            get_checkpoint: {
+                title: '특정 체크포인트 상세 정보 조회 (`aget_tuple`)',
+                code: `
+async def get_specific_checkpoint(checkpointer: AsyncPostgresSaver, thread_id: str, checkpoint_id: str):
+    # checkpoint_ns는 서브그래프 미사용 시 기본값 ""
+    read_config = {"configurable": {"thread_id": thread_id, "checkpoint_id": checkpoint_id, "checkpoint_ns": ""}}
+    checkpoint_tuple = await checkpointer.aget_tuple(read_config)
+    
+    if checkpoint_tuple:
+        # checkpoint_tuple.checkpoint는 'v', 'ts', 'id', 'channel_values' 등을 포함
+        return checkpoint_tuple.checkpoint
+    return None
+`
+            },
+            modify_message: {
+                title: '체크포인트 데이터 조작 (메모리상에서)',
+                code: `
+from langchain_core.messages import HumanMessage # 실제 사용하는 메시지 타입으로 변경
+
+async def modify_message_in_memory(past_checkpoint_data: dict, 
+                                   message_index_to_modify: int, 
+                                   new_message_content: str):
+    if not past_checkpoint_data: return None
+
+    past_channel_values = past_checkpoint_data.get("channel_values", {})
+    # LangGraph는 내부적으로 serde를 사용하므로, past_messages는 이미 파이썬 객체 리스트입니다.
+    past_messages = past_channel_values.get("messages", [])
+
+
+    if not (0 <= message_index_to_modify < len(past_messages)):
+        print(f"Error: Message index {message_index_to_modify} is out of bounds.")
+        return None
+
+    # 원본 데이터를 변경하지 않기 위해 깊은 복사
+    modified_messages = copy.deepcopy(past_messages)
+
+    try:
+        original_message = modified_messages[message_index_to_modify]
+        # 메시지 객체 타입에 맞춰 새 객체 생성 및 교체 (예: HumanMessage)
+        # id 등 다른 필드도 유지해야 할 수 있음
+        modified_messages[message_index_to_modify] = HumanMessage(
+            content=new_message_content, 
+            id=original_message.id if hasattr(original_message, 'id') else None
+        )
+    except Exception as e:
+        print(f"Error modifying message content: {e}")
+        return None
+        
+    return modified_messages # 수정된 메시지 목록 반환
+`
+            },
+            resume_graph: {
+                title: '수정된 메시지로 그래프 재호출 (전략 1)',
+                code: `
+async def resume_graph_with_modified_message(
+    graph, # 컴파일된 LangGraph 객체
+    thread_id: str, 
+    checkpoint_id_to_resume_from: str, # 수정된 메시지 *이전*의 체크포인트 ID
+    modified_user_utterance: str # 사용자가 수정한 새로운 메시지 내용
+):
+    config_for_reinvoke = {
+        "configurable": {
+            "thread_id": thread_id,
+            "checkpoint_id": checkpoint_id_to_resume_from 
+        }
+    }
+
+    # 그래프 입력 스키마에 맞춰 입력 구성
+    # 예: {"messages": [("human", new_utterance)]}
+    input_for_graph_after_resume = {"messages": [("human", modified_user_utterance)]} 
+
+    new_branch_output = await graph.ainvoke(input_for_graph_after_resume, config=config_for_reinvoke)
+    return new_branch_output
+`
+            }
+        };
+
+        const codeDisplayArea = document.getElementById('code_display_area');
+        const geminiCodeCommentButton = document.getElementById('gemini_code_comment_button');
+
+        function showCodeSnippet(snippetKey) {
+            currentCodeSnippetKey = snippetKey;
+            const snippet = codeSnippets[snippetKey];
+            if (snippet) {
+                codeDisplayArea.innerHTML = `
+                    <h4 class="text-lg font-medium text-indigo-500 mb-2">${snippet.title}</h4>
+                    <div class="code-block"><pre>${snippet.code.trim()}</pre></div>
+                `;
+                geminiCodeCommentButton.classList.remove('hidden');
+            } else {
+                codeDisplayArea.innerHTML = '<p>선택된 코드 조각을 찾을 수 없습니다.</p>';
+                geminiCodeCommentButton.classList.add('hidden');
+            }
+        }
+        
+        function toggleCollapsible(element) {
+            const content = element.nextElementSibling;
+            if (content.style.display === "block") {
+                content.style.display = "none";
+                element.classList.remove('bg-indigo-100');
+            } else {
+                content.style.display = "block";
+                element.classList.add('bg-indigo-100');
+            }
+        }
+
+        function openModal(title, content) {
+            geminiModalTitle.textContent = title;
+            geminiModalBody.innerHTML = content; // Use innerHTML to render formatted text or spinner
+            geminiModal.style.display = "block";
+        }
+
+        function closeModal() {
+            geminiModal.style.display = "none";
+        }
+
+        // Close modal if user clicks outside of it
+        window.onclick = function(event) {
+            if (event.target == geminiModal) {
+                closeModal();
+            }
+        }
+
+        async function callGeminiAPI(prompt) {
+            openModal("Gemini API 응답", '<div class="loading-spinner"></div><p class="text-center">✨ AI 응답 생성 중...</p>');
+
+            let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+            const payload = { contents: chatHistory };
+            const apiKey = ""; // Provided by Canvas runtime
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    throw new Error(`API 요청 실패: ${response.status} ${response.statusText}. 응답: ${errorBody}`);
+                }
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    return text;
+                } else if (result.promptFeedback && result.promptFeedback.blockReason) {
+                    console.error("Gemini API 응답 차단:", result.promptFeedback);
+                    throw new Error(`Gemini API 요청이 차단되었습니다: ${result.promptFeedback.blockReason}`);
+                } else {
+                    console.error("Gemini API 응답 형식 오류:", result);
+                    throw new Error("Gemini API로부터 유효한 텍스트를 받지 못했습니다.");
+                }
+            } catch (error) {
+                console.error("Gemini API 호출 중 오류 발생:", error);
+                throw error; 
+            }
+        }
+
+        async function requestSchemaExplanation(tableName, tableContentContainerId) {
+            const container = document.getElementById(tableContentContainerId);
+            if (!container) {
+                openModal("오류", "테이블 정보를 찾을 수 없습니다.");
+                return;
+            }
+            const tableElement = container.querySelector('.schema-table');
+            if (!tableElement) {
+                openModal("오류", "스키마 테이블 요소를 찾을 수 없습니다.");
+                return;
+            }
+
+            let schemaDetailsString = `테이블명: ${tableName}\n컬럼 정보:\n`;
+            const rows = tableElement.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const cells = row.querySelectorAll('td');
+                if (cells.length >= 3) {
+                    schemaDetailsString += `- ${cells[0].textContent.trim()}: ${cells[1].textContent.trim()} (${cells[2].textContent.trim()})\n`;
+                }
+            });
+
+            const prompt = `당신은 LangGraph와 PostgreSQL 데이터베이스 전문가입니다. 다음은 LangGraph 체크포인트 시스템에서 사용되는 PostgreSQL 테이블 '${tableName}'의 스키마 정보입니다. 
+이 테이블의 주요 목적, 각 컬럼의 의미와 역할, 그리고 이 테이블이 전체 LangGraph 체크포인트 메커니즘 내에서 어떻게 기여하는지에 대해 한국어로 자세히 설명해주세요. 
+특히 다른 테이블과의 관계가 있다면 언급해주십시오. 답변은 마크다운 형식으로 주요 항목을 강조하여 가독성 좋게 작성해주세요.
+
+테이블 스키마:
+${schemaDetailsString}`;
+
+            try {
+                const explanation = await callGeminiAPI(prompt);
+                openModal(`'${tableName}' 테이블 설명 (✨Gemini)`, explanation);
+            } catch (error) {
+                openModal("오류", `Gemini API 요청 중 오류 발생: ${error.message}`);
+            }
+        }
+        
+        async function requestCodeComments() {
+            const snippetKey = currentCodeSnippetKey;
+            const snippetData = codeSnippets[snippetKey];
+            if (!snippetData || !snippetData.code) {
+                openModal("오류", "선택된 코드 조각을 찾을 수 없습니다.");
+                return;
+            }
+            const codeToComment = snippetData.code;
+            const prompt = `당신은 Python과 LangGraph 전문가입니다. 다음 Python 코드는 LangGraph 체크포인트 시스템의 일부입니다. 
+이 코드의 주요 기능, 각 함수 또는 클래스의 역할, 중요한 로직 흐름에 대해 한국어로 상세히 설명해주세요. 
+설명은 코드 전체에 대한 종합적인 해설 형식으로 제공하고, 필요한 경우 주요 코드 라인이나 블록을 언급하며 설명할 수 있습니다. 답변은 마크다운 형식으로 작성해주세요.
+
+\`\`\`python
+${codeToComment}
+\`\`\`
+`;
+            try {
+                const comments = await callGeminiAPI(prompt);
+                openModal(`'${snippetData.title}' 코드 설명 (✨Gemini)`, comments);
+            } catch (error) {
+                openModal("오류", `Gemini API 요청 중 오류 발생: ${error.message}`);
+            }
+        }
+
+        async function requestStrategyAnalysis() {
+            const strategy1Desc = `전략 1: 상태 로드 후 새 분기 생성 (권장)
+사용자가 과거 메시지를 수정하면, 해당 시점의 상태를 로드하고 수정된 메시지를 포함하여 새로운 대화 흐름을 만듭니다. 기존 대화는 보존됩니다.
+단계:
+1. UI에서 수정 대상 메시지 및 checkpoint_id 식별
+2. checkpointer.aget_tuple()로 해당 checkpoint_id의 상태 로드
+3. 로드된 상태에서 수정 이전 메시지 목록 추출
+4. 수정된 새 메시지로 새 메시지 목록 구성
+5. graph.ainvoke() 호출 (원본 thread_id, 수정 직전 checkpoint_id, 새 입력) → 새 분기 생성`;
+
+            const strategy2Desc = `전략 2: "시간 여행" 후 재실행
+특정 과거 checkpoint_id로 돌아가, 그 시점부터 완전히 새로운 입력(수정된 메시지 포함)으로 그래프를 다시 실행합니다. 이 역시 새 분기를 만듭니다.
+단계:
+1. 재실행할 과거 시점의 checkpoint_id 식별
+2. graph.ainvoke() 호출 (thread_id, 해당 checkpoint_id, 새 수정 입력) → 새 분기 생성`;
+
+            const prompt = `LangGraph에서 과거 메시지 수정 및 재실행을 위한 두 가지 주요 전략이 있습니다. 
+전략 1은 '상태 로드 후 새 분기 생성'이고, 전략 2는 '"시간 여행" 후 재실행'입니다. 각 전략의 상세 설명은 다음과 같습니다.
+
+전략 1:
+${strategy1Desc}
+
+전략 2:
+${strategy2Desc}
+
+두 전략의 장단점, 적합한 사용 사례, 구현 시 주의사항 등을 포함하여 심층적으로 비교 분석해주세요. 
+특히 어떤 상황에서 어떤 전략이 더 유리한지 명확히 설명해주세요. 답변은 한국어로, 마크다운 형식을 사용하여 가독성 있게 작성해주세요.`;
+
+            try {
+                const analysis = await callGeminiAPI(prompt);
+                openModal("구현 전략 비교 분석 (✨Gemini)", analysis);
+            } catch (error) {
+                openModal("오류", `Gemini API 요청 중 오류 발생: ${error.message}`);
+            }
+        }
+
+
+        // Initialize first tab and first code snippet
+        document.addEventListener('DOMContentLoaded', () => {
+            showTab('overview');
+            showSchemaTable('checkpoints_table_content', document.querySelector('.schema-tab-button.active'));
+            showCodeSnippet('init_saver'); 
+        });
+
+    </script>
+</body>
+</html>
