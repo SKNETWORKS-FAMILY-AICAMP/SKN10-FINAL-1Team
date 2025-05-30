@@ -90,39 +90,7 @@ class EmbedChunk(models.Model):
     def __str__(self):
         return self.hash
     
-class NewsArticle(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    corp = models.CharField(max_length=50, null=False)
-    outlier_month = models.DateField(null=False)
-    title = models.TextField(null=False)
-    publisher = models.CharField(max_length=255)
-    published_at = models.DateTimeField(auto_now_add=True)
-    content_url = models.TextField(null=False)
-    content_embedding = VectorField(dimensions=3072, default=[0.0]*3072)
 
-    class Meta:
-        db_table = "news_articles"
-    def __str__(self) :
-        return self.title
-    
-class TelcoSubscriberStats(models.Model) :
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    year_month = models.CharField(max_length=7, null=False)
-    skt_subscribers = models.BigIntegerField()
-    kt_subscribers = models.BigIntegerField()
-    lguplus_subscribers = models.BigIntegerField()
-    mvno_subscribers = models.BigIntegerField()
-    skt_delta = models.BigIntegerField()
-    kt_delta = models.BigIntegerField()
-    lguplus_delta = models.BigIntegerField()
-    mvno_delta = models.BigIntegerField()
-    skt_delta_pct = models.DecimalField(max_digits=6, decimal_places=2)
-    kt_delta_pct = models.DecimalField(max_digits=6, decimal_places=2)
-    lguplus_delta_pct = models.DecimalField(max_digits=6, decimal_places=2)
-    mvno_delta_pct = models.DecimalField(max_digits=6, decimal_places=2)
-    
-    class Meta:
-        db_table = "telco_subscriber_stats"
 
 
 class TelecomCustomers(models.Model) :
@@ -150,6 +118,25 @@ class TelecomCustomers(models.Model) :
     churn = models.BooleanField()
 
     class Meta:
-        db_table = "telecom_customers"
+        verbose_name_plural = "Telecom customers"  # 복수형 이름 지정
+        db_table = 'telecom_customers'  # 테이블 이름도 명시적으로 지정
+
+
+class SummaryNewsKeywords(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    date = models.DateField()
+    keyword = models.TextField()
+    title = models.TextField()
+    summary = models.TextField()
+    url = models.URLField(max_length=500)
+
+    class Meta:
+        verbose_name_plural = "Summary news keywords"  # 복수형 이름 지정
+        db_table = 'summary_news_keywords'  # 테이블 이름도 명시적으로 지정
+
+
+
+    def __str__(self):
+        return f"{self.date} - {self.keyword} - {self.title[:50]}..."
 
 
