@@ -7,6 +7,12 @@ from src.agent.state import WorkflowState # Assuming state.py is in the same dir
 import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
 import os
+import pinecone
+from langchain.vectorstores import Pinecone
+from langchain.embeddings import OpenAIEmbeddings
+from dotenv import load_dotenv
+from langchain.chat_models import ChatOpenAI
+from langchain.chains import RetrievalQA
 
 # 공통 도구 - 에이전트 전환 도구
 @tool
@@ -124,6 +130,17 @@ def summarize_document(
         document_content: 요약할 문서 내용
         max_length: 요약 최대 길이 (문자 수)
     """
+
+    load_dotenv()
+    # pinecone DB 불러오기
+    pinecone.init(api_key=os.getenv("PINECONE_API_KEY"))
+    embeddings = OpenAIEmbeddings()
+    vectordb = Pinecone.from_existing_index(
+        index_name="dense-index", # 인덱스 이름
+        embedding=embeddings
+    )
+
+
     print(f"[Tool Call] summarize_document: content_len='{len(document_content)}', max_len='{max_length}'")
     return f"문서 요약 (첫 50자): {document_content[:50]}... [요약된 내용]"
 
