@@ -9,4 +9,6 @@ langchain_community
 langchain_openai
 langchain-core
 aiohttp
-pinecone-client
+pinecone
+langchain
+langchain-pinecone

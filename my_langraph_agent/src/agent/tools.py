@@ -7,12 +7,17 @@ from src.agent.state import WorkflowState # Assuming state.py is in the same dir
 import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
 import os
-import pinecone
+from pinecone import Pinecone, ServerlessSpec
 from langchain.vectorstores import Pinecone
 from langchain.embeddings import OpenAIEmbeddings
 from dotenv import load_dotenv
 from langchain.chat_models import ChatOpenAI
+from langchain_openai import OpenAI
 from langchain.chains import RetrievalQA
+from langchain.retrievers.document_compressors import LLMChainExtractor
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain.retrievers import ContextualCompressionRetriever
 
 # 공통 도구 - 에이전트 전환 도구
 @tool
@@ -126,8 +131,10 @@ def summarize_document(
 ) -> str:
     """
     문서 내용을 요약합니다.
+    1. s3 경로에서 문서를 찾음
+    2. 해당 문서를 요약함.
     Args:
-        document_content: 요약할 문서 내용
+        s3 경로
         max_length: 요약 최대 길이 (문자 수)
     """
 
@@ -140,9 +147,31 @@ def summarize_document(
         embedding=embeddings
     )
 
+    llm = OpenAI()
+    chat_prompt = ChatPromptTemplate([
+    ("system", "너는 사용자 입력을 바탕으로 해당하는 내용의 문서를 찾아서 요약해주는 어시스턴트야."),
+    ("user", "{user_input}")
+    ])
+    parser = StrOutputParser()
+    chatbot = chat_prompt | llm | parser # 하나로 합쳐짐.
 
-    print(f"[Tool Call] summarize_document: content_len='{len(document_content)}', max_len='{max_length}'")
-    return f"문서 요약 (첫 50자): {document_content[:50]}... [요약된 내용]"
+    retriever = vectordb.as_retriever(search_kwargs={"k": 2})
+    compressor = LLMChainExtractor.from_llm(chatbot)
+    compressor_retriever = ContextualCompressionRetriever(
+    base_compressor=compressor, base_retriever=retriever
+    )
+    
+    # **요약 수행**: compressor_retriever 에서 문서를 가져오면 이미 요약된 상태입니다.
+    docs = compressor_retriever.get_relevant_documents(document_content)
+
+    # 문서들이 list[Document] 형태로 오는데, .page_content 에 요약 텍스트가 들어있습니다.
+    summary = "\n\n".join([doc.page_content for doc in docs])
+
+    # 만약 길이 제한을 걸고 싶다면 아래처럼 자를 수도 있습니다.
+    if len(summary) > max_length:
+        summary = summary[:max_length].rsplit(" ", 1)[0] + "…"
+
+    return summary
 
 @tool
 def extract_information(
