@@ -17,6 +17,7 @@ class ChatSession(models.Model):
     agent_type = models.CharField(max_length=20, choices=AgentType.choices)
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
+    title = models.CharField(max_length=60, default="새 세션")
 
     class Meta:
         db_table = "chat_sessions"
