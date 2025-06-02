@@ -125,6 +125,14 @@ if (typeof window !== "undefined") {
 
 // Helper function to check if we're in a preview/environment
 export function isPreviewEnvironment(): boolean {
+  // 항상 실제 API를 사용하도록 설정
+  console.log("✅ 실제 모드 - 항상 실제 API 사용");
+  localStorage.setItem("forceRealApi", "true");
+  localStorage.setItem("backendAvailable", "true");
+  localStorage.removeItem("demoMode");
+  return false;
+  
+  /* 원래 코드 - 필요시 복원
   // Check if window is defined (we're in a browser)
   if (typeof window !== "undefined") {
     console.log("✅ isPreviewEnvironment 호출됨", {
@@ -171,6 +179,7 @@ export function isPreviewEnvironment(): boolean {
     return result;
   }
   return false;
+  */
 }
 
 // Mock function to generate a response based on user input

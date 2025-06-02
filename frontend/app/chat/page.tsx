@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,7 +12,7 @@ import { ChatHeader } from "@/components/chat-header"
 import { Canvas } from "@/components/canvas"
 import { ChatSidebar } from "@/components/chat-sidebar"
 import { getCurrentUser, logoutUser, type User } from "@/lib/api/auth-service"
-import { getChatMessages, sendChatMessage, type ChatMessage, type AgentType } from "@/lib/api/chat-service"
+import { getChatMessages, sendChatMessage, updateSessionAgentType, type ChatMessage, type AgentType } from "@/lib/api/chat-service"
 import { getDocumentSummary } from "@/lib/api/document-service"
 import { getFileContent } from "@/lib/api/code-service"
 import { generateBusinessChart } from "@/lib/api/analytics-service"
@@ -27,9 +27,31 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<AgentType | "auto">("auto")
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [canvasContent, setCanvasContent] = useState(null)
+  // Define types for canvas content
+  type CodeCanvasContent = {
+    type: "code"
+    language: string
+    content: string
+    title: string
+  }
+
+  type DocumentCanvasContent = {
+    type: "document"
+    data: any
+    title: string
+  }
+
+  type ChartCanvasContent = {
+    type: "chart"
+    data: any
+    title: string
+  }
+
+  type CanvasContent = CodeCanvasContent | DocumentCanvasContent | ChartCanvasContent | null
+  
+  const [canvasContent, setCanvasContent] = useState<CanvasContent>(null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-  const messagesEndRef = useRef(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Check if user is logged in
   useEffect(() => {
@@ -68,7 +90,12 @@ export default function ChatPage() {
 
   // Scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    if (messagesEndRef.current) {
+      const container = messagesEndRef.current.parentElement
+      if (container) {
+        container.scrollTop = container.scrollHeight
+      }
+    }
   }, [messages])
 
   // Handle session change
@@ -78,8 +105,26 @@ export default function ChatPage() {
     setCanvasContent(null)
   }
 
+  // Handle agent type change
+  const handleAgentChange = async (agentType: AgentType | "auto") => {
+    setSelectedAgent(agentType)
+    
+    // Only update in database if it's not "auto" and we have an active session
+    if (agentType !== "auto" && activeSessionId) {
+      try {
+        await updateSessionAgentType(activeSessionId, agentType as AgentType)
+      } catch (error) {
+        toast({
+          title: "Failed to update agent type",
+          description: "Please try again later.",
+          variant: "destructive",
+        })
+      }
+    }
+  }
+
   // Handle sending a message
-  const handleSendMessage = async (e) => {
+  const handleSendMessage = async (e: FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading || !activeSessionId) return
 
@@ -212,7 +257,7 @@ export default function ChatPage() {
           {/* Chat Area */}
           <div className="flex-1 flex flex-col">
             {/* Messages Container */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-[calc(100vh-180px)]" style={{ scrollBehavior: "smooth" }}>
               {!activeSessionId ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center p-8">
@@ -262,7 +307,7 @@ export default function ChatPage() {
             </div>
 
             {/* Agent Selector */}
-            {activeSessionId && <AgentSelector selectedAgent={selectedAgent} onAgentChange={setSelectedAgent} />}
+            {activeSessionId && <AgentSelector selectedAgent={selectedAgent} onAgentChange={handleAgentChange} />}
 
             {/* Input Form */}
             {activeSessionId && (
