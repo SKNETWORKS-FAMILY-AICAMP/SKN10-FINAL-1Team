@@ -1,0 +1,156 @@
+{
+  "rag_agent/src/agent/graph.py": "
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, TypedDict
+
+from langchain_core.runnables import RunnableConfig
+from langgraph.graph import StateGraph
+
+# ── 1. Configurable 값 ─────────────────────────────────────
+class Configuration(TypedDict):
+    pinecone_index_name: str
+    top_k: Optional[int]
+    openai_model: Optional[str]
+
+# ── 2. State 정의 ──────────────────────────────────────────
+@dataclass
+class State:
+    question: str
+    query_vector: List[float] | None = None
+    matches: list | None = None
+    context: str = \"\"
+    answer: str = \"\"
+
+# ── 3. 실제 작업 로직 가져오기 ────────────────────────────
+from src.agent.tasks import (
+    embed_query,
+    retrieve_best_namespace,
+    build_context,
+    generate_answer,
+)
+
+# ── 4. 노드 함수(동기) ─────────────────────────────────────
+def node_embed_query(state: State, cfg: RunnableConfig) -> Dict[str, Any]:
+    return {\"query_vector\": embed_query(state.question)}
+
+def node_retrieve_best_ns(state: State, cfg: RunnableConfig) -> Dict[str, Any]:
+    qvec  = state.query_vector
+    top_k = cfg[\"configurable\"].get(\"top_k\", 5)
+    _, ms = retrieve_best_namespace(qvec, top_k)
+    return {\"matches\": ms}
+
+def node_build_context(state: State, cfg: RunnableConfig) -> Dict[str, Any]:
+    return {\"context\": build_context(state.matches)}
+
+def node_generate_answer(state: State, cfg: RunnableConfig) -> Dict[str, Any]:
+    return {\"answer\": generate_answer(state.question, state.context)}
+
+# ── 5. 그래프 구성(0.4.x 규격) ────────────────────────────
+g = StateGraph(State, config_schema=Configuration)
+
+# 노드 등록: \"ID\" → 함수(동기)
+g = g.add_node(\"EmbedQuery\",      node_embed_query)
+g = g.add_node(\"RetrieveBestNS\",  node_retrieve_best_ns)
+g = g.add_node(\"BuildContext\",    node_build_context)
+g = g.add_node(\"GenerateAnswer\",  node_generate_answer)
+
+# 엣지 연결
+g = g.add_edge(\"EmbedQuery\",     \"RetrieveBestNS\")
+g = g.add_edge(\"RetrieveBestNS\", \"BuildContext\")
+g = g.add_edge(\"BuildContext\",   \"GenerateAnswer\")
+
+# entry / finish 지정
+g = g.set_entry_point(\"EmbedQuery\")
+g = g.set_finish_point(\"GenerateAnswer\")
+
+graph = g.compile(name=\"RAG_Workflow\")
+",
+
+  "rag_agent/src/agent/tasks.py": "
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+from openai import OpenAI
+from pinecone import Pinecone
+
+# ─── .env 읽기 ─────────────────────────────────────────────
+ROOT = Path(__file__).resolve().parents[3]   # SKN10-FINAL_1TEAM
+load_dotenv(ROOT / \".env\")
+
+OPENAI_API_KEY   = os.getenv(\"OPENAI_API_KEY\")
+PINECONE_API_KEY = os.getenv(\"PINECONE_API_KEY\")
+PINECONE_ENV     = os.getenv(\"PINECONE_ENV\")
+
+INDEX_NAME = \"dense-index\"
+
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+pc            = Pinecone(api_key=PINECONE_API_KEY, environment=PINECONE_ENV)
+index         = pc.Index(INDEX_NAME)
+
+# ─── RAG helper ────────────────────────────────────────────
+def embed_query(text: str) -> list:
+    emb = openai_client.embeddings.create(
+        model=\"text-embedding-3-large\", input=text
+    )
+    return emb.data[0].embedding
+
+def retrieve_best_namespace(vec: list, top_k: int = 5) -> tuple:
+    stats = index.describe_index_stats()
+    best_ns, best_score, best_matches = None, -1.0, None
+    for ns, info in stats.namespaces.items():
+        if info[\"vector_count\"] == 0:
+            continue
+        res = index.query(vector=vec, namespace=ns, top_k=top_k, include_metadata=True)
+        if not res.matches:
+            continue
+        score = res.matches[0].score
+        if score > best_score:
+            best_ns, best_score, best_matches = ns, score, res.matches
+    if best_ns is None:
+        raise ValueError(\"매칭되는 네임스페이스가 없습니다.\")
+    return best_ns, best_matches
+
+def build_context(matches: list) -> str:
+    return \"\\n---\\n\".join(m.metadata.get(\"text\", \"\") for m in matches if m.metadata.get(\"text\"))
+
+def generate_answer(question: str, context: str) -> str:
+    prompt = f\"\"\"아래 Context를 참고하여 질문에 답변해주세요.\\n\\nContext:\\n{context}\\n\\n질문:\\n{question}\\n\"\"\"
+    resp = openai_client.chat.completions.create(
+        model=\"gpt-3.5-turbo\",
+        messages=[
+            {\"role\": \"system\", \"content\": \"당신은 친절한 어시스턴트입니다.\"},
+            {\"role\": \"user\",   \"content\": prompt}
+        ],
+        temperature=0.0,
+        max_tokens=512
+    )
+    return resp.choices[0].message.content.strip()
+",
+
+  "rag_agent/app.py": "
+from pathlib import Path
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).resolve().parents[2]   # SKN10-FINAL_1TEAM
+load_dotenv(ROOT / \".env\")
+
+from src.agent.graph import graph  # 컴파일된 StateGraph
+
+if __name__ == \"__main__\":
+    while True:
+        q = input(\"🔍 질문 (‘exit’ 입력 시 종료): \").strip()
+        if q.lower() in (\"exit\", \"quit\"): break
+        if not q: continue
+
+        try:
+            result = graph.invoke(
+                {\"question\": q},
+                config={\"configurable\": {\"top_k\": 5}}
+            )
+            print(\"🏆 답변:\\n\" + result[\"answer\"] + \"\\n\")
+        except Exception as e:
+            print(\"⚠️  오류:\", e, \"\\n\")
+"
+}
