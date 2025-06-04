@@ -1,0 +1,50 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>VPN 상품 개요</title>{% endblock %}    
+{% block content %}
+
+<h1>VPN 상품 개요</h1>
+<h2>목적/특징</h2>
+<hr>
+<p>
+    Cloud 환경 외부에 위치한 고객사 Site와 고객의 Cloud 환경을 사설망으로 연결하여, 고객의 Data Center 유연성 확장 및 Hybrid cloud 환경을 제공합니다.<br><br>
+    서비스 특·장점<br>
+    보안성<br>
+</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>IPSec-VPN을 통한 터널링 기술을 이용하여 다양한 고객들의 트래픽을 분리하고, 변환된 특정 패킷 사용</li>
+    <li>특정 사용자끼리 전용망처럼 안전하게 통신 가능(보안성 강화)</li>
+</div><br>
+
+<p>비용 절감</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>고객의 별도의 네트워크 구성이 필요 없으며, 이에 따른 기업의 통신 비용 절감 효과</li>
+</div><br><br>
+
+<h2>구조/원리</h2>
+<hr>
+<p>서비스 구조</p>
+
+<img src="/static/images/network_vpn1.png" alt="VPN 상품 개요 1" width="600"><br><br>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>VPN 구성으로 공중망을 통한 터널링(IP-Sec) 연동 구조로, 외부의 고객 시스템과 Site-to-site VPN(IP-Sec)으로 공중망을 통해 cloud와 연결이 가능합니다.</li>
+</div><br><br>
+
+<h2>유의사항/제약사항</h2>
+<hr>
+<p>KT Cloud VPN 연동 지원 유형</p>
+
+<img src="/static/images/network_vpn2.png" alt="VPN 상품 개요 2" width="600"><br><br>
+
+<p>
+    IPSec-VPN 방식<br>
+    Public Cloud, Enterprise Cloud, G-Cloud 공히 IPSec-VPN 을 지원하며, SSL-VPN은 지원하지 않습니다.
+</p>
+
+
+
+
+{% endblock %}

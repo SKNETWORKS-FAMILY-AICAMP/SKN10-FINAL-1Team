@@ -1,0 +1,79 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>AI Train 가이드 - 고정할당/동적할당</title>{% endblock %}    
+{% block content %}
+<h1>AI Train 가이드 - 고정할당/동적할당</h1>
+<h2>AI Train의 자원 할당 방식</h2>
+<hr>
+<p>
+    AI Train은 사용자가 선택할 수 있는 자원 할당 옵션을 제공합니다.<br>
+    고정 할당은 컨테이너가 생성된 시점부터 종료된 시점까지 GPU 사용 여부와는 무관하게 요금이 부과됩니다.<br>
+    동적 할당의 경우 실제 GPU를 사용한 시간만 측정하여 요금이 부과되나, GPU가 유휴상태인 경우 내부 회수 정책에 따라 컨테이너를 삭제하고 GPU를 회수합니다.
+</p><br>
+
+<h3>구성 옵션 변경하기</h3>
+<p>AI Train - Container 탭에서 사용자는 구성 옵션을 변경할 수 있습니다.</p>
+
+<img src="/static/images/ai_train_assign1.png" alt="AI Train 할당 1" width="600"><br>
+
+<p>
+    동적할당 버튼은 생성된 컨테이너가 존재하지 않을 경우에만 활성화됩니다.<br>
+    버튼을 클릭하면 팝업 창으로 연결됩니다.
+</p>
+
+<img src="/static/images/ai_train_assign2.png" alt="AI Train 할당 2" width="500"><br><br>
+
+<p>
+    구성 옵션은 Default 값으로 고정할당이 적용되어 있습니다.<br>
+    원하는 할당 방식을 선택 후, 확인 버튼을 클릭하면 선택한 옵션으로 변경됩니다.<br>
+    자원 할당 방식은 추후에도 언제든지 변경할 수 있으나, 옵션 변경을 위해서는 생성된 컨테이너가 존재하지 않아야 합니다.<br>
+    각 할당 방식에 대해 상세한 설명은 아래 문단에서 확인하실 수 있습니다.
+</p>
+
+<h2>GPU 고정 할당</h2>
+<hr>
+<p>
+    기존의 Cloud에서 GPU 자원을 제공하는 방식과 동일합니다.<br>
+    Cloud 상 Container에서 GPU를 유연하게 사용 가능하도록 제공하며, 컨테이너가 생성된 시각부터 컨테이너가 삭제된 시각까지 CPU / Memory / GPU 사용에 대한 요금이 부과됩니다.<br>
+    컨테이너 사용에 대한 요금 계산식은 아래와 같습니다. 
+</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>(컨테이너 사용 시간) X { (Core 수 X 60) + (Mem GB X 6) + (GPU별 가격 X GPU 수) } KRW</li>
+</div><br>
+
+<h2>GPU 동적 할당</h2>
+<hr>
+<p>
+    동적 할당을 선택하여도 컨테이너를 활용하는 관점에서는 다른 점이 없습니다.<br>
+    하지만 일정 시간 GPU를 사용하지 않아 GPU Utilization이 1% 미만인 채로 12시간 이상 유지되면, 자동으로 컨테이너를 삭제하고 GPU를 회수합니다.<br>
+    대신 GPU를 실제 활용한 시간, 즉 GPU Utilization이 1% 이상인 시간에 대해서만 요금이 부과되어 비용을 최적화할 수 있습니다.<br>
+    동적 할당 방식의 컨테이너 사용에 대한 요금 계산식은 아래와 같습니다.
+</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>[ (컨테이너 사용 시간) X { (Core 수 X 60) + (Mem GB X 6) } ] + { GPU 사용 시간 X (GPU별 가격 X GPU 수) } KRW</li>
+</div><br>
+
+<p>고정 할당과 동적 할당 방식의 예시입니다.</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <ul>
+    <li>
+    (예시) 10시에 컨테이너 생성, 환경 세팅 및 코드 작성 후 12시~16시 GPU 사용, 20시에 컨테이너 삭제한 경우 (12 Core 96GB A100 1GPU)
+    <ul>
+        <br><li>고정할당 : 10시간에 대한 자원 고정 비용 발생 (60,750 KRW)</li>
+        <li>동적할당 : 10시간에 대한 CPU+Memory 사용 비용 (12,960 KRW) + 4시간에 대한 GPU 사용 비용 (19,116 KRW)의 합산 (32,076 KRW)</li>
+    </ul><br>
+    </li>
+    <li>위 예시에서, 만약 10시간 동안 계속 GPU를 사용하였다면 고정할당/동적할당 요금은 동일합니다.</li>
+  </ul>
+</div>
+
+<p>
+    예시와 같이,  GPU 사용 시간을 고려하여 동적할당 방식을 선택한다면 비용을 최적화할 수 있습니다.<br>
+    다만 GPU 사용량이 측정되지 않을 경우 시스템에서 자동으로 컨테이너를 삭제할 수 있으니 데이터 관리에 유의하여야 합니다.
+</p>
+
+{% endblock %}

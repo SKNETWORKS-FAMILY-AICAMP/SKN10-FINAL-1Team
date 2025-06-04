@@ -1,0 +1,116 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>Connect Hub - 이용 방법</title>{% endblock %}    
+{% block content %}
+
+<h1>Connect Hub - 이용 방법</h1>
+<h2>Connect Hub 통신을 위한 추가 설정 ( DX-M1, Ent.security, Finance )</h2>
+<hr>
+<p>
+    Connect Hub 서비스 이용을 위해, Connect Hub 서비스 신청 이후 추가적인 라우팅/방화벽 정책 설정을 진행합니다.<br><br>
+    1. 라우팅 설정<br>
+    Connect Hub 승인 후, Connect Hub로 통신하기 위한 방화벽 Uplink VLAN 인터페이스가 [ connecthub_Connect Hub Group이름 ]으로 자동 생성됩니다.<br><br>
+    Routing 추가를 위해, Server > Networking > Static Route 에서 생성된 Connect Hub 용 인터페이스를 선택합니다.<br>
+    Gateway는 자동으로 입력되며, 목적지는 추가 연동할 대상의 서브넷/Tier Network 대역으로 입력합니다.<br>
+    예시) DX-M1(172.25.0.0/24) ~ Central A(172.16.10.0/24) 연동
+</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>Tier : connecthub_myCHUB 선택</li>
+    <li>Gateway(자동 입력) : 211.251.255.128</li>
+    <li>Destination CIDR : Central A에 해당 하는 172.16.10.0/24를 입력</li>
+</div><br>
+
+<img src="/static/images/network_hub5.png" alt="Connect Hub 이용 방법 1" width="600"><br><br>
+
+<p>
+    2. 방화벽 정책 추가 설정<br>
+    Server > Networking > 방화벽 에서 Connect Hub 인터페이스와 연동하고자 하는 Tier 간 통신을 위해, 방화벽 정책을 추가합니다.<br><br>
+    1) inbound 방화벽 설정<br>
+    Connect Hub 인터페이스를 선택하고 허용할 ip 대역을 입력합니다.<br>
+    그 다음, 연동할 Tier NW를 선택하고 허용할 ip 대역 및 port를 입력합니다.<br><br>
+    ※ ip 대역, port 미입력시, all 로 설정 됩니다.
+</p>
+
+<img src="/static/images/network_hub6.png" alt="Connect Hub 이용 방법 2" width="600"><br><br>
+
+<p>
+    2) outbound 방화벽 설정<br>
+    연동할 Tier NW를 선택하고 허용할 ip 대역을 입력합니다.<br>
+    그 다음, Connect Hub 인터페이스를 선택하고 허용할 ip 대역 및 port를 입력합니다.<br><br>
+    ※ ip 대역, port 미입력시, all 로 설정 됩니다.<br>
+    예시 ) DX-M1(10.10.10.0/24) ~ Central A(172.16.10.0/24) 연동
+</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>Tier : connecthub_myCHUB 선택</li>
+    <li>Gateway(자동 입력) : 10.10.10.9</li>
+    <li>Destination CIDR : Central A에 해당 하는 172.16.10.0/24를 입력</li>
+</div><br>
+
+<img src="/static/images/network_hub7.png" alt="Connect Hub 이용 방법 3" width="600"><br><br>
+
+<h2>Connect Hub 통신을 위한 추가 설정 ( Central A/B, Seoul M/M2 )</h2>
+<hr>
+<p>
+    Connect Hub 서비스 이용을 위해, 라우팅 설정을 진행합니다. 별도의 방화벽 설정은 필요하지 않습니다.<br><br>
+    1. 라우팅 설정<br>
+    고객 VM에서 Connect Hub 서비스를 이용할 수 있도록 라우팅 작업을 진행합니다.<br>
+    아래 과정을 거쳐, 고객 VM의 GW를 Connect Hub 전용 GW로 설정합니다.<br><br>
+    Connect Hub 전용 GW는 Connect Hub 전용 서브넷 NW 대역의 첫번째 ip로 설정됩니다.<br>
+    상세 정보는 Server > Private Subnet > Connect Hub 전용 서브넷 선택 > 상세정보 에서 확인합니다.
+</p>
+
+<img src="/static/images/network_hub8.png" alt="Connect Hub 이용 방법 4" width="600"><br><br>
+
+<p>
+    2. VM OS 별 라우팅 설정<br>
+    VM OS별 라우팅 설정 예시에서, CIDR : 10.20.10.0/24 , 넷마스크 : 255.255.255.0 , 게이트웨이 : 10.20.10.1 값을 사용합니다.<br>
+    [ CentOS, Fedora ]
+</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>static routing 설정 파일 생성 (vim /etc/sysconfig/network-script/route-eth1)</li>
+    <li>static routing 정보 기입 (ADDRESS0=10.20.10.0 GATEWAY0=10.20.10.1 NETMASK=255.255.255.0)</li>
+    <li>정보 저장 후, 네트워크 리스타트 (service network restart)</li>
+    <li>라우팅 정보 확인 (route -n)</li>
+</div><br>
+
+<p>[ Ubuntu ]</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>interface 설정 파일 오픈 (vim /etc/network/interfaces)</li>
+    <li>static routing 정보 기입 (post-up route add –net 10.20.10.0/24 gw 10.20.10.1 dev eth1 / pre-down route del –net 10.20.10.0/24 gw 10.20.10.1 dev eth1)</li>
+    <li>정보 저장 후, 네트워크 리스타트 (/etc/init.d/networking restart)</li>
+    <li>라우팅 정보 확인 (route -n)</li>
+</div><br>
+
+<p>[ Debian ]</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>Ubuntu 설정 작업의 step 1, 2 실행</li>
+    <li>rc.local 파일 오픈 (vim /etc/rc.local)</li>
+    <li>static routing 정보 기입 (/sbin/route add –net 10.20.10.0/24 gw 10.20.10.1 dev eth1)</li>
+    <li>정보 저장 후, 네트워크 리스타트 (/etc/init.d/networking restart)</li>
+    <li>라우팅 정보 확인 (route -n)</li>
+</div><br>
+
+<p>[ SUSE ]</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>static routing 파일 생성 (vim /etc/sysconfig/network/ifroute-eth1)</li>
+    <li>static routing 정보 기입 (10.20.10.0/24 10.20.10.1 – eth1)</li>
+    <li>정보 저장 후, 네트워크 리스타트 (service network restart)</li>
+    <li>라우팅 정보 확인 (route -n)</li>
+</div><br>
+
+<p>[ Windows Server 2003, 2008 ]</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>명령 프롬프트로 접속 (실행 -> cmd)</li>
+    <li>static routing 정보 기입 (route –p add 10.20.10.0 mask 255.255.255.0 10.20.10.1)</li>
+    <li>라우팅 정보 확인 (route print)</li>
+</div><br>
+
+{% endblock %}

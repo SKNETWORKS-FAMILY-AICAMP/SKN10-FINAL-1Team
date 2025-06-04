@@ -1,0 +1,26 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>DBaaS for PostgreSQL 이용 방법</title>{% endblock %}    
+{% block content %}
+
+<h1>이용 방법</h1>
+<h2>서비스 메뉴 위치</h2>
+<hr>
+
+<p>DBaaS for PostgreSQL은 kt cloud 포털 홈 화면에서 상품 > DB  카테고리에서 확인 하실 수 있습니다.</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>kt cloud 콘솔에 로그인 하신 후, 아래와 같이 좌측 상단의 All Services 메뉴를 클릭하여 
+    DBaaS for PostgreSQL 사용 신청 후에 이용하실 수 있습니다.</li>
+</div><br>
+
+<img src="/static/images/mysql4.png" alt="DBaaS for PostgreSQL 이용 방법 1" width="300"><br><br>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>서비스 신청 완료 후, 콘솔 좌측 메뉴에 DBaaS for PostgreSQL 서비스가 표시됩니다.</li>
+    <li>아래와 같이 현재 총 7개의 주요 Feature 에 대한 하위 메뉴를 제공하고 있습니다.</li>
+    <li>All Service > DB > DBaaS for PostgreSQL을 선택하여 콘솔 좌측 메뉴에 서비스를 추가할 수 있습니다.</li>
+</div><br>
+
+<img src="/static/images/postgresql4.png" alt="DBaaS for PostgreSQL 이용 방법 2" width="300"><br><br>
+{% endblock %}

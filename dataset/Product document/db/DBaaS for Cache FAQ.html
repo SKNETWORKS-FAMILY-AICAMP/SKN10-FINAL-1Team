@@ -1,0 +1,44 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>DBaaS for Cache FAQ</title>{% endblock %}    
+{% block content %}
+
+<h1>FAQ</h1>
+<h2>FAQ</h2>
+<hr>
+
+<p><strong>DBaaS for Cache 서비스 신청 시 VM의 최대 스팩은 어떻게 되나요?</strong></p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>최대 4vCore 32GB VM으로 생성 시, 16GB 기준으로 제공하고 있습니다. </li>
+    <li>생성 화면에서 VM 스펙에 따른 실제 사용가능 Memory 용량이 표기 확인이 가능합니다.</li>
+</div><br>
+
+<p><strong>DBaaS for Cache 서비스를 외부에서도 사용이 가능한가요?</strong></p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>In-Memory DB의 특성 상 빠른 사용을 위하여 외부 접근(공인IP) 기능은 제공하지 않습니다. </li>
+    <li>희망하시는 고객이 계시면 제공을 검토할 예정입니다.</li>
+</div><br>
+
+<p><strong>DBaaS for Cache 서비스는 어디에 생성이 되나요?</strong></p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>DB Instance는 생성 시 선택하신 Zone에서 고객 계정 내 생성됩니다. 동일한 Zone에 속해 있는 자원들을 사용 가능합니다.</li>
+</div><br>
+
+<p><strong>DBaaS for Cache 서비스는 어떤 구조를 지원하나요?</strong></p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>Standalone, Master/Replica, Cluster 구조를 지원합니다.</li>
+</div><br>
+
+<p><strong>DBaaS for Cache은 어떤 버전의 서비스를 제공하나요?</strong></p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>DBaaS for Cache 서비스는 데이터베이스 엔진(Redis 7.2) 기반의 관리형 DB 서비스를 제공합니다.</li>
+    <li>따라서 BSD 라이선스를 따르는 오픈소스 버전으로 EOS는 ’25.8.31입니다.</li>
+    <li>이후 7.4 이상의 RSAL+SSPL 라이선스의 지원은 현재 계획된 내용이 없습니다.</li>
+    <li>이에 고객께서 DBaaS for Cache를 이용하여 서비스 구축 후 각종 인증 심사 시, EOS/EOL 일자 이후 지원이 어려울 수 있는 점 양해 부탁드립니다.</li>
+</div><br>
+
+
+
+
+{% endblock %}
