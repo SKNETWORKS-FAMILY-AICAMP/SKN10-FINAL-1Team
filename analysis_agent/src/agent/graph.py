@@ -440,12 +440,30 @@ async def general_question_node(state: AgentState, config: Optional[RunnableConf
     return {"final_answer": final_answer}
 
 async def category_predict_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
-    print("--- CATEGORY PREDICT NODE (Placeholder) ---")
+    print("--- CATEGORY PREDICT NODE (Placeholder for Telecom Churn Prediction) ---")
     user_query = state.user_query
-    # 실제 카테고리 예측 로직이 여기에 들어갑니다. (Actual category prediction logic goes here)
-    # 지금은 간단히 사용자 질문을 포함한 메시지를 반환합니다. (For now, it returns a simple message including the user query)
-    final_answer = f"카테고리 예측 요청을 받았습니다: '{user_query}'. 현재 이 기능은 개발 중입니다." # Category prediction request received: '{user_query}'. This feature is currently under development.
-    print(f"Category Predict Answer: {final_answer}") # Corrected print statement
+
+    # 향후 개발 계획:
+    # 이 노드는 통신사 고객의 서비스 이탈 여부를 예측하는 머신러닝 모델을 호출합니다.
+    # 사용자가 특정 고객에 대한 정보를 입력하고 이탈 여부를 질문하면,
+    # 여기서 해당 고객 정보를 추출하고, 학습된 모델에 전달하여 예측 결과를 받습니다.
+
+    # TODO: 고객 정보 추출 로직 구현 (예: user_query에서 고객 ID, 서비스 사용 기간, 월별 요금 등 추출)
+    # customer_info = extract_customer_info_from_query(user_query)
+    # if not customer_info:
+    #     return {"final_answer": "고객 이탈 예측을 위해 필요한 고객 정보가 부족합니다. 다시 질문해주세요.", "error_message": "Missing customer info"}
+
+    # TODO: 학습된 이탈 예측 모델 호출
+    # prediction_input = preprocess_for_model(customer_info)
+    # churn_probability = await churn_prediction_model.apredict(prediction_input)
+    # predicted_label = "이탈 예상" if churn_probability > 0.5 else "이탈하지 않을 것으로 예상"
+
+    # 현재는 플레이스홀더 응답을 반환합니다.
+    final_answer = f"통신사 고객 이탈 예측 요청을 받았습니다: '{user_query}'.\n"
+    final_answer += "현재 이 기능은 개발 중이며, 향후 고객 정보를 바탕으로 이탈 가능성을 예측할 예정입니다."
+    # final_answer = f"고객님의 정보({customer_info})를 바탕으로 분석한 결과, 이탈 확률은 {churn_probability*100:.2f}%로, {predicted_label}됩니다."
+    
+    print(f"Category Predict (Churn Prediction Placeholder) Answer: {final_answer}")
     return {"final_answer": final_answer, "error_message": None}
 
 # --- Conditional Edges Logic ---
