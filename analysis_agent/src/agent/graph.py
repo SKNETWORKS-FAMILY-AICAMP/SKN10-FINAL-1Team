@@ -29,11 +29,13 @@ class Configuration(TypedDict, total=False):
 class AgentState(BaseModel):
     messages: Annotated[List[BaseMessage], operator.add] = Field(default_factory=list)
     user_query: Optional[str] = None
-    query_type: Optional[Literal["db_query", "general_query"]] = None
+    query_type: Optional[Literal["db_query", "category_predict_query", "general_query"]] = None
     sql_query: Optional[str] = None
     sql_result: Optional[Any] = None
     final_answer: Optional[str] = None
     error_message: Optional[str] = None
+    visualization_output: Optional[str] = None
+    sql_output_choice: Optional[Literal["summarize", "visualize"]] = None # Decision for SQL output processing
 
     class Config:
         arbitrary_types_allowed = True # For Annotated and operator.add with BaseMessage
@@ -43,38 +45,160 @@ class AgentState(BaseModel):
 llm = ChatOpenAI(temperature=0, model="gpt-4o") # Or your preferred model
 
 supervisor_prompt = PromptTemplate.from_template(
-    "사용자의 질문을 분석하여 이 질문이 데이터베이스 조회를 통해 답변해야 하는 질문인지, 아니면 일반적인 지식으로 답변할 수 있는 질문인지 결정해주세요. "
-    "'query_type' 필드에 'db_query' 또는 'general_query' 중 하나를 포함하는 JSON 객체로 답변해주세요.\n\n"
-    "사용자 질문: {user_query}\n\n"
-    "JSON 응답:"
+    "Analyze the user's question. Respond with a JSON object.\n"
+    "The JSON object MUST contain a 'query_type' field set to one of 'db_query', 'category_predict_query', or 'general_query'.\n\n"
+    "User Question: {user_query}\n\n"
+    "JSON Response (must be a valid JSON object adhering to the Pydantic model `SupervisorDecision`):"
 )
 
 sql_generation_prompt = PromptTemplate.from_template(
-    "다음 사용자 질문을 PostgreSQL 문법의 SQL 쿼리로 변환해주세요. "
-    "사용자의 의도를 정확히 파악하고, 필요한 테이블과 컬럼을 추론하여 쿼리를 작성하세요. "
-    "만약 테이블이나 컬럼 정보가 부족하다면, 가장 가능성이 높은 일반적인 이름을 사용하세요. "
-    "예시: '지난 달 매출액은 얼마인가요?' -> 'SELECT SUM(amount) FROM sales WHERE sale_date >= date_trunc(\'month\', current_date - interval \'1 month\') AND sale_date < date_trunc(\'month\', current_date);'\n\n"
-    "사용자 질문: {user_query}\n\n"
-    "SQL 쿼리:"
+    """Based on the following user question and the provided database schema information, convert the question into a SQL query in PostgreSQL syntax AND determine if the result should be summarized or visualized.
+Accurately understand the user's intent and use the schema information to write a query with the correct tables and columns.
+For text-based searches (e.g., using LIKE clauses on string columns), ensure the search is case-insensitive by using the ILIKE operator or by applying the LOWER() function to both the column and the search term, unless the user specifically requests a case-sensitive search.
+If the information needed for the question is not in the schema or is ambiguous, please state that or use the most probable interpretation.
+
+Database Schema Information:
+
+Table Name: analytics_results
+Columns:
+  - id (uuid)
+  - result_type (character varying)
+  - s3_key (text)
+  - meta (jsonb)
+  - created_at (timestamp with time zone)
+  - user_id (uuid)
+
+Table Name: chat_messages
+Columns:
+  - id (uuid)
+  - role (character varying)
+  - content (text)
+  - created_at (timestamp with time zone)
+  - session_id (uuid)
+  - metadata (text)
+
+Table Name: chat_sessions
+Columns:
+  - id (uuid)
+  - agent_type (character varying)
+  - started_at (timestamp with time zone)
+  - ended_at (timestamp with time zone)
+  - user_id (uuid)
+  - title (character varying)
+
+Table Name: llm_calls
+Columns:
+  - id (uuid)
+  - call_type (character varying)
+  - prompt (text)
+  - response (text)
+  - tokens_used (integer)
+  - latency_ms (integer)
+  - created_at (timestamp with time zone)
+  - user_id (uuid)
+  - session_id (uuid)
+
+Table Name: model_artifacts
+Columns:
+  - id (uuid)
+  - artifact_type (character varying)
+  - s3_key (text)
+  - meta (jsonb)
+  - created_at (timestamp with time zone)
+  - user_id (uuid)
+
+
+Table Name: organizations
+Columns:
+  - id (uuid)
+  - name (character varying)
+  - created_at (timestamp with time zone)
+
+Table Name: summary_news_keywords
+Columns:
+  - id (uuid)
+  - date (date)
+  - keyword (text)
+  - title (text)
+  - summary (text)
+  - url (text)
+
+Table Name: telecom_customers
+Columns:
+  - customer_id (character varying)
+  - gender (character varying)
+  - senior_citizen (boolean)
+  - partner (boolean)
+  - dependents (boolean)
+  - tenure (integer)
+  - phone_service (boolean)
+  - multiple_lines (character varying)
+  - internet_service (character varying)
+  - online_security (character varying)
+  - online_backup (character varying)
+  - device_protection (character varying)
+  - tech_support (character varying)
+  - streaming_tv (character varying)
+  - streaming_movies (character varying)
+  - contract (character varying)
+  - paperless_billing (boolean)
+  - payment_method (character varying)
+  - monthly_charges (numeric)
+  - total_charges (numeric)
+  - churn (boolean)
+
+Table Name: users
+Columns:
+  - password (character varying)
+  - is_superuser (boolean)
+  - id (uuid)
+  - email (character varying)
+  - name (character varying)
+  - role (character varying)
+  - created_at (timestamp with time zone)
+  - last_login (timestamp with time zone)
+  - is_active (boolean)
+  - is_staff (boolean)
+  - org_id (uuid)
+
+Respond with a JSON object that strictly adheres to the Pydantic model `SQLGenerationOutput` shown below.
+The `sql_query` field MUST contain ONLY the SQL query string, without any surrounding text, explanations, or markdown formatting like ```sql.
+The `sql_output_choice` field MUST be either 'summarize' (if the user asks for a textual summary, explanation, or direct answer from data) or 'visualize' (if the user asks for a chart, graph, or visual representation). Prioritize 'visualize' if visualization is explicitly or implicitly requested. If unsure, default to 'summarize'.
+
+```python
+class SQLGenerationOutput(BaseModel):
+    sql_query: str = Field(description="The generated SQL query. This field MUST contain ONLY the SQL query string, without any surrounding text, explanations, or markdown formatting like ```sql.")
+    sql_output_choice: Literal["summarize", "visualize"] = Field(description="The type of output processing required for the SQL result: 'summarize' or 'visualize'.")
+```
+
+User Question: {user_query}
+
+JSON Response (must be a valid JSON object conforming to SQLGenerationOutput):
+    """
 )
 
 summarization_prompt = PromptTemplate.from_template(
-    "다음 SQL 쿼리 실행 결과를 바탕으로 사용자의 원래 질문에 대한 답변을 자연스럽게 요약해주세요.\n\n"
-    "사용자 질문: {user_query}\n"
-    "SQL 쿼리: {sql_query}\n"
-    "SQL 결과:\n{sql_result}\n\n"
-    "요약 답변:"
+    "Based on the following SQL query execution result, please summarize the answer to the user's original question naturally.\n\n"
+    "say in Korean"
+    "User Question: {user_query}\n"
+    "SQL Query: {sql_query}\n"
+    "SQL Result:\n{sql_result}\n\n"
+    "Summary Answer:"
 )
 
 general_answer_prompt = PromptTemplate.from_template(
-    "다음 사용자 질문에 대해 답변해주세요.\n\n"
-    "사용자 질문: {user_query}\n\n"
-    "답변:"
+    "Please answer the following user question.\n\n"
+    "User Question: {user_query}\n\n"
+    "Answer:"
 )
 
 # --- Pydantic Models for Structured Output ---
 class SupervisorDecision(BaseModel):
-    query_type: str = Field(description="사용자 질문의 유형 (db_query 또는 general_query)") # Changed from Literal to str
+    query_type: str = Field(description="The type of the user's question (db_query, category_predict_query, or general_query)")
+
+class SQLGenerationOutput(BaseModel):
+    sql_query: str = Field(description="The generated SQL query. This field MUST contain ONLY the SQL query string, without any surrounding text, explanations, or markdown formatting like ```sql.")
+    sql_output_choice: Literal["summarize", "visualize"] = Field(description="The type of output processing required for the SQL result: 'summarize' or 'visualize'.")
 
 # --- Node Functions ---
 async def supervisor_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
@@ -131,14 +255,16 @@ async def supervisor_node(state: AgentState, config: Optional[RunnableConfig] = 
     
     try:
         # Ensure the user_query for the LLM is the one we processed
-        decision_result = await supervisor_chain.ainvoke({"user_query": user_query_to_process}, config=config)
-        query_type = decision_result.query_type
-        print(f"Supervisor - LLM decision: query_type='{query_type}' for query: '{user_query_to_process[:100]}...'")
-        
+        parsed_output: SupervisorDecision = await supervisor_chain.ainvoke({"user_query": user_query_to_process}, config=config)
+        query_type = parsed_output.query_type
+        print(f"Supervisor Decision: query_type = {query_type}")
+
+        updated_messages = current_messages + [AIMessage(content=f"Routing to {query_type} based on supervisor decision.")]
         return {
+            "messages": updated_messages,
             "user_query": user_query_to_process,
             "query_type": query_type,
-            "messages": current_messages # Pass through existing messages
+            "error_message": None # Clear any previous error messages
         }
     except Exception as e:
         error_msg = f"Supervisor - Error during LLM decision for query '{user_query_to_process[:50]}...': {e}"
@@ -152,19 +278,29 @@ async def supervisor_node(state: AgentState, config: Optional[RunnableConfig] = 
 
 async def generate_sql_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     print("--- GENERATE SQL NODE ---")
-    user_query = state.user_query # Get user_query from the state field set by supervisor
-    
+    user_query = state.user_query # Get user_query from the state
     if not user_query:
-        print("Error in generate_sql_node: state.user_query is None or empty.")
-        return {"error_message": "No user query found for SQL generation (state.user_query is missing).", "sql_query": ""}
-    print(f"Generating SQL for: {user_query}")
-    sql_generation_chain = sql_generation_prompt | llm
-    response = await sql_generation_chain.ainvoke({"user_query": user_query}, config=config)
-    sql_query = response.content.strip()
-    if sql_query.startswith("```sql"):
-        sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
-    print(f"Generated SQL: {sql_query}")
-    return {"sql_query": sql_query}
+        return {"error_message": "No user query found for SQL generation.", "sql_query": "", "sql_output_choice": None}
+
+    print(f"Generating SQL and determining output choice for query: {user_query[:100]}...")
+    # Use llm.with_structured_output for more robust parsing to the Pydantic model
+    structured_llm_sql_gen = llm.with_structured_output(SQLGenerationOutput)
+    # The runnable now takes the prompt and applies the structured LLM
+    sql_generation_runnable = sql_generation_prompt | structured_llm_sql_gen
+
+    try:
+        # Pass the user_query to the runnable, which will format the prompt and call the structured LLM
+        response_model = await sql_generation_runnable.ainvoke({"user_query": user_query}, config=config)
+        # response_model should now be an instance of SQLGenerationOutput
+        sql_query = response_model.sql_query.strip()
+        sql_output_choice = response_model.sql_output_choice
+        print(f"Generated SQL: {sql_query}")
+        print(f"Determined SQL Output Choice: {sql_output_choice}")
+        return {"sql_query": sql_query, "sql_output_choice": sql_output_choice, "error_message": None}
+    except Exception as e:
+        error_msg = f"Error generating SQL or determining output choice: {e}"
+        print(error_msg)
+        return {"error_message": error_msg, "sql_query": "", "sql_output_choice": None}
 
 import asyncio # Required for asyncio.to_thread
 
@@ -252,6 +388,25 @@ async def execute_sql_node(state: AgentState, config: Optional[RunnableConfig] =
         print(error_msg)
         return {"error_message": error_msg, "sql_result": ""}
 
+async def create_visualization_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
+    print("--- CREATE VISUALIZATION NODE (Placeholder) ---")
+    sql_result = state.sql_result
+    if not sql_result:
+        # If there's an error message from a previous node, pass it along.
+        # Otherwise, set a specific error for this node.
+        error_to_pass = state.error_message or "No SQL result to visualize."
+        print(f"Create Visualization Node: Error - {error_to_pass}")
+        return {"error_message": error_to_pass, "sql_result": sql_result} # Pass original sql_result for context
+
+    # Placeholder: Simulate visualization creation
+    # In a real scenario, this would generate a chart, table, or some visual representation.
+    visualization_output = f"[Placeholder: Visualization for SQL result: {str(sql_result)[:100]}...]"
+    print(f"Create Visualization Node: Generated - {visualization_output}")
+    
+    # For now, we'll just pass the original sql_result and a note about visualization.
+    # If the next node needs specific visualization data, we'd add it to the state here.
+    return {"sql_result": sql_result, "visualization_output": visualization_output, "error_message": None}
+
 async def summarize_sql_result_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     print("--- SUMMARIZE SQL RESULT NODE ---")
     user_query = state.user_query # Get user_query from the state field set by supervisor
@@ -284,52 +439,98 @@ async def general_question_node(state: AgentState, config: Optional[RunnableConf
     print(f"General Answer: {final_answer}")
     return {"final_answer": final_answer}
 
-# --- Conditional Edges Logic ---
-def should_route_to_db_or_general(state: AgentState) -> Literal["generate_sql", "general_question"]:
-    query_type = state.query_type
-    user_query_snippet = state.user_query[:50] + "..." if hasattr(state, 'user_query') and state.user_query and len(state.user_query) > 50 else (state.user_query if hasattr(state, 'user_query') and state.user_query else "[No user_query in state or empty]")
-    print(f"--- ROUTING DECISION --- State Query Type: {query_type}, User Query Snippet: '{user_query_snippet}'")
+async def category_predict_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
+    print("--- CATEGORY PREDICT NODE (Placeholder) ---")
+    user_query = state.user_query
+    # 실제 카테고리 예측 로직이 여기에 들어갑니다. (Actual category prediction logic goes here)
+    # 지금은 간단히 사용자 질문을 포함한 메시지를 반환합니다. (For now, it returns a simple message including the user query)
+    final_answer = f"카테고리 예측 요청을 받았습니다: '{user_query}'. 현재 이 기능은 개발 중입니다." # Category prediction request received: '{user_query}'. This feature is currently under development.
+    print(f"Category Predict Answer: {final_answer}") # Corrected print statement
+    return {"final_answer": final_answer, "error_message": None}
 
-    # Check if supervisor explicitly set an error and defaulted
-    if hasattr(state, 'error_message') and state.error_message and "Supervisor LLM decision processing error" in state.error_message:
-        print(f"Routing to general_question due to supervisor error: {state.error_message}")
-        return "general_question"
-    
+# --- Conditional Edges Logic ---
+def route_sql_output(state: AgentState) -> Literal["create_visualization_node", "summarize_sql_result_node"]:
+    choice = state.sql_output_choice
+    # If execute_sql_node itself resulted in an error (indicated by error_message and no sql_result)
+    # both visualization and summarization nodes have internal logic to handle this.
+    # The choice made by the supervisor should still be respected if possible.
+    if state.error_message and not state.sql_result:
+        print(f"Error detected before routing SQL output: {state.error_message}. Proceeding with choice: {choice}")
+
+    if choice == "visualize":
+        print("Routing to create_visualization_node based on sql_output_choice.")
+        return "create_visualization_node"
+    elif choice == "summarize":
+        print("Routing to summarize_sql_result_node based on sql_output_choice.")
+        return "summarize_sql_result_node"
+    else:
+        # Fallback if sql_output_choice is somehow not set for a db_query path
+        print(f"Warning: sql_output_choice is '{choice}'. Defaulting to summarize_sql_result_node.")
+        return "summarize_sql_result_node"
+
+def route_query(state: AgentState) -> Literal["generate_sql_node", "category_predict_node", "general_question_node"]:
+    query_type = state.query_type
+    print(f"Routing based on query_type: {query_type}")
     if query_type == "db_query":
-        print("Routing to: generate_sql")
-        return "generate_sql"
-    
-    # Fallback for general_query, None query_type, or other unexpected cases
-    print(f"Routing to: general_question (Actual query_type: {query_type})")
-    return "general_question"
+        return "generate_sql_node"
+    elif query_type == "category_predict_query":
+        return "category_predict_node"
+    elif query_type == "general_query":
+        return "general_question_node"
+    else:
+        # This case should ideally not be reached if supervisor is strict
+        print(f"Warning: Unknown query_type '{query_type}', defaulting to general_question_node.")
+        return "general_question_node"
 
 # --- Graph Definition ---
-workflow = StateGraph(AgentState, config_schema=Configuration)
+workflow = StateGraph(AgentState)
 
+# Add nodes
 workflow.add_node("supervisor", supervisor_node)
-workflow.add_node("generate_sql", generate_sql_node)
-workflow.add_node("execute_sql", execute_sql_node)
-workflow.add_node("summarize_sql_result", summarize_sql_result_node)
-workflow.add_node("general_question", general_question_node)
+workflow.add_node("generate_sql_node", generate_sql_node)
+workflow.add_node("execute_sql_node", execute_sql_node)
+workflow.add_node("create_visualization_node", create_visualization_node)
+workflow.add_node("summarize_sql_result_node", summarize_sql_result_node)
+workflow.add_node("general_question_node", general_question_node)
+workflow.add_node("category_predict_node", category_predict_node)
 
+# Set entry point
 workflow.set_entry_point("supervisor")
 
+# Conditional edges from supervisor
 workflow.add_conditional_edges(
     "supervisor",
-    should_route_to_db_or_general,
+    route_query,
     {
-        "generate_sql": "generate_sql",
-        "general_question": "general_question",
-    },
+        "generate_sql_node": "generate_sql_node",
+        "category_predict_node": "category_predict_node",
+        "general_question_node": "general_question_node"
+    }
 )
 
-workflow.add_edge("generate_sql", "execute_sql")
-workflow.add_edge("execute_sql", "summarize_sql_result")
-workflow.add_edge("summarize_sql_result", END)
-workflow.add_edge("general_question", END)
+# Edges for DB query flow (now common for 3 branches)
+workflow.add_edge("generate_sql_node", "execute_sql_node")
+# After execute_sql_node, route to either visualization or summarization
+workflow.add_conditional_edges(
+    "execute_sql_node",
+    route_sql_output,
+    {
+        "create_visualization_node": "create_visualization_node",
+        "summarize_sql_result_node": "summarize_sql_result_node"
+    }
+)
+workflow.add_edge("create_visualization_node", END)
+workflow.add_edge("summarize_sql_result_node", END)
+
+# Edges from placeholder nodes to the SQL generation flow
+workflow.add_edge("category_predict_node", END)
+
+# Edge for general question
+workflow.add_edge("general_question_node", END)
 
 # Compile the graph
-graph = workflow.compile(checkpointer=None) # Add checkpointer if persistence is needed
+app = workflow.compile()
+graph = app # For langgraph dev compatibility
 
 # To make it runnable with langgraph dev, ensure it's assigned to 'graph'
 # Example of how to run (for testing locally):
