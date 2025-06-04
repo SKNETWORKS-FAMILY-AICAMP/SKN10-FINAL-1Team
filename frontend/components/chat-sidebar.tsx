@@ -7,7 +7,8 @@ import { Separator } from "@/components/ui/separator"
 import { CodeIcon, FileTextIcon, BarChart3Icon, HomeIcon, LogOutIcon, XIcon, PlusIcon } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import { getChatSessions, type ChatSession, type AgentType, createChatSession } from "@/lib/api/chat-service" // Import chat service
+import { type ChatSession, type AgentType } from "@/lib/api/chat-service" 
+import { getUserChatSessions, createChatSessionInDB } from "@/lib/api/postgres-chat-service" // Import direct DB chat service
 
 // Helper function to format date
 function formatDate(dateString: string): string {
@@ -21,31 +22,33 @@ function formatDate(dateString: string): string {
   return date.toLocaleDateString()
 }
 
-export function ChatSidebar({ isOpen, onClose, user, onLogout, onSessionChange, activeSessionId }) {
-  const [sessions, setSessions] = useState<ChatSession[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+interface ChatSidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+  user: any; // Replace with the actual User type
+  onLogout: () => void;
+  onSessionChange: (sessionId: string) => void;
+  activeSessionId: string | null;
+  sessions: ChatSession[];
+  isLoading: boolean;
+  onNewSession: (agentType: AgentType) => void;
+}
 
-  // Fetch chat sessions from Django backend when component mounts
-  useEffect(() => {
-    const fetchSessions = async () => {
-      setIsLoading(true)
-      const fetchedSessions = await getChatSessions()
-      setSessions(fetchedSessions)
-      setIsLoading(false)
-    }
-
-    fetchSessions()
-  }, [])
-
-  // Create a new chat session
-  const handleNewSession = async (agentType: AgentType = "code") => {
-    setIsLoading(true)
-    const newSession = await createChatSession(agentType)
-    if (newSession) {
-      setSessions((prev) => [newSession, ...prev])
-      onSessionChange(newSession.id)
-    }
-    setIsLoading(false)
+export function ChatSidebar({ 
+  isOpen, 
+  onClose, 
+  user, 
+  onLogout, 
+  onSessionChange, 
+  activeSessionId,
+  sessions,
+  isLoading,
+  onNewSession
+}: ChatSidebarProps) {
+  // 외부에서 props로 세션 상태와 로딩 상태를 전달받아 사용
+  // 새 세션 생성도 외부 함수를 호출하도록 변경
+  const handleNewSession = (agentType: AgentType = "code") => {
+    onNewSession(agentType)
   }
 
   return (

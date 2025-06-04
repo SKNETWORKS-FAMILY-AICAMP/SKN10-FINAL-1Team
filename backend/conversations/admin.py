@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from django.utils.html import format_html
-from .models import ChatSession, ChatMessage, LlmCall,CheckpointBlob, CheckpointMigration, CheckpointWrite, Checkpoint
+from .models import ChatSession, ChatMessage, LlmCall
 import json # JSONField 내용을 파싱하거나 요약할 때 사용 가능
 
 
@@ -84,62 +84,5 @@ class ReadOnlyAdmin(admin.ModelAdmin):
     def get_list_display_links(self, request, list_display):
         return None
 
-class CheckpointAdmin(ReadOnlyAdmin):
-    list_display = ('thread_id', 'checkpoint_ns', 'checkpoint_id', 'parent_checkpoint_id', 'type', 'display_checkpoint', 'display_metadata')
-    list_filter = ('thread_id', 'checkpoint_ns', 'type')
-    search_fields = ('thread_id', 'checkpoint_id')
-
-    def display_checkpoint(self, obj):
-        if obj.checkpoint:
-            # JSON 데이터의 처음 100자만 보여주거나, 특정 키 값만 추출
-            # 예시: return str(obj.checkpoint)[:100] + '...' if len(str(obj.checkpoint)) > 100 else str(obj.checkpoint)
-            # 더 안전한 방법은 json.dumps를 사용하는 것입니다.
-            try:
-                summary = json.dumps(obj.checkpoint, ensure_ascii=False, indent=2)
-                return summary
-            except TypeError:
-                return str(obj.checkpoint)
-        return None
-    display_checkpoint.short_description = 'Checkpoint (전체)'
-
-    def display_metadata(self, obj):
-        if obj.metadata:
-            try:
-                summary = json.dumps(obj.metadata, ensure_ascii=False, indent=2)
-                return summary
-            except TypeError:
-                return str(obj.metadata)
-        return None
-    display_metadata.short_description = 'Metadata (전체)'
-
-class CheckpointBlobAdmin(ReadOnlyAdmin):
-    list_display = ('thread_id', 'checkpoint_ns', 'channel', 'version', 'type', 'display_blob_info')
-    list_filter = ('thread_id', 'checkpoint_ns', 'channel', 'type')
-    search_fields = ('thread_id', 'channel')
-
-    def display_blob_info(self, obj):
-        if obj.blob:
-            return f"Binary data ({len(obj.blob)} bytes)"
-        return "No blob data"
-    display_blob_info.short_description = 'Blob Info'
-
-class CheckpointWriteAdmin(ReadOnlyAdmin):
-    list_display = ('thread_id', 'checkpoint_ns', 'checkpoint_id', 'task_id', 'idx', 'channel', 'type', 'display_blob_info')
-    list_filter = ('thread_id', 'checkpoint_ns', 'channel', 'type')
-    search_fields = ('thread_id', 'checkpoint_id', 'task_id')
-
-    def display_blob_info(self, obj): # CheckpointWrite 에도 blob 필드가 있으므로 동일한 메소드 사용 가능
-        if obj.blob:
-            return f"Binary data ({len(obj.blob)} bytes)"
-        return "No blob data"
-    display_blob_info.short_description = 'Blob Info'
 
 
-class CheckpointMigrationAdmin(ReadOnlyAdmin):
-    list_display = ('v',)
-
-
-admin.site.register(Checkpoint, CheckpointAdmin)
-admin.site.register(CheckpointBlob, CheckpointBlobAdmin)
-admin.site.register(CheckpointMigration, CheckpointMigrationAdmin)
-admin.site.register(CheckpointWrite, CheckpointWriteAdmin)

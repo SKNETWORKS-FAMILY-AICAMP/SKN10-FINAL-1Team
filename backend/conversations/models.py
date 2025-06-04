@@ -9,6 +9,7 @@ class AgentType(models.TextChoices):
     CODE = "code", "Code"
     RAG = "rag", "RAG"
     ANALYTICS = "analytics", "Analytics"
+    AUTO = "auto", "Auto"
 
 
 class ChatSession(models.Model):
@@ -50,65 +51,3 @@ class LlmCall(models.Model):
         db_table = "llm_calls"
         indexes = [models.Index(fields=["called_at"], name="idx_llm_called_at")]
 
-
-class CheckpointBlob(models.Model):
-    thread_id = models.TextField(primary_key=True) # Django가 식별자로 사용하도록 primary_key=True 설정
-    checkpoint_ns = models.TextField(default='')
-    channel = models.TextField()
-    version = models.TextField()
-    type = models.TextField()
-    blob = models.BinaryField(null=True, blank=True)
-
-    class Meta:
-        db_table = 'checkpoint_blobs'
-        # 실제 DB의 복합 고유성은 unique_together로 정의
-        unique_together = (('thread_id', 'checkpoint_ns', 'channel', 'version'),)
-        managed = False
-
-    def __str__(self):
-        return f"{self.thread_id} - {self.checkpoint_ns} - {self.channel} - {self.version}"
-
-class CheckpointMigration(models.Model):
-    v = models.IntegerField(primary_key=True)
-
-    class Meta:
-        db_table = 'checkpoint_migrations'
-        managed = False
-
-    def __str__(self):
-        return str(self.v)
-
-class CheckpointWrite(models.Model):
-    thread_id = models.TextField(primary_key=True) # Django가 식별자로 사용하도록 primary_key=True 설정
-    checkpoint_ns = models.TextField(default='')
-    checkpoint_id = models.TextField()
-    task_id = models.TextField()
-    idx = models.IntegerField()
-    channel = models.TextField()
-    type = models.TextField(null=True, blank=True)
-    blob = models.BinaryField()
-
-    class Meta:
-        db_table = 'checkpoint_writes'
-        unique_together = (('thread_id', 'checkpoint_ns', 'checkpoint_id', 'task_id', 'idx'),)
-        managed = False
-
-    def __str__(self):
-        return f"{self.thread_id} - {self.checkpoint_id} - {self.task_id} - {self.idx}"
-
-class Checkpoint(models.Model):
-    thread_id = models.TextField(primary_key=True) # Django가 식별자로 사용하도록 primary_key=True 설정
-    checkpoint_ns = models.TextField(default='')
-    checkpoint_id = models.TextField()
-    parent_checkpoint_id = models.TextField(null=True, blank=True)
-    type = models.TextField(null=True, blank=True)
-    checkpoint = models.JSONField()
-    metadata = models.JSONField(default=dict)
-
-    class Meta:
-        db_table = 'checkpoints'
-        unique_together = (('thread_id', 'checkpoint_ns', 'checkpoint_id'),)
-        managed = False
-
-    def __str__(self):
-        return f"{self.thread_id} - {self.checkpoint_ns} - {self.checkpoint_id}"
