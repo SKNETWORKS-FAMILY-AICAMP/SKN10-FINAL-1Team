@@ -7,6 +7,9 @@ from src.agent.state import WorkflowState # Assuming state.py is in the same dir
 import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
 import os
+import pandas as pd
+import psycopg2
+from dotenv import load_dotenv
 
 # 공통 도구 - 에이전트 전환 도구
 @tool
@@ -56,19 +59,89 @@ def get_common_tools():
 # 데이터 분석 도구
 @tool
 def analyze_data(
-    data_description: str,
-    analysis_type: str,
+    data_description: str,  # Example: table name or query hint
+    analysis_type: str,     # Example: "select_all", "list_tables", "custom_query"
     state: Annotated[WorkflowState, InjectedState],
     config: RunnableConfig
 ) -> str:
     """
-    데이터 분석을 수행합니다.
+    데이터베이스에서 데이터를 조회하고 분석을 수행합니다.
+    .env 파일은 'my_state_agent' 폴더에 있어야 합니다.
     Args:
-        data_description: 분석할 데이터에 대한 설명
-        analysis_type: 분석 유형 (descriptive, correlation, regression, classification 등)
+        data_description: 분석할 데이터에 대한 설명 (예: 테이블 이름 또는 SQL 쿼리).
+        analysis_type: 분석 유형 (예: 'list_tables', 'select_all', 'execute_query').
+                       'execute_query'인 경우 data_description이 SQL 쿼리로 사용됩니다.
     """
     print(f"[Tool Call] analyze_data: desc='{data_description}', type='{analysis_type}'")
-    return f"{data_description}에 대한 {analysis_type} 분석 결과입니다: [분석 내용 샘플]"
+
+    # .env 파일 경로 설정 (tools.py 기준)
+    # tools.py는 my_state_agent/src/agent/tools.py
+    # .env는 my_state_agent/.env
+    # 따라서 ../../.env
+    dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
+
+    if os.path.exists(dotenv_path):
+        load_dotenv(dotenv_path=dotenv_path)
+        print(f".env 파일을 다음 경로에서 로드했습니다: {os.path.abspath(dotenv_path)}")
+    else:
+        print(f"경고: .env 파일을 다음 경로에서 찾을 수 없습니다: {os.path.abspath(dotenv_path)}")
+        # Fallback to environment variables if .env is not found or if variables are already set
+        if not all([os.getenv("DB_HOST"), os.getenv("DB_NAME"), os.getenv("DB_USER"), os.getenv("DB_PASSWORD")]):
+            return "오류: .env 파일을 찾을 수 없거나, 필수 데이터베이스 환경 변수가 설정되지 않았습니다."
+
+    DB_HOST = os.getenv("DB_HOST")
+    DB_PORT = os.getenv("DB_PORT", "5432")
+    DB_NAME = os.getenv("DB_NAME")
+    DB_USER = os.getenv("DB_USER")
+    DB_PASSWORD = os.getenv("DB_PASSWORD")
+
+    if not all([DB_HOST, DB_NAME, DB_USER, DB_PASSWORD]):
+        missing = [var_name for var_name, var_val in [
+            ("DB_HOST", DB_HOST), ("DB_NAME", DB_NAME),
+            ("DB_USER", DB_USER), ("DB_PASSWORD", DB_PASSWORD)
+        ] if not var_val]
+        return f"오류: PostgreSQL 연결 정보가 누락되었습니다: {', '.join(missing)}. .env 파일 또는 환경 변수를 확인해주세요."
+
+    conn_string = f"host='{DB_HOST}' port='{DB_PORT}' dbname='{DB_NAME}' user='{DB_USER}' password='{DB_PASSWORD}'"
+    conn = None
+    try:
+        print(f"데이터베이스 연결 시도: {DB_NAME}@{DB_HOST}:{DB_PORT}")
+        conn = psycopg2.connect(conn_string)
+        cursor = conn.cursor()
+        print("데이터베이스 연결 성공.")
+
+        query = ""
+        if analysis_type == "list_tables":
+            query = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';"
+            df = pd.read_sql_query(query, conn)
+            return f"데이터베이스의 테이블 목록:\n{df.to_string()}"
+        elif analysis_type == "select_all" and data_description:
+            # 간단한 테이블 이름 검증 (SQL 인젝션 방지를 위해 실제 사용 시에는 더 강력한 검증 필요)
+            if not data_description.replace('_','').isalnum():
+                return "오류: 테이블 이름이 유효하지 않습니다."
+            query = f"SELECT * FROM {data_description};" # 테이블 이름은 data_description으로 가정
+            df = pd.read_sql_query(query, conn)
+            return f"'{data_description}' 테이블 데이터:\n{df.to_string()}"
+        elif analysis_type == "execute_query" and data_description:
+            query = data_description # data_description을 직접 SQL 쿼리로 사용
+            # 주의: 이 방식은 SQL 인젝션에 취약할 수 있으므로, 실제 운영 환경에서는 쿼리를 안전하게 구성해야 합니다.
+            # 예를 들어, 사용자 입력을 직접 쿼리에 삽입하는 대신 매개변수화된 쿼리를 사용해야 합니다.
+            print(f"실행할 쿼리: {query}")
+            df = pd.read_sql_query(query, conn)
+            return f"쿼리 실행 결과:\n{df.to_string()}"
+        else:
+            return "오류: 유효한 analysis_type ('list_tables', 'select_all', 'execute_query')과 data_description을 제공해주세요."
+
+    except psycopg2.Error as e:
+        print(f"데이터베이스 오류: {e}")
+        return f"데이터베이스 오류: {e}"
+    except Exception as e:
+        print(f"분석 중 오류 발생: {e}")
+        return f"분석 중 오류 발생: {e}"
+    finally:
+        if conn:
+            conn.close()
+            print("데이터베이스 연결 종료.")
 
 @tool
 def create_visualization(
