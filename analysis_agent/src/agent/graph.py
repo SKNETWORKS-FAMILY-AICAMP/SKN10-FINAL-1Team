@@ -6,7 +6,7 @@ Handles DB queries and general questions based on node/edge routing.
 from __future__ import annotations
 
 import os
-from typing import TypedDict, Optional, Dict, Any, Literal, List, Annotated
+from typing import Optional, Dict, Any, List, Annotated, Literal, TypedDict
 from dotenv import load_dotenv
 import os
 import operator # For adding to message history
@@ -26,16 +26,17 @@ class Configuration(TypedDict, total=False):
     db_env_path: Optional[str] # Path to .env file for DB credentials
 
 # --- State Definition ---
-class AgentState(TypedDict):
-    input: Optional[str] = None  # Raw input string from the user
-    messages: Annotated[List[BaseMessage], operator.add] # Conversation history
-    query_type: Optional[str] = None  # Changed from Literal to str
+class AgentState(BaseModel):
+    messages: Annotated[List[BaseMessage], operator.add] = Field(default_factory=list)
+    user_query: Optional[str] = None
+    query_type: Optional[Literal["db_query", "general_query"]] = None
     sql_query: Optional[str] = None
-    sql_result: Optional[str] = None
+    sql_result: Optional[Any] = None
     final_answer: Optional[str] = None
     error_message: Optional[str] = None
-    # Configuration can be added to state if needed per invocation
-    # config: Optional[Configuration] = None 
+
+    class Config:
+        arbitrary_types_allowed = True # For Annotated and operator.add with BaseMessage
 
 # --- LLM and Prompts Setup ---
 # Ensure OPENAI_API_KEY is set in your environment or passed via config
@@ -74,141 +75,195 @@ general_answer_prompt = PromptTemplate.from_template(
 # --- Pydantic Models for Structured Output ---
 class SupervisorDecision(BaseModel):
     query_type: str = Field(description="사용자 질문의 유형 (db_query 또는 general_query)") # Changed from Literal to str
-    # reasoning: Optional[str] = Field(default=None, description="질문 유형 판단 근거 (선택 사항)")
 
 # --- Node Functions ---
 async def supervisor_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
-    print("--- SUPERVISOR NODE ---")
+    print("--- SUPERVISOR NODE (Debug v4 - Enhanced Message Parsing) ---")
     
-    new_input_str = state.get("input")
-    messages_to_add_to_history = []
-    user_query_for_llm = ""
+    user_query_to_process: Optional[str] = None
+    current_messages = state.messages # Keep a reference to the current messages
 
-    if new_input_str:
-        # New raw input from the user for this turn
-        human_message = HumanMessage(content=new_input_str)
-        messages_to_add_to_history = [human_message]
-        user_query_for_llm = new_input_str
-    elif state.get("messages") and isinstance(state["messages"][-1], HumanMessage):
-        # No new raw input, but there's existing history ending with a HumanMessage
-        # This could happen if the graph is re-entered or in a multi-step sequence
-        # where 'input' was cleared, and we are processing the last human message.
-        user_query_for_llm = state["messages"][-1].content
-    else:
-        # This is the error condition: no new input string, and no valid HumanMessage in history.
-        raise ValueError("Supervisor: No input string provided and no prior HumanMessage found in history to process.")
+    print(f"Supervisor - Initial state.messages length: {len(current_messages) if current_messages else 0}")
 
-    # LLM call for supervision using user_query_for_llm
-    structured_llm = llm.with_structured_output(schema=SupervisorDecision)
-    # supervisor_chain = supervisor_prompt | llm | JsonOutputParser()
-    # response = await supervisor_chain.ainvoke({"user_query": user_query}, config=config)
-    response_model_instance = await structured_llm.ainvoke(supervisor_prompt.format(user_query=user_query_for_llm), config=config)
-    print(f"Supervisor decision: {response_model_instance}")
+    if current_messages:
+        last_message_obj = current_messages[-1]
+        print(f"Supervisor - Last message object: {last_message_obj}, type: {type(last_message_obj).__name__}")
 
-    output_dict = {
-        "query_type": response_model_instance.query_type,
-        "input": None  # Clear the input field after processing
-    }
-    if messages_to_add_to_history:
-        output_dict["messages"] = messages_to_add_to_history # This will be added to state['messages'] by operator.add
+        content_candidate: Optional[str] = None
+
+        # Try to extract content based on common patterns
+        if hasattr(last_message_obj, 'content') and isinstance(getattr(last_message_obj, 'content'), str):
+            # Covers HumanMessage, AIMessage, and other BaseMessage with a .content attribute
+            content_candidate = getattr(last_message_obj, 'content')
+            print(f"Supervisor - Candidate from .content attribute: '{content_candidate[:100] if content_candidate else 'None'}...'")
+        elif isinstance(last_message_obj, dict) and 'content' in last_message_obj and isinstance(last_message_obj['content'], str):
+            # Covers cases where the message might be a dictionary (e.g., from serialization)
+            content_candidate = last_message_obj['content']
+            print(f"Supervisor - Candidate from dict['content']: '{content_candidate[:100] if content_candidate else 'None'}...'")
+        elif isinstance(last_message_obj, str):
+            # Covers cases where the last message itself is a plain string
+            content_candidate = last_message_obj
+            print(f"Supervisor - Candidate from last_message_obj being a string: '{content_candidate[:100] if content_candidate else 'None'}...'")
         
-    return output_dict
+        # Ensure the extracted content is a non-empty string
+        if content_candidate and content_candidate.strip():
+            user_query_to_process = content_candidate.strip()
+            print(f"Supervisor - Successfully extracted user query: '{user_query_to_process[:100]}...'")
+        else:
+            print(f"Supervisor - Content candidate was None, empty, or whitespace. Candidate: '{content_candidate}'")
+    else:
+        print("Supervisor - state.messages is empty.")
+
+    if not user_query_to_process:
+        error_msg = "Supervisor - No valid user query found in state.messages. Please provide input via the 'Messages' field with textual content."
+        print(f"Supervisor - {error_msg}")
+        return {
+            "user_query": None,
+            "query_type": "general_query", # Default to general_query if no input
+            "error_message": error_msg,
+            "messages": current_messages # Pass through existing messages
+        }
+
+    # If user_query_to_process is successfully set, proceed with LLM analysis
+    print(f"Supervisor - Processing user query: '{user_query_to_process}' for LLM analysis.")
+    
+    supervisor_chain = supervisor_prompt | llm.with_structured_output(SupervisorDecision)
+    
+    try:
+        # Ensure the user_query for the LLM is the one we processed
+        decision_result = await supervisor_chain.ainvoke({"user_query": user_query_to_process}, config=config)
+        query_type = decision_result.query_type
+        print(f"Supervisor - LLM decision: query_type='{query_type}' for query: '{user_query_to_process[:100]}...'")
+        
+        return {
+            "user_query": user_query_to_process,
+            "query_type": query_type,
+            "messages": current_messages # Pass through existing messages
+        }
+    except Exception as e:
+        error_msg = f"Supervisor - Error during LLM decision for query '{user_query_to_process[:50]}...': {e}"
+        print(error_msg)
+        return {
+            "user_query": user_query_to_process, # Query was extracted, but LLM failed
+            "query_type": "general_query", # Default to general if LLM fails
+            "error_message": error_msg,
+            "messages": current_messages # Pass through existing messages
+        }
 
 async def generate_sql_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     print("--- GENERATE SQL NODE ---")
-    if not state['messages'] or not isinstance(state['messages'][-1], HumanMessage):
-        # This case should ideally be handled by the supervisor or routing logic
-        # Or ensure that generate_sql_node is only called when appropriate
-        return {"error_message": "No user query found for SQL generation.", "sql_query": ""}
-    user_query = state['messages'][-1].content
+    user_query = state.user_query # Get user_query from the state field set by supervisor
+    
+    if not user_query:
+        print("Error in generate_sql_node: state.user_query is None or empty.")
+        return {"error_message": "No user query found for SQL generation (state.user_query is missing).", "sql_query": ""}
+    print(f"Generating SQL for: {user_query}")
     sql_generation_chain = sql_generation_prompt | llm
     response = await sql_generation_chain.ainvoke({"user_query": user_query}, config=config)
     sql_query = response.content.strip()
+    if sql_query.startswith("```sql"):
+        sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
     print(f"Generated SQL: {sql_query}")
     return {"sql_query": sql_query}
 
-async def execute_sql_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
-    print("--- EXECUTE SQL NODE ---")
-    sql_query = state.get("sql_query")
-    if not sql_query:
-        return {"error_message": "SQL 쿼리가 생성되지 않았습니다.", "sql_result": ""}
+import asyncio # Required for asyncio.to_thread
 
-    # Determine .env path
-    effective_config = config.get("configurable", {}) if config else {}
-    db_env_path_from_config = effective_config.get("db_env_path")
-    
-    dotenv_path_to_try = None
+# Helper function for synchronous DB operations, including dotenv loading
+def _execute_sql_sync(sql_query: str, base_dir_analysis_env: str, base_dir_my_state_env: str) -> Dict[str, Any]:
+    # Determine .env path and load environment variables
+    dotenv_path_analysis = os.path.join(base_dir_analysis_env, '.env')
+    dotenv_path_my_state = os.path.join(base_dir_my_state_env, '.env')
+    specific_env_path = None
 
-    if db_env_path_from_config and os.path.exists(db_env_path_from_config):
-        dotenv_path_to_try = db_env_path_from_config
-        print(f"설정에서 .env 경로 사용: {dotenv_path_to_try}")
+    if os.path.exists(dotenv_path_analysis):
+        specific_env_path = dotenv_path_analysis
+    elif os.path.exists(dotenv_path_my_state):
+        specific_env_path = dotenv_path_my_state
+
+    if specific_env_path:
+        print(f"_execute_sql_sync: Loading .env from: {specific_env_path}")
+        load_dotenv(dotenv_path=specific_env_path, override=True)
     else:
-        # 1. Try analysis_agent/.env (relative to this graph.py)
-        # graph.py is in analysis_agent/src/agent/
-        # analysis_agent/.env is at ../../.env from graph.py
-        analysis_agent_env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
-        if os.path.exists(analysis_agent_env_path):
-            dotenv_path_to_try = analysis_agent_env_path
-            print(f"analysis_agent/.env 경로 사용: {dotenv_path_to_try}")
-        else:
-            # 2. Try my_state_agent/.env as a fallback (relative to this graph.py)
-            # my_state_agent/.env is at ../../../my_state_agent/.env from graph.py
-            my_state_agent_env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'my_state_agent', '.env'))
-            if os.path.exists(my_state_agent_env_path):
-                dotenv_path_to_try = my_state_agent_env_path
-                print(f"my_state_agent/.env 경로 사용: {dotenv_path_to_try}")
+        print("_execute_sql_sync: No specific .env file found. Relying on system environment variables or a global .env.")
+        load_dotenv(override=True) # Load global .env or system vars
 
-    if dotenv_path_to_try:
-        load_dotenv(dotenv_path=dotenv_path_to_try)
-        print(f".env 파일을 다음 경로에서 로드했습니다: {dotenv_path_to_try}")
-    else:
-        print(f"경고: .env 파일을 구성된 경로 또는 기본 경로들에서 찾을 수 없습니다. 시스템 환경 변수를 확인합니다.")
-        # Fallback to system environment variables check, only error if they are also missing
-        if not all([os.getenv("DB_HOST"), os.getenv("DB_NAME"), os.getenv("DB_USER"), os.getenv("DB_PASSWORD")]):
-            return {"error_message": "DB .env 파일을 찾을 수 없거나, 필수 DB 환경 변수가 시스템에도 설정되지 않았습니다.", "sql_result": ""}
+    db_host = os.getenv("DB_HOST")
+    db_port = os.getenv("DB_PORT")
+    db_name = os.getenv("DB_NAME")
+    db_user = os.getenv("DB_USER")
+    db_password = os.getenv("DB_PASSWORD")
 
-    DB_HOST = os.getenv("DB_HOST")
-    DB_PORT = os.getenv("DB_PORT", "5432")
-    DB_NAME = os.getenv("DB_NAME")
-    DB_USER = os.getenv("DB_USER")
-    DB_PASSWORD = os.getenv("DB_PASSWORD")
+    if not all([db_host, db_port, db_name, db_user, db_password]):
+        error_msg = "_execute_sql_sync: Database connection details missing in environment variables."
+        print(error_msg)
+        return {"error_message": error_msg, "sql_result": ""}
 
-    if not all([DB_HOST, DB_NAME, DB_USER, DB_PASSWORD]):
-        missing = [v for v, k in [("DB_HOST", DB_HOST), ("DB_NAME", DB_NAME), ("DB_USER", DB_USER), ("DB_PASSWORD", DB_PASSWORD)] if not k]
-        return {"error_message": f"PostgreSQL 연결 정보 누락: {', '.join(missing)}", "sql_result": ""}
-
-    conn_string = f"host='{DB_HOST}' port='{DB_PORT}' dbname='{DB_NAME}' user='{DB_USER}' password='{DB_PASSWORD}'"
+    conn_string = f"host='{db_host}' port='{db_port}' dbname='{db_name}' user='{db_user}' password='{db_password}'"
     conn = None
     try:
-        print(f"DB 연결 시도: {DB_NAME}@{DB_HOST}:{DB_PORT}")
+        print(f"_execute_sql_sync: Connecting to DB with: {conn_string.replace(db_password, '****') if db_password else conn_string}")
         conn = psycopg2.connect(conn_string)
-        print("DB 연결 성공.")
-        print(f"실행할 쿼리: {sql_query}")
+        print(f"_execute_sql_sync: Executing SQL: {sql_query}")
         df = pd.read_sql_query(sql_query, conn)
-        return {"sql_result": df.to_string() if not df.empty else "결과 데이터가 없습니다."}
-    except psycopg2.Error as e:
-        print(f"DB 오류: {e}")
-        return {"error_message": f"DB 오류: {e}", "sql_result": ""}
+        sql_result_str = df.to_string()
+        print(f"_execute_sql_sync: SQL Result (first 200 chars): {sql_result_str[:200]}")
+        return {"sql_result": sql_result_str, "error_message": None}
+    except (psycopg2.Error, pd.io.sql.DatabaseError) as e:
+        error_msg = f"_execute_sql_sync: Database error: {e}"
+        print(error_msg)
+        return {"error_message": error_msg, "sql_result": ""}
+    except ValueError as e: # Often from pandas if query is malformed for read_sql_query
+        error_msg = f"_execute_sql_sync: SQL query validation error for pandas: {e}"
+        print(error_msg)
+        return {"error_message": error_msg, "sql_result": ""}
     except Exception as e:
-        print(f"SQL 실행 중 오류: {e}")
-        return {"error_message": f"SQL 실행 중 오류: {e}", "sql_result": ""}
+        error_msg = f"_execute_sql_sync: An unexpected error occurred during SQL execution: {e}"
+        print(error_msg)
+        return {"error_message": error_msg, "sql_result": ""}
     finally:
         if conn:
             conn.close()
-            print("DB 연결 종료.")
+            print("_execute_sql_sync: DB 연결 종료.")
+
+async def execute_sql_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
+    print("--- EXECUTE SQL NODE ---")
+    sql_query = state.sql_query
+    if not sql_query:
+        return {"error_message": "No SQL query to execute.", "sql_result": ""}
+
+    # Define base directories for .env file search relative to this file's location
+    # analysis_agent/.env -> ../../.env
+    base_dir_analysis_env = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    # my_state_agent/.env -> ../../../my_state_agent
+    base_dir_my_state_env = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'my_state_agent'))
+    
+    # Run the synchronous dotenv loading and database operations in a separate thread
+    try:
+        print(f"execute_sql_node: Calling asyncio.to_thread for SQL: {sql_query}")
+        result_dict = await asyncio.to_thread(
+            _execute_sql_sync, 
+            sql_query, 
+            base_dir_analysis_env, 
+            base_dir_my_state_env
+        )
+        return result_dict
+    except Exception as e: # Catch potential errors from asyncio.to_thread itself
+        error_msg = f"execute_sql_node: Error running DB operations in thread: {e}"
+        print(error_msg)
+        return {"error_message": error_msg, "sql_result": ""}
 
 async def summarize_sql_result_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     print("--- SUMMARIZE SQL RESULT NODE ---")
-    user_query = state["messages"][-1].content
-    sql_query = state.get("sql_query", "N/A")
-    sql_result = state.get("sql_result", "N/A")
-    error_message = state.get("error_message")
+    user_query = state.user_query # Get user_query from the state field set by supervisor
+    sql_query = state.sql_query or ""
+    sql_result = state.sql_result or ""
 
-    if error_message:
-        return {"final_answer": f"데이터 조회 중 오류가 발생했습니다: {error_message}"}
-    if not sql_result or sql_result == "N/A":
-         return {"final_answer": "데이터베이스에서 관련 정보를 찾지 못했습니다."}
+    if not user_query:
+         return {"error_message": "No user query found for summarization.", "final_answer": ""}
+    if not sql_result:
+        return {"error_message": state.error_message or "No SQL result to summarize.", "final_answer": state.error_message or "SQL query execution failed or produced no result."}
 
+    print(f"Summarizing for query: {user_query}, SQL: {sql_query[:100]}..., Result: {sql_result[:100]}...")
     summarization_chain = summarization_prompt | llm
     response = await summarization_chain.ainvoke(
         {"user_query": user_query, "sql_query": sql_query, "sql_result": sql_result},
@@ -220,10 +275,9 @@ async def summarize_sql_result_node(state: AgentState, config: Optional[Runnable
 
 async def general_question_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     print("--- GENERAL QUESTION NODE ---")
-    if not state['messages'] or not isinstance(state['messages'][-1], HumanMessage):
-        # Similar to generate_sql_node, ensure this node is called appropriately
+    if not state.messages or not isinstance(state.messages[-1], HumanMessage):
         return {"error_message": "No user query found for general question.", "final_answer": ""}
-    user_query = state['messages'][-1].content
+    user_query = state.messages[-1].content
     general_answer_chain = general_answer_prompt | llm
     response = await general_answer_chain.ainvoke({"user_query": user_query}, config=config)
     final_answer = response.content.strip()
@@ -232,14 +286,25 @@ async def general_question_node(state: AgentState, config: Optional[RunnableConf
 
 # --- Conditional Edges Logic ---
 def should_route_to_db_or_general(state: AgentState) -> Literal["generate_sql", "general_question"]:
-    query_type = state.get("query_type")
-    if query_type == "db_query":
-        return "generate_sql"
-    else: # general_query or fallback
+    query_type = state.query_type
+    user_query_snippet = state.user_query[:50] + "..." if hasattr(state, 'user_query') and state.user_query and len(state.user_query) > 50 else (state.user_query if hasattr(state, 'user_query') and state.user_query else "[No user_query in state or empty]")
+    print(f"--- ROUTING DECISION --- State Query Type: {query_type}, User Query Snippet: '{user_query_snippet}'")
+
+    # Check if supervisor explicitly set an error and defaulted
+    if hasattr(state, 'error_message') and state.error_message and "Supervisor LLM decision processing error" in state.error_message:
+        print(f"Routing to general_question due to supervisor error: {state.error_message}")
         return "general_question"
+    
+    if query_type == "db_query":
+        print("Routing to: generate_sql")
+        return "generate_sql"
+    
+    # Fallback for general_query, None query_type, or other unexpected cases
+    print(f"Routing to: general_question (Actual query_type: {query_type})")
+    return "general_question"
 
 # --- Graph Definition ---
-workflow = StateGraph(AgentState)
+workflow = StateGraph(AgentState, config_schema=Configuration)
 
 workflow.add_node("supervisor", supervisor_node)
 workflow.add_node("generate_sql", generate_sql_node)
@@ -264,7 +329,6 @@ workflow.add_edge("summarize_sql_result", END)
 workflow.add_edge("general_question", END)
 
 # Compile the graph
-# The config_schema=Configuration can be added if you intend to use runtime config for nodes
 graph = workflow.compile(checkpointer=None) # Add checkpointer if persistence is needed
 
 # To make it runnable with langgraph dev, ensure it's assigned to 'graph'
