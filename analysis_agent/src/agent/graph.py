@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 from typing import Optional, Dict, Any, List, Annotated, Literal, TypedDict
+import asyncio
 import io
 from dotenv import load_dotenv
 import os
@@ -461,11 +462,15 @@ async def category_predict_node(state: AgentState, config: Optional[RunnableConf
     # 이 순서는 모델 학습 시 사용된 데이터프레임의 X.columns 순서와 정확히 일치해야 합니다.
     # 순서가 맞지 않으면 모델이 특성을 잘못 해석하여 예측 결과가 완전히 틀릴 수 있습니다.
     EXPECTED_FEATURE_ORDER = [
-        'gender', 'senior_citizen', 'partner', 'dependents', 'tenure', 'phone_service', 
-        'multiple_lines', 'internet_service', 'online_security', 'online_backup', 
-        'device_protection', 'tech_support', 'streaming_tv', 'streaming_movies', 
-        'contract', 'paperless_billing', 'payment_method', 'monthly_charges', 'total_charges'
-        # 예시입니다. 실제 프로젝트에 맞게 수정하세요.
+        'seniorcitizen', 'partner', 'dependents', 'tenure', 'phoneservice',
+        'multiplelines', 'onlinesecurity', 'onlinebackup',
+        'techsupport',
+        'contract', 'paperlessbilling', 'paymentmethod', 'monthlycharges',
+        'totalcharges',
+        # Derived features (순서는 학습 시와 동일해야 함)
+        'new_totalservices', 'new_avg_charges', 'new_increase', 'new_avg_service_fee',
+        'charge_increased', 'charge_growth_rate', 'is_auto_payment',
+        'expected_contract_months', 'contract_gap'
     ] 
     CUSTOMER_ID_COL = 'customerid' # CSV 파일 내 고객 ID 컬럼명 (사용자 제공 sample_users_30.csv에 따름)
     PREDICTION_THRESHOLD = 0.312
@@ -483,7 +488,7 @@ async def category_predict_node(state: AgentState, config: Optional[RunnableConf
     elif state.user_query and os.path.exists(state.user_query):
         print(f"CSV 파일 경로({state.user_query})를 사용하여 데이터 로드 중...")
         try:
-            raw_data = pd.read_csv(state.user_query)
+            raw_data = await asyncio.to_thread(pd.read_csv, state.user_query)
         except Exception as e:
             error_msg = f"오류: CSV 파일({state.user_query})을 읽는 중 문제가 발생했습니다: {e}"
             print(error_msg)
@@ -513,17 +518,22 @@ async def category_predict_node(state: AgentState, config: Optional[RunnableConf
             print(error_msg)
             return {"final_answer": "오류: 학습된 LabelEncoder 파일을 찾을 수 없습니다.", "error_message": error_msg}
 
-        # 2. 모델 및 전처리 객체 로드
-        pipeline_final = joblib.load(MODEL_PATH)
+        # 2. 모델 및 전처리 객체 로드 (비동기 처리)
+        print(f"모델 로드 시작: {MODEL_PATH}")
+        pipeline_final = await asyncio.to_thread(joblib.load, MODEL_PATH)
         print(f"모델 로드 완료: {MODEL_PATH}")
-        CATEGORICAL_COLS = joblib.load(CATEGORICAL_COLS_PATH)
+        
+        print(f"범주형 컬럼 목록 로드 시작: {CATEGORICAL_COLS_PATH}")
+        CATEGORICAL_COLS = await asyncio.to_thread(joblib.load, CATEGORICAL_COLS_PATH)
         print(f"범주형 컬럼 목록 로드 완료. 목록: {CATEGORICAL_COLS}")
-        loaded_label_encoders = joblib.load(LABEL_ENCODERS_PATH)
+        
+        print(f"LabelEncoder 로드 시작: {LABEL_ENCODERS_PATH}")
+        loaded_label_encoders = await asyncio.to_thread(joblib.load, LABEL_ENCODERS_PATH)
         print("LabelEncoder 로드 완료.")
 
-        # 3. CSV 데이터 로드
-        input_df = pd.read_csv(user_query)
-        print(f"CSV 로드 완료: {user_query}, Shape: {input_df.shape}")
+        # 3. CSV 데이터 사용 (이미 raw_data로 로드됨)
+        input_df = raw_data.copy() # Use the already loaded raw_data
+        print(f"로드된 CSV 데이터 사용. Shape: {input_df.shape}")
         
         if CUSTOMER_ID_COL not in input_df.columns:
             error_msg = f"'{CUSTOMER_ID_COL}' 컬럼이 CSV 파일에 없습니다."
@@ -539,18 +549,27 @@ async def category_predict_node(state: AgentState, config: Optional[RunnableConf
             if col in X_predict.columns:
                 if col in loaded_label_encoders:
                     le = loaded_label_encoders[col]
+                    print(f"Encoding column: {col} using loaded LabelEncoder.")
                     
-                    # Handle unseen labels before transforming
-                    transformed_column = pd.Series([np.nan] * len(X_predict[col]), index=X_predict.index, dtype=float)
-                    known_labels = list(le.classes_)
+                    # Convert current column to string type to ensure compatibility with LabelEncoder
+                    current_column_str = X_predict[col].astype(str)
                     
-                    for i, value in enumerate(X_predict[col].astype(str)): # Ensure string type for comparison
-                        if value in known_labels:
-                            transformed_column.iloc[i] = le.transform([value])[0]
+                    # Prepare a list to store transformed values
+                    transformed_values = []
+                    
+                    # Get known classes from the encoder to check against
+                    known_classes = list(le.classes_)
+
+                    for value in current_column_str:
+                        if value in known_classes:
+                            transformed_values.append(le.transform([value])[0])
                         else:
-                            print(f"경고: '{col}' 컬럼에 학습 시 없던 새로운 값 ('{value}')이 발견되었습니다. 이 값은 NaN으로 처리됩니다.")
-                            # transformed_column.iloc[i] is already np.nan
-                    X_predict[col] = transformed_column
+                            # Handle unseen labels: assign a placeholder (e.g., -1)
+                            # Log a warning as this might impact prediction quality
+                            print(f"Warning: Unseen label '{value}' in column '{col}'. Assigning -1 as placeholder.")
+                            transformed_values.append(-1) 
+                            
+                    X_predict[col] = transformed_values
                 else:
                     error_msg = f"오류: '{col}'에 대한 LabelEncoder를 찾을 수 없습니다. '{LABEL_ENCODERS_PATH}' 파일과 '{CATEGORICAL_COLS_PATH}' 파일의 내용을 확인하세요."
                     print(error_msg)
