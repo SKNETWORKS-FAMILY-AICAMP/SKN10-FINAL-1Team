@@ -1,0 +1,21 @@
+customerid,gender,seniorcitizen,partner,dependents,tenure,phoneservice,multiplelines,internetservice,onlinesecurity,onlinebackup,deviceprotection,techsupport,streamingtv,streamingmovies,contract,paperlessbilling,paymentmethod,monthlycharges,totalcharges,new_totalservices,new_avg_charges,new_increase,new_avg_service_fee,charge_increased,charge_growth_rate,is_auto_payment,expected_contract_months,contract_gap
+00000-AABB,Male,1,0,0,2,1,No phone service,No,No internet service,No,Yes,No,No internet service,No internet service,One year,1,Bank transfer,78.48,1414.01,4,79.34,0.8479,18.29,0,0.0431,1,24,5
+00001-AABB,Female,1,0,0,65,1,Yes,Fiber optic,No,No,No,No,No,No internet service,One year,1,Mailed check,116.32,2889.9,2,87.09,1.1024,15.15,0,0.0056,1,24,11
+00002-AABB,Female,1,1,1,28,0,No phone service,DSL,No internet service,Yes,No internet service,No,Yes,Yes,Two year,0,Electronic check,48.26,2474.31,5,69.64,1.0653,22.51,0,-0.0121,1,48,12
+00003-AABB,Female,0,1,1,39,1,No phone service,Fiber optic,No internet service,No internet service,No,No,No,Yes,One year,1,Mailed check,107.52,6008.61,1,54.61,0.8577,22.47,0,0.0101,0,12,5
+00004-AABB,Female,1,0,1,48,1,No,Fiber optic,No internet service,No internet service,Yes,No internet service,No,No,One year,1,Credit card,75.11,4079.24,6,17.63,1.077,22.43,0,0.0196,0,48,-7
+00005-AABB,Female,0,1,0,60,1,No,No,No internet service,Yes,Yes,No,Yes,No,Month-to-month,0,Credit card,71.24,1756.26,2,78.31,0.8607,15.87,0,-0.0348,0,48,9
+00006-AABB,Male,0,1,0,53,1,Yes,DSL,No internet service,No,No internet service,Yes,No internet service,No,Two year,0,Mailed check,119.97,3978.22,5,41.03,1.1989,17.44,0,0.0934,1,24,-11
+00007-AABB,Male,0,0,0,3,1,No phone service,DSL,Yes,Yes,No,No internet service,Yes,No,Two year,1,Mailed check,54.09,4223.84,2,65.69,1.0385,5.48,1,0.0945,1,12,-9
+00008-AABB,Male,0,1,0,32,0,Yes,DSL,Yes,No,No internet service,No,No,Yes,Two year,1,Bank transfer,96.72,4752.67,5,93.71,0.9195,11.09,0,0.0233,1,24,4
+00009-AABB,Male,0,0,1,37,1,No,No,No,No internet service,Yes,Yes,No internet service,No,Month-to-month,0,Bank transfer,97.38,164.04,1,78.44,0.9356,9.36,1,0.0361,0,48,2
+00010-AABB,Male,0,0,1,39,1,No phone service,Fiber optic,No,Yes,No,Yes,No,No internet service,Two year,1,Mailed check,25.88,1487.22,5,48.61,0.9916,11.76,0,0.094,0,12,-11
+00011-AABB,Female,1,0,0,53,0,No,No,No,No,No internet service,No,No,Yes,One year,0,Credit card,22.54,4616.9,1,83.42,0.9808,24.69,1,0.0539,0,12,-2
+00012-AABB,Male,1,0,0,34,0,No phone service,DSL,No,Yes,No,No,No,Yes,Two year,1,Bank transfer,36.84,2280.35,6,63.66,0.9596,7.28,0,0.0833,0,12,1
+00013-AABB,Male,0,0,0,52,1,No,Fiber optic,No internet service,No,No internet service,No internet service,No,Yes,Month-to-month,1,Mailed check,117.05,6602.93,5,75.85,0.9228,19.12,0,0.0525,1,48,12
+00014-AABB,Male,0,0,1,24,0,Yes,No,No,No,Yes,Yes,No,No internet service,One year,0,Bank transfer,26.24,4315.23,6,83.5,1.1985,19.25,0,-0.0307,0,36,-10
+00015-AABB,Female,0,1,0,24,0,No phone service,Fiber optic,Yes,No internet service,No,Yes,No,No internet service,One year,0,Credit card,91.59,5499.27,6,98.76,0.8731,16.19,0,-0.0188,0,24,9
+00016-AABB,Female,0,0,1,70,0,No phone service,No,Yes,Yes,No,Yes,Yes,Yes,Two year,0,Mailed check,25.11,5090.48,5,19.15,1.0535,6.49,0,0.0959,1,36,-6
+00017-AABB,Male,1,0,1,38,0,No phone service,No,No internet service,No,Yes,No internet service,No,No internet service,Two year,0,Mailed check,48.79,3706.95,3,72.86,0.9355,18.06,1,0.0771,0,36,-8
+00018-AABB,Male,0,0,0,36,1,No phone service,DSL,No,Yes,No,No internet service,Yes,No internet service,Two year,1,Credit card,107.08,4388.33,5,76.64,0.9784,17.45,1,-0.0486,1,48,-7
+00019-AABB,Male,1,0,0,61,1,No,DSL,Yes,No internet service,Yes,No internet service,Yes,No internet service,One year,0,Electronic check,54.24,2979.91,2,56.78,0.9143,24.03,1,-0.0171,0,36,-11

@@ -419,11 +419,18 @@ async def summarize_sql_result_node(state: AgentState, config: Optional[Runnable
     user_query = state.user_query # Get user_query from the state field set by supervisor
     sql_query = state.sql_query or ""
     sql_result = state.sql_result or ""
+    current_messages = state.messages # Get current messages
 
     if not user_query:
-         return {"error_message": "No user query found for summarization.", "final_answer": ""}
+         # Add error message to messages as well
+        error_msg = "No user query found for summarization."
+        updated_messages = current_messages + [AIMessage(content=error_msg)]
+        return {"messages": updated_messages, "error_message": error_msg, "final_answer": ""}
     if not sql_result:
-        return {"error_message": state.error_message or "No SQL result to summarize.", "final_answer": state.error_message or "SQL query execution failed or produced no result."}
+        error_msg = state.error_message or "No SQL result to summarize."
+        final_response_msg = state.error_message or "SQL query execution failed or produced no result."
+        updated_messages = current_messages + [AIMessage(content=final_response_msg)]
+        return {"messages": updated_messages, "error_message": error_msg, "final_answer": final_response_msg}
 
     print(f"Summarizing for query: {user_query}, SQL: {sql_query[:100]}..., Result: {sql_result[:100]}...")
     summarization_chain = summarization_prompt | llm
@@ -433,208 +440,199 @@ async def summarize_sql_result_node(state: AgentState, config: Optional[Runnable
     )
     final_answer = response.content.strip()
     print(f"Summarized Answer: {final_answer}")
-    return {"final_answer": final_answer}
+    
+    # Add the final_answer to the messages list as an AIMessage
+    updated_messages = current_messages + [AIMessage(content=final_answer)]
+    
+    return {"messages": updated_messages, "final_answer": final_answer}
 
 async def general_question_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     print("--- GENERAL QUESTION NODE ---")
-    if not state.messages or not isinstance(state.messages[-1], HumanMessage):
-        return {"error_message": "No user query found for general question.", "final_answer": ""}
-    user_query = state.messages[-1].content
+    current_messages = state.messages # Get current messages
+    
+    # Ensure there's a user query to process from the last HumanMessage
+    user_query_to_process: Optional[str] = None
+    if state.user_query: # Prefer user_query if set by supervisor
+        user_query_to_process = state.user_query
+    elif current_messages and isinstance(current_messages[-1], HumanMessage):
+        user_query_to_process = current_messages[-1].content
+    
+    if not user_query_to_process:
+        error_msg = "No user query found for general question."
+        print(f"General Question Node - Error: {error_msg}")
+        updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
+        return {"messages": updated_messages, "error_message": error_msg, "final_answer": ""}
+
+    print(f"General Question Node - Processing query: '{user_query_to_process}'")
     general_answer_chain = general_answer_prompt | llm
-    response = await general_answer_chain.ainvoke({"user_query": user_query}, config=config)
-    final_answer = response.content.strip()
-    print(f"General Answer: {final_answer}")
-    return {"final_answer": final_answer}
+    try:
+        response = await general_answer_chain.ainvoke({"user_query": user_query_to_process}, config=config)
+        final_answer = response.content.strip()
+        print(f"General Answer: {final_answer}")
+        
+        updated_messages = current_messages + [AIMessage(content=final_answer)]
+        return {"messages": updated_messages, "final_answer": final_answer, "error_message": None}
+    except Exception as e:
+        error_msg = f"Error in general_question_node: {e}"
+        print(f"General Question Node - Error: {error_msg}")
+        updated_messages = current_messages + [AIMessage(content=f"Sorry, I encountered an error trying to answer: {error_msg}")]
+        return {"messages": updated_messages, "error_message": error_msg, "final_answer": ""}
 
 async def category_predict_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
-    print("--- CATEGORY PREDICT NODE (Telecom Churn Prediction) ---")
-    # user_query is now handled by the logic below, or via state.csv_file_content
+    print("--- CATEGORY PREDICT NODE (Telecom Churn Prediction with Csv File Content) ---")
 
-    # --- 모델 및 전처리 파일 경로 설정 ---
-    base_path = os.path.join(os.path.dirname(__file__), '..', '..', '..') # Project root
+    # --- 경로 설정 ---
+    base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
     MODEL_PATH = os.path.join(base_path, 'churn_predictor_pipeline.pkl')
     CATEGORICAL_COLS_PATH = os.path.join(base_path, 'categorical_cols.pkl')
     LABEL_ENCODERS_PATH = os.path.join(base_path, 'label_encoders.pkl')
-    
-    # !!! 중요 !!! 사용자 직접 수정 필요 !!!
-    # 아래 EXPECTED_FEATURE_ORDER는 실제 모델 학습에 사용된 **모든 특성들의 정확한 이름과 순서**로 반드시 수정해야 합니다.
-    # (고객 ID 컬럼과 타겟 변수(이탈 여부)는 제외)
-    # 이 순서는 모델 학습 시 사용된 데이터프레임의 X.columns 순서와 정확히 일치해야 합니다.
-    # 순서가 맞지 않으면 모델이 특성을 잘못 해석하여 예측 결과가 완전히 틀릴 수 있습니다.
+
     EXPECTED_FEATURE_ORDER = [
         'seniorcitizen', 'partner', 'dependents', 'tenure', 'phoneservice',
-        'multiplelines', 'onlinesecurity', 'onlinebackup',
-        'techsupport',
-        'contract', 'paperlessbilling', 'paymentmethod', 'monthlycharges',
-        'totalcharges',
-        # Derived features (순서는 학습 시와 동일해야 함)
+        'multiplelines', 'onlinesecurity', 'onlinebackup', 'techsupport',
+        'contract', 'paperlessbilling', 'paymentmethod', 'monthlycharges', 'totalcharges',
         'new_totalservices', 'new_avg_charges', 'new_increase', 'new_avg_service_fee',
         'charge_increased', 'charge_growth_rate', 'is_auto_payment',
         'expected_contract_months', 'contract_gap'
-    ] 
-    CUSTOMER_ID_COL = 'customerid' # CSV 파일 내 고객 ID 컬럼명 (사용자 제공 sample_users_30.csv에 따름)
+    ]
+    CUSTOMER_ID_COL = 'customerid'
     PREDICTION_THRESHOLD = 0.312
-    # --- 설정 끝 ---
 
-    raw_data = None
+    csv_data_str: Optional[str] = None
+
+    # 1. state.csv_file_content (LangGraph Studio의 'Csv File Content' 필드) 확인
     if state.csv_file_content:
-        print("CSV 파일 내용을 직접 사용하여 데이터 로드 중...")
-        try:
-            raw_data = pd.read_csv(io.StringIO(state.csv_file_content))
-        except Exception as e:
-            error_msg = f"오류: 제공된 CSV 파일 내용을 파싱하는 중 문제가 발생했습니다: {e}"
-            print(error_msg)
-            return {"final_answer": error_msg, "error_message": error_msg}
-    elif state.user_query and os.path.exists(state.user_query):
-        print(f"CSV 파일 경로({state.user_query})를 사용하여 데이터 로드 중...")
-        try:
-            raw_data = await asyncio.to_thread(pd.read_csv, state.user_query)
-        except Exception as e:
-            error_msg = f"오류: CSV 파일({state.user_query})을 읽는 중 문제가 발생했습니다: {e}"
-            print(error_msg)
-            return {"final_answer": error_msg, "error_message": error_msg}
-    else:
-        error_msg = f"CSV 파일 경로가 제공되지 않았거나 파일 내용이 제공되지 않았습니다. 사용자 입력: '{state.user_query}', CSV 내용 제공 여부: {'제공됨' if state.csv_file_content else '제공안됨'}"
-        print(error_msg)
-        return {"final_answer": "오류: CSV 파일을 찾을 수 없거나 내용이 제공되지 않았습니다. 정확한 파일 경로를 입력하거나 파일 내용을 전달해주세요.", "error_message": error_msg}
+        print("INFO: Using CSV data from state.csv_file_content.")
+        csv_data_str = state.csv_file_content
+    # 2. state.user_query (Chat 또는 Messages 입력) 확인
+    elif hasattr(state, 'user_query') and state.user_query:
+        print(f"INFO: Attempting to use state.user_query for CSV data. Content (first 100 chars): '{state.user_query[:100]}...'")
+        # 2a. state.user_query를 파일 경로로 시도
+        if os.path.exists(state.user_query):
+            try:
+                print(f"INFO: state.user_query '{state.user_query}' is an existing path. Reading file.")
+                def read_file_sync(path):
+                    with open(path, 'r', encoding='utf-8') as f_sync:
+                        return f_sync.read()
+                csv_data_str = await asyncio.to_thread(read_file_sync, state.user_query)
+                if not csv_data_str:
+                    print(f"WARNING: File at '{state.user_query}' was empty.")
+            except Exception as e:
+                print(f"WARNING: Error reading file from state.user_query path '{state.user_query}': {e}. Will attempt to treat as raw content.")
+        
+        # 2b. state.user_query를 파일 경로로 읽지 못했거나, 경로가 아니었다면 원본 CSV 내용으로 간주
+        if csv_data_str is None: # 파일 읽기 실패 또는 경로가 아니었음
+            print("INFO: Treating state.user_query as raw CSV content.")
+            csv_data_str = state.user_query # pd.read_csv가 이후에 파싱 시도
 
-    if raw_data is None or raw_data.empty:
-        error_msg = "오류: CSV 데이터가 비어있거나 로드에 실패했습니다. (데이터 로드 후 확인)"
-        print(error_msg)
-        return {"final_answer": error_msg, "error_message": error_msg}
+    # CSV 데이터를 어디에서도 찾지 못한 경우 오류 반환
+    if csv_data_str is None:
+        error_message_parts = ["❌ 오류: CSV 데이터를 찾을 수 없습니다."]
+        checked_sources = ["'Csv File Content' 필드"]
+        if hasattr(state, 'user_query'):
+            checked_sources.append("'User Query' / 채팅 메시지 (파일 경로 또는 CSV 내용 직접 입력)")
+        error_message_parts.append(f"확인한 입력 소스: {', '.join(checked_sources)}.")
+        error_message_parts.append("Csv File Content 필드에 직접 CSV 내용을 붙여넣거나, 채팅으로 CSV 파일의 전체 경로 또는 CSV 내용 자체를 입력해주세요.")
+        final_answer = "\n".join(error_message_parts)
+        current_messages = state.messages # Get current messages
+        updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
+        return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
+
+    print(f"INFO: CSV data obtained. Length: {len(csv_data_str)}. Preview (first 200 chars): {csv_data_str[:200]}...")
 
     try:
-        # 1. 필수 파일 존재 확인
-        if not os.path.exists(MODEL_PATH):
-            error_msg = f"모델 파일을 찾을 수 없습니다: {MODEL_PATH}"
-            print(error_msg)
-            return {"final_answer": "오류: 학습된 모델 파이프라인 파일을 찾을 수 없습니다.", "error_message": error_msg}
-        if not os.path.exists(CATEGORICAL_COLS_PATH):
-            error_msg = f"범주형 컬럼 목록 파일을 찾을 수 없습니다: {CATEGORICAL_COLS_PATH}"
-            print(error_msg)
-            return {"final_answer": "오류: 범주형 컬럼 정보 파일을 찾을 수 없습니다.", "error_message": error_msg}
-        if not os.path.exists(LABEL_ENCODERS_PATH):
-            error_msg = f"LabelEncoder 파일을 찾을 수 없습니다: {LABEL_ENCODERS_PATH}"
-            print(error_msg)
-            return {"final_answer": "오류: 학습된 LabelEncoder 파일을 찾을 수 없습니다.", "error_message": error_msg}
-
-        # 2. 모델 및 전처리 객체 로드 (비동기 처리)
-        print(f"모델 로드 시작: {MODEL_PATH}")
+        # --- 모델과 전처리 객체 비동기 로드 ---
         pipeline_final = await asyncio.to_thread(joblib.load, MODEL_PATH)
-        print(f"모델 로드 완료: {MODEL_PATH}")
-        
-        print(f"범주형 컬럼 목록 로드 시작: {CATEGORICAL_COLS_PATH}")
         CATEGORICAL_COLS = await asyncio.to_thread(joblib.load, CATEGORICAL_COLS_PATH)
-        print(f"범주형 컬럼 목록 로드 완료. 목록: {CATEGORICAL_COLS}")
-        
-        print(f"LabelEncoder 로드 시작: {LABEL_ENCODERS_PATH}")
-        loaded_label_encoders = await asyncio.to_thread(joblib.load, LABEL_ENCODERS_PATH)
-        print("LabelEncoder 로드 완료.")
+        label_encoders = await asyncio.to_thread(joblib.load, LABEL_ENCODERS_PATH)
 
-        # 3. CSV 데이터 사용 (이미 raw_data로 로드됨)
-        input_df = raw_data.copy() # Use the already loaded raw_data
-        print(f"로드된 CSV 데이터 사용. Shape: {input_df.shape}")
-        
+        # --- CSV 문자열 → DataFrame 변환 ---
+        if not csv_data_str: # 이중 확인, csv_data_str이 None이나 빈 문자열이면 에러 발생 방지
+            final_answer = "❌ 오류: 내부 로직 오류 - CSV 데이터 문자열이 비어있습니다."
+            current_messages = state.messages # Get current messages
+            updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
+            return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
+        input_df = await asyncio.to_thread(pd.read_csv, io.StringIO(csv_data_str))
+
         if CUSTOMER_ID_COL not in input_df.columns:
-            error_msg = f"'{CUSTOMER_ID_COL}' 컬럼이 CSV 파일에 없습니다."
-            print(error_msg)
-            return {"final_answer": f"오류: CSV 파일에 고객 ID 컬럼('{CUSTOMER_ID_COL}')이 없습니다.", "error_message": error_msg}
-        
+            final_answer = f"❌ 오류: '{CUSTOMER_ID_COL}' 컬럼이 CSV에 없습니다."
+            current_messages = state.messages # Get current messages
+            updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
+            return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
+
         customer_ids = input_df[CUSTOMER_ID_COL]
         X_predict = input_df.drop(columns=[CUSTOMER_ID_COL], errors='ignore')
 
-        # 4. 데이터 전처리 (학습 과정과 동일하게 수행)
-        # 4.1. 범주형 변수 인코딩 (미리 학습된 LabelEncoder 사용)
+        # --- 범주형 컬럼 인코딩 ---
         for col in CATEGORICAL_COLS:
             if col in X_predict.columns:
-                if col in loaded_label_encoders:
-                    le = loaded_label_encoders[col]
-                    print(f"Encoding column: {col} using loaded LabelEncoder.")
-                    
-                    # Convert current column to string type to ensure compatibility with LabelEncoder
-                    current_column_str = X_predict[col].astype(str)
-                    
-                    # Prepare a list to store transformed values
-                    transformed_values = []
-                    
-                    # Get known classes from the encoder to check against
-                    known_classes = list(le.classes_)
-
-                    for value in current_column_str:
-                        if value in known_classes:
-                            transformed_values.append(le.transform([value])[0])
-                        else:
-                            # Handle unseen labels: assign a placeholder (e.g., -1)
-                            # Log a warning as this might impact prediction quality
-                            print(f"Warning: Unseen label '{value}' in column '{col}'. Assigning -1 as placeholder.")
-                            transformed_values.append(-1) 
-                            
-                    X_predict[col] = transformed_values
+                if col in label_encoders:
+                    le = label_encoders[col]
+                    X_predict[col] = X_predict[col].apply(
+                        lambda x: le.transform([x])[0] if x in le.classes_ else -1
+                    )
                 else:
-                    error_msg = f"오류: '{col}'에 대한 LabelEncoder를 찾을 수 없습니다. '{LABEL_ENCODERS_PATH}' 파일과 '{CATEGORICAL_COLS_PATH}' 파일의 내용을 확인하세요."
-                    print(error_msg)
-                    return {"final_answer": error_msg, "error_message": error_msg}
+                    print(f"WARNING: Label encoder for column '{col}' not found. Skipping encoding.")
             else:
-                # 필수 범주형 컬럼이 CSV에 없는 경우
-                error_msg = f"필수 범주형 컬럼 '{col}'이(가) CSV 파일에 없습니다. ({CATEGORICAL_COLS_PATH} 목록 기준)"
-                print(error_msg)
-                return {"final_answer": f"오류: 예측에 필요한 '{col}' 컬럼이 CSV 파일에 없습니다.", "error_message": error_msg}
-        
-        # 4.2. 특성 순서 정렬 및 누락된 특성 처리
-        # 모든 EXPECTED_FEATURE_ORDER 컬럼이 X_predict에 있도록 보장 (없으면 NaN으로 채움)
-        # 이 작업은 사용자가 EXPECTED_FEATURE_ORDER를 정확히 제공했을 때 의미가 있습니다.
-        for col in EXPECTED_FEATURE_ORDER:
-            if col not in X_predict.columns:
-                print(f"경고: 예측 데이터에 '{col}' 컬럼이 없어 NaN으로 채웁니다. (EXPECTED_FEATURE_ORDER 기준). 모델 성능에 영향을 줄 수 있습니다.")
-                X_predict[col] = np.nan 
-        
-        # 최종적으로 모델이 기대하는 순서대로 컬럼을 정렬
-        # 만약 EXPECTED_FEATURE_ORDER에 없는 컬럼이 X_predict에 있다면, 이 단계에서 제외됨.
-        try:
-            X_predict = X_predict[EXPECTED_FEATURE_ORDER]
-        except KeyError as e:
-            error_msg = f"오류: EXPECTED_FEATURE_ORDER에 정의된 컬럼 중 일부가 CSV에 없거나, 전처리 후에도 생성되지 않았습니다. 누락된 컬럼 가능성: {e}. EXPECTED_FEATURE_ORDER를 확인하세요."
-            print(error_msg)
-            return {"final_answer": error_msg, "error_message": error_msg}
+                print(f"WARNING: Categorical column '{col}' not found in input CSV. Skipping.")
 
-        # 4.3. NumPy 배열로 변환 (파이프라인이 NumPy를 기대하는 경우)
-        X_predict_np = X_predict.to_numpy()
-        print(f"데이터 전처리 완료. 예측할 데이터 Shape: {X_predict_np.shape}")
+        # --- 누락된 컬럼 처리 (모델이 기대하는 모든 컬럼이 있는지 확인) ---
+        missing_cols = set(EXPECTED_FEATURE_ORDER) - set(X_predict.columns)
+        for col in missing_cols:
+            print(f"INFO: Adding missing column '{col}' with default value 0.")
+            X_predict[col] = 0 # 또는 np.nan 등 적절한 기본값
 
-        # 5. 이탈 확률 및 예측 수행
-        y_proba = pipeline_final.predict_proba(X_predict_np)[:, 1]
-        y_pred_binary = (y_proba >= PREDICTION_THRESHOLD).astype(int)
+        # --- 컬럼 순서 정렬 ---
+        X_predict = X_predict[EXPECTED_FEATURE_ORDER]
 
-        # 6. 결과 생성
-        results = []
-        for cid, proba, pred in zip(customer_ids, y_proba, y_pred_binary):
-            status = "이탈 예상" if pred == 1 else "유지 예상"
-            results.append(f"고객 ID {cid}: 이탈 확률 {proba*100:.2f}%, 예측 결과: {status}")
-        
-        final_answer = "\n".join(results)
-        if not final_answer:
-            final_answer = "예측할 고객 데이터가 없습니다."
-        
-        print("예측 완료.")
-        return {"final_answer": final_answer}
+        # --- 예측 수행 ---
+        predictions_proba = await asyncio.to_thread(pipeline_final.predict_proba, X_predict)
+        predictions = (predictions_proba[:, 1] >= PREDICTION_THRESHOLD).astype(int)
 
-    except FileNotFoundError as e: # 구체적인 파일명을 포함하도록 수정
-        error_msg = f"오류: 파일 관련 문제 - {e}. 경로를 확인하세요."
-        print(error_msg)
-        return {"final_answer": error_msg, "error_message": error_msg}
+        # --- 결과 생성 ---
+        results_df = pd.DataFrame({
+            CUSTOMER_ID_COL: customer_ids,
+            'Churn Probability': predictions_proba[:, 1],
+            'Churn Prediction (Threshold 0.312)': predictions
+        })
+        results_df['Churn Prediction (Threshold 0.312)'] = results_df['Churn Prediction (Threshold 0.312)'].map({1: 'Yes', 0: 'No'})
+
+        final_answer = "📊 고객 이탈 예측 결과:\n" + results_df.to_string(index=False)
+        print(f"Prediction successful. Result preview: {final_answer[:200]}...")
+        current_messages = state.messages # Get current messages
+        updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
+        return {"messages": updated_messages, "final_answer": final_answer, "error_message": None}
+
     except pd.errors.EmptyDataError:
-        error_msg = f"오류: CSV 파일이 비어있습니다 - {user_query}"
-        print(error_msg)
-        return {"final_answer": error_msg, "error_message": error_msg}
-    except KeyError as e: # 컬럼 관련 오류 (좀 더 일반적인 메시지로)
-        error_msg = f"오류: 데이터 처리 중 컬럼 관련 문제가 발생했습니다. 누락/불일치 컬럼 가능성: {e}. CSV 파일, 컬럼 정의(EXPECTED_FEATURE_ORDER, CATEGORICAL_COLS)를 확인하세요."
-        print(error_msg)
-        return {"final_answer": error_msg, "error_message": error_msg}
+        error_msg = "❌ 오류: 입력된 CSV 데이터가 비어 있거나 잘못된 형식입니다. CSV 내용을 다시 확인해주세요."
+        print(f"ERROR: {error_msg}")
+        current_messages = state.messages # Get current messages
+        updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
+        return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
+    except FileNotFoundError as e:
+        error_msg = f"❌ 오류: 모델 또는 전처리 파일을 찾을 수 없습니다. 경로를 확인해주세요. ({e})"
+        print(f"ERROR: {error_msg}")
+        current_messages = state.messages # Get current messages
+        updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
+        return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
+    except KeyError as e:
+        error_msg = f"❌ 오류: CSV 데이터에 필요한 컬럼이 누락되었거나, 모델 학습 시 사용된 컬럼과 다릅니다. (오류 컬럼: {e}) CSV 파일을 확인해주세요."
+        print(f"ERROR: {error_msg}")
+        current_messages = state.messages # Get current messages
+        updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
+        return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
+    except ValueError as e:
+        error_msg = f"❌ 오류: 데이터 변환 중 값 오류가 발생했습니다. CSV 데이터 타입을 확인해주세요. (오류: {e})"
+        print(f"ERROR: {error_msg}")
+        current_messages = state.messages # Get current messages
+        updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
+        return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
     except Exception as e:
-        error_msg = f"예측 중 알 수 없는 오류 발생: {e}"
-        import traceback
-        traceback.print_exc()
-        return {"final_answer": f"오류: 고객 이탈 예측 중 문제가 발생했습니다. ({e})", "error_message": error_msg}
+        error_msg = f"❌ 예측 중 알 수 없는 오류 발생: {e}"
+        print(f"ERROR: {error_msg}")
+        current_messages = state.messages # Get current messages
+        updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
+        return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
 
 def route_sql_output(state: AgentState) -> Literal["create_visualization_node", "summarize_sql_result_node"]:
     choice = state.sql_output_choice
