@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 from typing import Optional, Dict, Any, List, Annotated, Literal, TypedDict
+import io
 from dotenv import load_dotenv
 import os
 import operator # For adding to message history
@@ -19,6 +20,10 @@ from langchain_core.output_parsers import JsonOutputParser
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
 from pydantic import BaseModel, Field
+import pandas as pd
+import numpy as np
+import joblib
+from sklearn.preprocessing import LabelEncoder
 
 # --- Configuration (Optional - can be used to pass API keys, model names, etc.) ---
 class Configuration(TypedDict, total=False):
@@ -29,6 +34,7 @@ class Configuration(TypedDict, total=False):
 class AgentState(BaseModel):
     messages: Annotated[List[BaseMessage], operator.add] = Field(default_factory=list)
     user_query: Optional[str] = None
+    csv_file_content: Optional[str] = None
     query_type: Optional[Literal["db_query", "category_predict_query", "general_query"]] = None
     sql_query: Optional[str] = None
     sql_result: Optional[Any] = None
@@ -440,33 +446,177 @@ async def general_question_node(state: AgentState, config: Optional[RunnableConf
     return {"final_answer": final_answer}
 
 async def category_predict_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
-    print("--- CATEGORY PREDICT NODE (Placeholder for Telecom Churn Prediction) ---")
-    user_query = state.user_query
+    print("--- CATEGORY PREDICT NODE (Telecom Churn Prediction) ---")
+    # user_query is now handled by the logic below, or via state.csv_file_content
 
-    # 향후 개발 계획:
-    # 이 노드는 통신사 고객의 서비스 이탈 여부를 예측하는 머신러닝 모델을 호출합니다.
-    # 사용자가 특정 고객에 대한 정보를 입력하고 이탈 여부를 질문하면,
-    # 여기서 해당 고객 정보를 추출하고, 학습된 모델에 전달하여 예측 결과를 받습니다.
-
-    # TODO: 고객 정보 추출 로직 구현 (예: user_query에서 고객 ID, 서비스 사용 기간, 월별 요금 등 추출)
-    # customer_info = extract_customer_info_from_query(user_query)
-    # if not customer_info:
-    #     return {"final_answer": "고객 이탈 예측을 위해 필요한 고객 정보가 부족합니다. 다시 질문해주세요.", "error_message": "Missing customer info"}
-
-    # TODO: 학습된 이탈 예측 모델 호출
-    # prediction_input = preprocess_for_model(customer_info)
-    # churn_probability = await churn_prediction_model.apredict(prediction_input)
-    # predicted_label = "이탈 예상" if churn_probability > 0.5 else "이탈하지 않을 것으로 예상"
-
-    # 현재는 플레이스홀더 응답을 반환합니다.
-    final_answer = f"통신사 고객 이탈 예측 요청을 받았습니다: '{user_query}'.\n"
-    final_answer += "현재 이 기능은 개발 중이며, 향후 고객 정보를 바탕으로 이탈 가능성을 예측할 예정입니다."
-    # final_answer = f"고객님의 정보({customer_info})를 바탕으로 분석한 결과, 이탈 확률은 {churn_probability*100:.2f}%로, {predicted_label}됩니다."
+    # --- 모델 및 전처리 파일 경로 설정 ---
+    base_path = os.path.join(os.path.dirname(__file__), '..', '..', '..') # Project root
+    MODEL_PATH = os.path.join(base_path, 'churn_predictor_pipeline.pkl')
+    CATEGORICAL_COLS_PATH = os.path.join(base_path, 'categorical_cols.pkl')
+    LABEL_ENCODERS_PATH = os.path.join(base_path, 'label_encoders.pkl')
     
-    print(f"Category Predict (Churn Prediction Placeholder) Answer: {final_answer}")
-    return {"final_answer": final_answer, "error_message": None}
+    # !!! 중요 !!! 사용자 직접 수정 필요 !!!
+    # 아래 EXPECTED_FEATURE_ORDER는 실제 모델 학습에 사용된 **모든 특성들의 정확한 이름과 순서**로 반드시 수정해야 합니다.
+    # (고객 ID 컬럼과 타겟 변수(이탈 여부)는 제외)
+    # 이 순서는 모델 학습 시 사용된 데이터프레임의 X.columns 순서와 정확히 일치해야 합니다.
+    # 순서가 맞지 않으면 모델이 특성을 잘못 해석하여 예측 결과가 완전히 틀릴 수 있습니다.
+    EXPECTED_FEATURE_ORDER = [
+        'gender', 'senior_citizen', 'partner', 'dependents', 'tenure', 'phone_service', 
+        'multiple_lines', 'internet_service', 'online_security', 'online_backup', 
+        'device_protection', 'tech_support', 'streaming_tv', 'streaming_movies', 
+        'contract', 'paperless_billing', 'payment_method', 'monthly_charges', 'total_charges'
+        # 예시입니다. 실제 프로젝트에 맞게 수정하세요.
+    ] 
+    CUSTOMER_ID_COL = 'customerid' # CSV 파일 내 고객 ID 컬럼명 (사용자 제공 sample_users_30.csv에 따름)
+    PREDICTION_THRESHOLD = 0.312
+    # --- 설정 끝 ---
 
-# --- Conditional Edges Logic ---
+    raw_data = None
+    if state.csv_file_content:
+        print("CSV 파일 내용을 직접 사용하여 데이터 로드 중...")
+        try:
+            raw_data = pd.read_csv(io.StringIO(state.csv_file_content))
+        except Exception as e:
+            error_msg = f"오류: 제공된 CSV 파일 내용을 파싱하는 중 문제가 발생했습니다: {e}"
+            print(error_msg)
+            return {"final_answer": error_msg, "error_message": error_msg}
+    elif state.user_query and os.path.exists(state.user_query):
+        print(f"CSV 파일 경로({state.user_query})를 사용하여 데이터 로드 중...")
+        try:
+            raw_data = pd.read_csv(state.user_query)
+        except Exception as e:
+            error_msg = f"오류: CSV 파일({state.user_query})을 읽는 중 문제가 발생했습니다: {e}"
+            print(error_msg)
+            return {"final_answer": error_msg, "error_message": error_msg}
+    else:
+        error_msg = f"CSV 파일 경로가 제공되지 않았거나 파일 내용이 제공되지 않았습니다. 사용자 입력: '{state.user_query}', CSV 내용 제공 여부: {'제공됨' if state.csv_file_content else '제공안됨'}"
+        print(error_msg)
+        return {"final_answer": "오류: CSV 파일을 찾을 수 없거나 내용이 제공되지 않았습니다. 정확한 파일 경로를 입력하거나 파일 내용을 전달해주세요.", "error_message": error_msg}
+
+    if raw_data is None or raw_data.empty:
+        error_msg = "오류: CSV 데이터가 비어있거나 로드에 실패했습니다. (데이터 로드 후 확인)"
+        print(error_msg)
+        return {"final_answer": error_msg, "error_message": error_msg}
+
+    try:
+        # 1. 필수 파일 존재 확인
+        if not os.path.exists(MODEL_PATH):
+            error_msg = f"모델 파일을 찾을 수 없습니다: {MODEL_PATH}"
+            print(error_msg)
+            return {"final_answer": "오류: 학습된 모델 파이프라인 파일을 찾을 수 없습니다.", "error_message": error_msg}
+        if not os.path.exists(CATEGORICAL_COLS_PATH):
+            error_msg = f"범주형 컬럼 목록 파일을 찾을 수 없습니다: {CATEGORICAL_COLS_PATH}"
+            print(error_msg)
+            return {"final_answer": "오류: 범주형 컬럼 정보 파일을 찾을 수 없습니다.", "error_message": error_msg}
+        if not os.path.exists(LABEL_ENCODERS_PATH):
+            error_msg = f"LabelEncoder 파일을 찾을 수 없습니다: {LABEL_ENCODERS_PATH}"
+            print(error_msg)
+            return {"final_answer": "오류: 학습된 LabelEncoder 파일을 찾을 수 없습니다.", "error_message": error_msg}
+
+        # 2. 모델 및 전처리 객체 로드
+        pipeline_final = joblib.load(MODEL_PATH)
+        print(f"모델 로드 완료: {MODEL_PATH}")
+        CATEGORICAL_COLS = joblib.load(CATEGORICAL_COLS_PATH)
+        print(f"범주형 컬럼 목록 로드 완료. 목록: {CATEGORICAL_COLS}")
+        loaded_label_encoders = joblib.load(LABEL_ENCODERS_PATH)
+        print("LabelEncoder 로드 완료.")
+
+        # 3. CSV 데이터 로드
+        input_df = pd.read_csv(user_query)
+        print(f"CSV 로드 완료: {user_query}, Shape: {input_df.shape}")
+        
+        if CUSTOMER_ID_COL not in input_df.columns:
+            error_msg = f"'{CUSTOMER_ID_COL}' 컬럼이 CSV 파일에 없습니다."
+            print(error_msg)
+            return {"final_answer": f"오류: CSV 파일에 고객 ID 컬럼('{CUSTOMER_ID_COL}')이 없습니다.", "error_message": error_msg}
+        
+        customer_ids = input_df[CUSTOMER_ID_COL]
+        X_predict = input_df.drop(columns=[CUSTOMER_ID_COL], errors='ignore')
+
+        # 4. 데이터 전처리 (학습 과정과 동일하게 수행)
+        # 4.1. 범주형 변수 인코딩 (미리 학습된 LabelEncoder 사용)
+        for col in CATEGORICAL_COLS:
+            if col in X_predict.columns:
+                if col in loaded_label_encoders:
+                    le = loaded_label_encoders[col]
+                    
+                    # Handle unseen labels before transforming
+                    transformed_column = pd.Series([np.nan] * len(X_predict[col]), index=X_predict.index, dtype=float)
+                    known_labels = list(le.classes_)
+                    
+                    for i, value in enumerate(X_predict[col].astype(str)): # Ensure string type for comparison
+                        if value in known_labels:
+                            transformed_column.iloc[i] = le.transform([value])[0]
+                        else:
+                            print(f"경고: '{col}' 컬럼에 학습 시 없던 새로운 값 ('{value}')이 발견되었습니다. 이 값은 NaN으로 처리됩니다.")
+                            # transformed_column.iloc[i] is already np.nan
+                    X_predict[col] = transformed_column
+                else:
+                    error_msg = f"오류: '{col}'에 대한 LabelEncoder를 찾을 수 없습니다. '{LABEL_ENCODERS_PATH}' 파일과 '{CATEGORICAL_COLS_PATH}' 파일의 내용을 확인하세요."
+                    print(error_msg)
+                    return {"final_answer": error_msg, "error_message": error_msg}
+            else:
+                # 필수 범주형 컬럼이 CSV에 없는 경우
+                error_msg = f"필수 범주형 컬럼 '{col}'이(가) CSV 파일에 없습니다. ({CATEGORICAL_COLS_PATH} 목록 기준)"
+                print(error_msg)
+                return {"final_answer": f"오류: 예측에 필요한 '{col}' 컬럼이 CSV 파일에 없습니다.", "error_message": error_msg}
+        
+        # 4.2. 특성 순서 정렬 및 누락된 특성 처리
+        # 모든 EXPECTED_FEATURE_ORDER 컬럼이 X_predict에 있도록 보장 (없으면 NaN으로 채움)
+        # 이 작업은 사용자가 EXPECTED_FEATURE_ORDER를 정확히 제공했을 때 의미가 있습니다.
+        for col in EXPECTED_FEATURE_ORDER:
+            if col not in X_predict.columns:
+                print(f"경고: 예측 데이터에 '{col}' 컬럼이 없어 NaN으로 채웁니다. (EXPECTED_FEATURE_ORDER 기준). 모델 성능에 영향을 줄 수 있습니다.")
+                X_predict[col] = np.nan 
+        
+        # 최종적으로 모델이 기대하는 순서대로 컬럼을 정렬
+        # 만약 EXPECTED_FEATURE_ORDER에 없는 컬럼이 X_predict에 있다면, 이 단계에서 제외됨.
+        try:
+            X_predict = X_predict[EXPECTED_FEATURE_ORDER]
+        except KeyError as e:
+            error_msg = f"오류: EXPECTED_FEATURE_ORDER에 정의된 컬럼 중 일부가 CSV에 없거나, 전처리 후에도 생성되지 않았습니다. 누락된 컬럼 가능성: {e}. EXPECTED_FEATURE_ORDER를 확인하세요."
+            print(error_msg)
+            return {"final_answer": error_msg, "error_message": error_msg}
+
+        # 4.3. NumPy 배열로 변환 (파이프라인이 NumPy를 기대하는 경우)
+        X_predict_np = X_predict.to_numpy()
+        print(f"데이터 전처리 완료. 예측할 데이터 Shape: {X_predict_np.shape}")
+
+        # 5. 이탈 확률 및 예측 수행
+        y_proba = pipeline_final.predict_proba(X_predict_np)[:, 1]
+        y_pred_binary = (y_proba >= PREDICTION_THRESHOLD).astype(int)
+
+        # 6. 결과 생성
+        results = []
+        for cid, proba, pred in zip(customer_ids, y_proba, y_pred_binary):
+            status = "이탈 예상" if pred == 1 else "유지 예상"
+            results.append(f"고객 ID {cid}: 이탈 확률 {proba*100:.2f}%, 예측 결과: {status}")
+        
+        final_answer = "\n".join(results)
+        if not final_answer:
+            final_answer = "예측할 고객 데이터가 없습니다."
+        
+        print("예측 완료.")
+        return {"final_answer": final_answer}
+
+    except FileNotFoundError as e: # 구체적인 파일명을 포함하도록 수정
+        error_msg = f"오류: 파일 관련 문제 - {e}. 경로를 확인하세요."
+        print(error_msg)
+        return {"final_answer": error_msg, "error_message": error_msg}
+    except pd.errors.EmptyDataError:
+        error_msg = f"오류: CSV 파일이 비어있습니다 - {user_query}"
+        print(error_msg)
+        return {"final_answer": error_msg, "error_message": error_msg}
+    except KeyError as e: # 컬럼 관련 오류 (좀 더 일반적인 메시지로)
+        error_msg = f"오류: 데이터 처리 중 컬럼 관련 문제가 발생했습니다. 누락/불일치 컬럼 가능성: {e}. CSV 파일, 컬럼 정의(EXPECTED_FEATURE_ORDER, CATEGORICAL_COLS)를 확인하세요."
+        print(error_msg)
+        return {"final_answer": error_msg, "error_message": error_msg}
+    except Exception as e:
+        error_msg = f"예측 중 알 수 없는 오류 발생: {e}"
+        import traceback
+        traceback.print_exc()
+        return {"final_answer": f"오류: 고객 이탈 예측 중 문제가 발생했습니다. ({e})", "error_message": error_msg}
+
 def route_sql_output(state: AgentState) -> Literal["create_visualization_node", "summarize_sql_result_node"]:
     choice = state.sql_output_choice
     # If execute_sql_node itself resulted in an error (indicated by error_message and no sql_result)
@@ -555,24 +705,24 @@ graph = app # For langgraph dev compatibility
 # async def main():
 #     inputs = {"user_query": "지난 달 사용자 수는 몇 명인가요?"}
 #     # For testing, you can invoke the graph like this:
-    # inputs = {"messages": [HumanMessage(content="우리 회사 직원들 중 가장 연봉이 높은 상위 3명은 누구인가요?")]}
-    # async for event in app.astream_events(inputs, version="v1"):
-    #     kind = event["event"]
-    #     if kind == "on_chat_model_stream":
-    #         content = event["data"]["chunk"].content
-    #         if content:
-    #             print(content, end="")
-    #     elif kind == "on_tool_end":
-    #         print(f"\nTool Output: {event['data']['output']}")
-    #     # print(f"\n--- Event: {kind} ---")
-    #     # print(event["data"])
+#     # inputs = {"messages": [HumanMessage(content="우리 회사 직원들 중 가장 연봉이 높은 상위 3명은 누구인가요?")]}
+#     # async for event in app.astream_events(inputs, version="v1"):
+#     #     kind = event["event"]
+#     #     if kind == "on_chat_model_stream":
+#     #         content = event["data"]["chunk"].content
+#     #         if content:
+#     #             print(content, end="")
+#     #     elif kind == "on_tool_end":
+#     #         print(f"\nTool Output: {event['data']['output']}")
+#     #     # print(f"\n--- Event: {kind} ---")
+#     #     # print(event["data"])
 # if __name__ == "__main__":
 #     import asyncio
 #     async def main_test():
 #         app_test = await main()
 #         inputs = {"input": "우리 회사 테이블 목록 좀 보여줘"}
-    # # inputs = {"input": "오늘 날씨 어때?"}
-    # async for event in app_test.astream_events(inputs, version="v1"):
+#     # inputs = {"input": "오늘 날씨 어때?"}
+#     async for event in app_test.astream_events(inputs, version="v1"):
 #             kind = event["event"]
 #             if kind == "on_chat_model_stream":
 #                 content = event["data"]["chunk"].content
