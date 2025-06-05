@@ -26,6 +26,9 @@ if project_root not in sys.path:
 from src.agent.tools import get_common_tools, data_analysis_tools, document_processing_tools, code_agent_tools
 from src.agent.state import MessagesState
 
+# Import the compiled RAG agent graph
+from src.agent.agent2 import graph as rag_agent_graph
+
 # Import LLM and agent creation utilities
 from langchain.chat_models import init_chat_model
 from langgraph.prebuilt import create_react_agent
@@ -87,27 +90,8 @@ analytics_agent_system_prompt_string = """당신은 데이터 분석 전문가�
 3. predict_trend 도구 사용:
    - 사용자가 "향후 3개월 동안의 매출을 예측해 주세요"라고 요청하면 → predict_trend(data_description="매출 데이터", time_horizon="3 months") 호출"""
 
-# RAG Agent
-rag_agent_llm = init_chat_model(
-    MODEL_IDENTIFIER,
-    temperature=LLM_TEMPERATURE,
-    model_kwargs={"streaming": LLM_STREAMING}
-)
-rag_agent_tools_list = document_processing_tools()
-rag_agent_system_prompt_string = """당신은 문서 처리와 지식 검색 전문가입니다.
-문서 요약, 정보 추출, 질문 응답, 문서 변환과 같은 문서 관련 작업을 수행합니다.
-PDF, TXT, DOCX 등 다양한 형식의 문서를 처리할 수 있습니다.
-필요한 정보를 정확하고 빠르게 찾아 제공합니다.
-
-# 도구 사용 시나리오:
-1. summarize_document 도구 사용:
-   - 사용자가 "너무 긴 이메일인데 짧게 요약해 줄래요?"라고 요청하면 → summarize_document(document_content="[이메일 내용]", max_length=200) 호출
-
-2. extract_information 도구 사용:
-   - 사용자가 "이 문서에서 모든 날짜를 추출해주세요"라고 요청하면 → extract_information(document_content="[문서 내용]", info_type="dates") 호출
-
-3. answer_document_question 도구 사용:
-   - 사용자가 "이 문서에 따르면 향후 사용자 수 예측은 어떻게 되나요?"라고 물으면 → answer_document_question(document_content="[문서 내용]", question="향후 사용자 수 예측은 어떻게 되나요?") 호출"""
+# RAG Agent - Import from agent2.py
+from src.agent.agent2 import graph as rag_agent
 
 # Code Agent
 code_agent_llm = init_chat_model(
@@ -163,13 +147,7 @@ analytics_agent_runnable = create_react_agent(
 )
 print("Analytics Agent Runnable created successfully")
 
-rag_agent_runnable = create_react_agent(
-    model=rag_agent_llm,
-    tools=rag_agent_tools_list,
-    prompt=rag_agent_system_prompt_string,
-    name="rag_agent"
-)
-print("RAG Agent Runnable created successfully")
+
 
 code_agent_runnable = create_react_agent(
     model=code_agent_llm,
@@ -269,7 +247,8 @@ workflow = StateGraph(SupervisorState)
 
 workflow.add_node("supervisor_router", supervisor_router_node)
 workflow.add_node("analytics_agent", analytics_agent_runnable)
-workflow.add_node("rag_agent", rag_agent_runnable)
+# Use the rag_agent_graph directly since it now supports the message-based state format
+workflow.add_node("rag_agent", rag_agent_graph)
 workflow.add_node("code_agent", code_agent_runnable)
 
 workflow.set_entry_point("supervisor_router")
