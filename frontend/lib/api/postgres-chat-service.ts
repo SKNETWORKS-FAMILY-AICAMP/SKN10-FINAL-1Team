@@ -347,14 +347,21 @@ export async function deleteChatSessionFromDB(sessionId: string): Promise<boolea
   }
 
   try {
-    // First delete all messages in the session
+    // First delete related llm_calls records
     let sql = `
+      DELETE FROM llm_calls
+      WHERE session_id = $1
+    `
+    await executeQuery(sql, [sessionId])
+    
+    // Then delete all messages in the session
+    sql = `
       DELETE FROM chat_messages
       WHERE session_id = $1
     `
     await executeQuery(sql, [sessionId])
     
-    // Then delete the session itself
+    // Finally delete the session itself
     sql = `
       DELETE FROM chat_sessions
       WHERE id = $1

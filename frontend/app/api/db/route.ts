@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       /UPDATE[\s\n]+chat_sessions/i,
       /DELETE.*FROM[\s\n]+chat_sessions/i,
       /DELETE.*FROM[\s\n]+chat_messages/i,
+      /DELETE.*FROM[\s\n]+llm_calls/i,
       /ORDER[\s\n]+BY/i
     ];
     
