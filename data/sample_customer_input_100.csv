@@ -1,0 +1,101 @@
+customerid,gender,seniorcitizen,partner,dependents,tenure,phoneservice,multiplelines,internetservice,onlinesecurity,onlinebackup,deviceprotection,techsupport,streamingtv,streamingmovies,contract,paperlessbilling,paymentmethod,monthlycharges,totalcharges,new_totalservices,new_avg_charges,new_increase,new_avg_service_fee,charge_increased,charge_growth_rate,is_auto_payment,expected_contract_months,contract_gap
+ID1000,Female,0,0,1,54,0,Yes,No,No,No,No,No,No,Yes,Two year,1,Mailed check,59.18,2713.79,5,29.5,-0.81,25.44,0,-0.06,1,24,3
+ID1001,Female,0,1,1,19,0,No,Fiber optic,No,No,Yes,Yes,No,Yes,Two year,0,Credit card,81.01,5194.3,4,48.78,4.68,25.39,0,0.7,0,9,-5
+ID1002,Female,0,0,1,70,0,Yes,No,Yes,No,No,Yes,Yes,Yes,Two year,0,Credit card,98.68,5505.05,8,38.09,16.93,20.21,0,0.49,0,2,11
+ID1003,Male,0,0,0,16,0,Yes,DSL,No,No,No,Yes,No,No,One year,1,Mailed check,109.26,1381.24,2,85.72,17.48,14.6,1,1.12,1,14,-2
+ID1004,Female,1,0,1,1,0,Yes,No,Yes,Yes,No,No,Yes,Yes,One year,0,Mailed check,117.6,618.78,7,28.27,10.06,24.75,0,0.36,0,5,10
+ID1005,Male,0,1,1,28,0,No,Fiber optic,No,No,Yes,Yes,Yes,No,Two year,1,Bank transfer,84.76,3053.39,9,112.76,5.61,21.0,1,0.46,0,22,0
+ID1006,Female,1,1,0,57,0,No,No,No,No,Yes,No,No,Yes,Month-to-month,1,Bank transfer,78.21,7698.61,5,55.78,8.98,11.8,1,0.37,0,27,7
+ID1007,Female,0,0,0,70,0,No,Fiber optic,No,Yes,No,Yes,No,Yes,Month-to-month,0,Mailed check,69.73,3827.99,5,95.5,-4.75,15.82,1,-0.49,1,16,4
+ID1008,Female,0,1,1,56,0,No,DSL,No,No,No,Yes,No,No,Two year,0,Bank transfer,87.23,4840.99,1,98.88,-13.24,24.88,1,0.64,1,29,-6
+ID1009,Female,1,0,0,70,0,No,Fiber optic,No,Yes,No,Yes,Yes,Yes,Month-to-month,1,Mailed check,96.24,1784.34,5,90.27,10.76,16.06,1,-0.37,0,12,0
+ID1010,Female,1,0,0,41,1,Yes,Fiber optic,Yes,Yes,No,No,No,Yes,One year,0,Electronic check,33.64,7647.17,8,48.98,13.62,7.7,1,-0.39,1,28,-3
+ID1011,Female,0,0,1,29,0,No,No,No,Yes,No,No,Yes,Yes,Month-to-month,1,Mailed check,84.46,2555.41,9,114.14,17.57,18.01,0,0.16,1,33,-1
+ID1012,Female,1,1,1,5,0,Yes,DSL,No,Yes,Yes,Yes,No,Yes,Two year,1,Bank transfer,50.35,5717.01,1,55.88,7.97,10.31,1,0.72,0,15,0
+ID1013,Female,0,1,0,49,1,No,Fiber optic,No,Yes,Yes,No,No,Yes,Two year,1,Mailed check,32.79,3695.64,7,52.21,12.93,21.56,1,0.18,1,34,-4
+ID1014,Female,0,1,0,42,1,Yes,DSL,No,Yes,Yes,Yes,Yes,No,Month-to-month,0,Electronic check,66.2,7170.82,2,78.49,12.81,8.67,0,1.25,1,1,6
+ID1015,Male,0,1,1,41,1,No,DSL,Yes,Yes,No,Yes,No,Yes,One year,1,Bank transfer,45.55,7797.23,2,111.56,-8.53,9.79,1,0.04,1,6,6
+ID1016,Male,0,0,1,36,1,Yes,No,No,No,No,Yes,No,Yes,Month-to-month,1,Mailed check,57.15,5855.77,6,59.45,-10.09,9.77,0,0.44,1,24,11
+ID1017,Female,0,1,0,64,1,Yes,No,Yes,Yes,Yes,Yes,No,No,Two year,1,Bank transfer,97.23,6002.86,6,119.38,12.93,6.82,0,1.04,0,8,10
+ID1018,Male,1,1,1,3,1,No,Fiber optic,Yes,No,Yes,Yes,No,Yes,Two year,0,Mailed check,48.45,408.5,4,29.84,-18.05,12.8,1,1.14,0,4,5
+ID1019,Male,0,0,1,33,1,Yes,No,Yes,No,No,No,Yes,No,Two year,1,Electronic check,28.08,902.43,8,33.0,-18.96,15.17,1,-0.25,1,13,1
+ID1020,Male,0,0,1,62,0,No,Fiber optic,Yes,No,Yes,Yes,No,No,One year,1,Credit card,75.18,7319.3,1,115.55,10.51,28.66,1,1.45,0,27,0
+ID1021,Female,0,0,1,20,0,No,Fiber optic,Yes,Yes,Yes,Yes,No,Yes,Month-to-month,1,Bank transfer,80.49,136.42,6,81.04,7.36,13.38,0,1.35,1,11,3
+ID1022,Female,0,1,1,17,0,No,DSL,No,No,Yes,Yes,Yes,No,Month-to-month,1,Credit card,69.0,7395.09,1,36.24,-0.38,13.26,0,0.71,1,35,5
+ID1023,Female,0,0,1,34,1,Yes,DSL,No,Yes,No,No,Yes,Yes,Month-to-month,0,Electronic check,100.79,1456.6,2,83.58,-11.57,17.25,0,1.39,0,22,10
+ID1024,Female,0,1,0,61,0,No,Fiber optic,Yes,Yes,Yes,No,Yes,No,One year,1,Credit card,99.87,4652.16,3,62.79,-3.65,25.06,0,0.22,0,7,9
+ID1025,Female,0,0,0,30,0,Yes,DSL,Yes,Yes,No,Yes,No,Yes,Month-to-month,0,Credit card,42.48,3177.86,2,41.61,-2.11,19.41,1,0.02,0,27,-4
+ID1026,Male,0,1,0,36,1,Yes,No,No,No,No,Yes,No,No,One year,1,Credit card,80.18,7945.55,4,68.83,3.22,29.62,1,1.03,1,27,10
+ID1027,Male,1,0,1,19,0,Yes,DSL,No,Yes,No,Yes,No,No,Month-to-month,1,Electronic check,106.76,523.14,2,91.63,0.05,21.57,1,-0.23,0,22,11
+ID1028,Female,1,1,0,67,0,Yes,DSL,No,No,Yes,No,Yes,No,Month-to-month,1,Bank transfer,79.18,6346.43,7,103.38,-18.21,29.09,1,0.72,1,9,10
+ID1029,Male,1,0,0,1,0,Yes,DSL,No,Yes,Yes,No,Yes,No,Two year,0,Electronic check,114.13,7366.58,9,46.26,-9.14,22.55,1,0.86,0,30,-4
+ID1030,Female,0,0,0,50,1,Yes,Fiber optic,No,No,Yes,Yes,No,Yes,One year,0,Mailed check,65.66,7413.43,6,117.12,-13.76,6.21,0,1.26,1,23,2
+ID1031,Female,1,1,0,70,1,No,DSL,No,No,No,Yes,No,Yes,Two year,1,Mailed check,41.43,2278.19,4,39.93,-14.96,5.02,0,0.22,0,16,7
+ID1032,Female,0,1,0,33,1,Yes,No,Yes,Yes,No,Yes,No,Yes,One year,1,Bank transfer,106.88,5798.08,8,26.15,-18.43,25.48,1,0.96,0,31,-6
+ID1033,Female,0,1,1,15,0,No,No,Yes,No,No,No,No,Yes,One year,1,Electronic check,80.09,3377.32,8,38.94,-5.42,6.5,0,0.39,1,5,7
+ID1034,Female,1,1,0,51,0,Yes,Fiber optic,No,No,Yes,Yes,No,Yes,Month-to-month,1,Credit card,34.51,1726.96,9,63.55,-8.31,27.95,0,0.59,0,16,4
+ID1035,Female,1,1,0,27,0,Yes,DSL,Yes,No,Yes,Yes,No,No,One year,1,Mailed check,55.18,2576.33,2,80.87,-6.75,29.09,1,1.43,1,29,5
+ID1036,Male,1,0,0,48,0,Yes,Fiber optic,Yes,Yes,No,Yes,No,Yes,One year,0,Credit card,32.07,5398.76,4,101.65,-5.71,19.28,1,0.81,0,24,-1
+ID1037,Female,0,1,1,28,0,No,DSL,No,Yes,Yes,Yes,No,No,One year,1,Electronic check,50.14,688.13,3,79.6,-5.35,21.01,1,1.46,1,21,4
+ID1038,Male,0,0,0,70,0,Yes,Fiber optic,Yes,Yes,Yes,No,Yes,No,One year,0,Bank transfer,92.99,3850.92,8,20.21,-14.43,23.37,1,-0.44,1,17,7
+ID1039,Female,1,1,1,60,0,No,DSL,No,Yes,Yes,Yes,No,No,Two year,0,Electronic check,44.78,1912.24,7,71.65,8.08,29.46,0,0.98,0,1,-4
+ID1040,Female,1,1,1,59,1,No,Fiber optic,No,Yes,No,Yes,Yes,No,Two year,0,Mailed check,52.34,210.76,9,60.33,17.11,11.2,1,0.95,0,22,-3
+ID1041,Male,0,0,1,52,0,Yes,DSL,Yes,Yes,No,Yes,No,No,Two year,1,Electronic check,37.55,4821.24,5,86.08,9.05,5.17,0,0.85,1,1,-3
+ID1042,Female,1,0,0,12,1,No,DSL,No,No,No,Yes,Yes,No,One year,1,Mailed check,90.54,2130.67,2,32.76,-5.87,18.01,0,-0.32,1,10,-1
+ID1043,Female,1,0,0,53,1,Yes,DSL,Yes,No,Yes,No,No,No,Two year,0,Bank transfer,109.54,2920.61,7,99.49,-14.4,18.59,0,-0.28,0,27,8
+ID1044,Female,0,1,1,30,1,No,No,No,Yes,No,No,Yes,Yes,Two year,0,Mailed check,79.0,623.82,7,63.28,12.16,29.86,0,0.56,1,17,9
+ID1045,Female,1,0,0,26,1,Yes,No,No,Yes,No,Yes,No,No,Month-to-month,0,Credit card,21.25,3426.57,2,99.3,-4.88,11.77,1,1.45,1,13,-5
+ID1046,Female,0,1,0,34,1,No,No,No,No,Yes,No,Yes,Yes,Month-to-month,1,Credit card,103.36,1457.42,8,96.88,-4.06,29.55,1,-0.47,1,1,5
+ID1047,Male,0,0,0,67,0,Yes,Fiber optic,Yes,Yes,No,No,No,Yes,Month-to-month,0,Credit card,89.5,6637.48,7,99.03,-2.48,22.57,0,0.31,0,17,11
+ID1048,Male,0,1,1,26,0,No,DSL,No,No,Yes,Yes,No,Yes,One year,1,Bank transfer,80.42,5876.31,4,64.23,-1.39,14.06,1,1.32,0,25,3
+ID1049,Female,1,1,0,66,1,Yes,Fiber optic,Yes,Yes,No,Yes,Yes,No,Two year,0,Electronic check,114.73,4614.22,5,51.32,7.49,21.44,1,0.13,0,7,-5
+ID1050,Female,0,0,1,53,1,Yes,No,No,No,Yes,Yes,Yes,No,One year,1,Bank transfer,86.69,3007.1,1,48.68,7.65,22.3,1,0.5,0,31,11
+ID1051,Male,0,1,1,15,1,No,DSL,No,No,Yes,No,No,No,Month-to-month,0,Electronic check,98.2,2774.09,7,61.55,-17.82,24.56,1,0.0,0,4,-1
+ID1052,Male,0,1,0,17,1,Yes,DSL,No,No,Yes,No,No,No,One year,1,Electronic check,85.9,5779.19,5,66.99,-0.86,14.8,0,1.38,1,5,-1
+ID1053,Male,1,0,0,19,0,Yes,DSL,No,No,Yes,Yes,Yes,No,Two year,1,Bank transfer,29.74,4002.14,4,26.94,-9.04,25.13,0,1.12,1,20,7
+ID1054,Male,1,1,1,33,0,Yes,DSL,Yes,No,Yes,No,Yes,No,One year,0,Credit card,24.49,3855.15,4,100.64,-3.83,5.42,1,0.34,1,21,8
+ID1055,Female,1,0,0,52,1,Yes,DSL,Yes,Yes,No,No,Yes,No,One year,1,Mailed check,76.75,5065.26,2,69.22,7.53,13.52,1,-0.3,1,13,6
+ID1056,Female,1,0,0,59,0,Yes,No,No,No,Yes,No,Yes,No,Month-to-month,0,Credit card,25.49,5359.31,4,36.51,7.53,16.12,0,0.82,0,15,10
+ID1057,Male,1,0,0,8,0,No,Fiber optic,Yes,No,No,No,Yes,No,Two year,1,Mailed check,37.75,4187.97,2,35.79,14.51,22.78,0,-0.31,0,9,-2
+ID1058,Female,0,1,1,22,1,Yes,No,No,Yes,No,Yes,Yes,Yes,Month-to-month,0,Electronic check,73.74,6778.47,2,53.56,-2.19,15.04,1,0.95,1,25,3
+ID1059,Male,1,1,1,4,0,Yes,Fiber optic,Yes,No,Yes,No,Yes,Yes,Month-to-month,0,Credit card,87.62,2939.61,1,37.71,-16.98,10.56,0,1.13,0,35,2
+ID1060,Male,0,0,1,61,0,Yes,Fiber optic,No,No,No,Yes,Yes,No,Two year,1,Electronic check,79.85,5987.99,2,24.18,16.42,25.82,1,1.13,0,8,-2
+ID1061,Female,1,0,1,70,0,Yes,Fiber optic,No,No,No,Yes,Yes,No,One year,0,Electronic check,117.43,4233.71,2,108.95,-12.32,15.63,0,-0.34,1,23,11
+ID1062,Male,0,0,0,39,0,Yes,No,Yes,Yes,Yes,No,Yes,Yes,Month-to-month,0,Electronic check,52.94,3654.33,8,70.39,-1.49,23.71,0,0.46,0,32,3
+ID1063,Male,0,0,0,8,0,No,Fiber optic,Yes,Yes,No,No,Yes,No,Two year,0,Bank transfer,39.76,3059.02,7,51.98,-15.29,16.86,1,0.36,0,31,11
+ID1064,Female,1,1,1,36,0,Yes,Fiber optic,No,Yes,No,Yes,Yes,No,Two year,1,Credit card,56.15,1481.85,5,112.82,-7.44,28.57,1,1.22,1,35,-1
+ID1065,Male,0,0,0,6,0,No,Fiber optic,No,Yes,Yes,No,Yes,Yes,One year,1,Credit card,96.79,632.1,6,50.49,-1.67,13.09,1,1.21,1,30,-2
+ID1066,Male,1,0,1,23,0,Yes,No,Yes,No,Yes,Yes,No,Yes,Two year,0,Electronic check,88.18,1173.39,6,106.16,-19.94,15.85,0,0.16,1,4,5
+ID1067,Female,1,1,1,28,1,Yes,Fiber optic,Yes,Yes,Yes,No,No,No,Two year,1,Bank transfer,97.06,4235.56,7,59.73,-10.97,21.94,0,0.52,0,5,-5
+ID1068,Female,1,1,0,64,0,Yes,No,Yes,Yes,Yes,No,Yes,Yes,Month-to-month,0,Mailed check,65.56,5200.88,7,87.83,7.6,9.72,0,0.12,0,3,-3
+ID1069,Male,1,1,0,36,0,No,No,Yes,No,No,No,No,Yes,Month-to-month,1,Credit card,117.3,1274.91,9,77.23,-0.54,24.63,1,0.7,0,14,7
+ID1070,Male,1,0,1,30,0,Yes,DSL,No,Yes,Yes,Yes,Yes,No,One year,1,Bank transfer,109.3,1629.17,9,38.1,-8.7,22.78,0,1.0,0,9,11
+ID1071,Male,0,0,0,70,1,Yes,DSL,No,No,Yes,No,Yes,No,One year,1,Bank transfer,24.09,4992.38,4,22.8,-15.04,16.53,0,0.97,1,35,2
+ID1072,Male,1,1,0,22,1,No,Fiber optic,Yes,No,Yes,Yes,No,No,Month-to-month,1,Mailed check,104.84,5640.69,8,116.8,-18.07,23.38,0,0.31,1,4,2
+ID1073,Female,1,0,1,58,1,Yes,No,Yes,No,Yes,Yes,No,Yes,Month-to-month,0,Credit card,114.7,348.61,1,40.01,9.07,15.36,1,1.4,1,13,7
+ID1074,Male,1,1,1,35,1,No,No,Yes,Yes,Yes,Yes,No,Yes,One year,1,Electronic check,49.52,7066.68,2,21.21,0.49,9.47,1,1.36,0,35,-4
+ID1075,Female,0,0,1,66,0,No,No,Yes,Yes,Yes,No,No,No,One year,1,Credit card,84.43,4832.01,8,41.66,-4.74,18.9,0,-0.17,0,19,-2
+ID1076,Female,1,1,0,26,1,No,No,No,No,No,No,No,Yes,One year,0,Credit card,56.15,874.29,2,56.35,-10.72,13.4,1,0.63,1,18,-6
+ID1077,Male,1,0,0,13,1,Yes,No,Yes,No,No,No,Yes,No,Month-to-month,0,Credit card,92.53,3142.19,3,99.18,-8.03,24.04,1,1.43,1,21,9
+ID1078,Female,1,1,0,42,0,Yes,No,No,No,No,Yes,Yes,No,One year,0,Electronic check,101.12,3266.9,7,23.44,17.33,9.59,0,0.1,1,31,-1
+ID1079,Female,1,0,1,51,1,No,No,Yes,No,Yes,Yes,No,No,Two year,0,Bank transfer,113.23,4090.3,5,105.17,6.66,27.04,0,1.09,1,7,10
+ID1080,Male,0,1,0,57,1,No,Fiber optic,Yes,No,Yes,Yes,Yes,No,Two year,1,Bank transfer,105.63,4354.65,8,44.31,10.77,17.73,0,1.35,1,3,3
+ID1081,Female,1,1,0,26,0,Yes,Fiber optic,No,No,No,Yes,Yes,No,Two year,1,Bank transfer,62.84,4251.63,2,52.89,-3.07,8.12,1,0.18,1,5,-1
+ID1082,Female,0,0,1,22,0,No,No,Yes,No,Yes,Yes,No,Yes,Two year,1,Mailed check,114.45,4623.37,1,116.27,-19.58,6.78,0,0.52,0,13,6
+ID1083,Male,1,1,0,28,0,No,DSL,Yes,Yes,No,No,No,Yes,One year,0,Mailed check,59.39,2320.52,7,52.29,-8.24,10.95,1,1.36,1,9,2
+ID1084,Male,0,0,0,70,1,No,DSL,No,No,Yes,Yes,Yes,Yes,Two year,1,Credit card,106.88,387.6,2,106.82,4.97,17.23,1,-0.29,1,11,9
+ID1085,Male,0,0,1,58,1,No,DSL,No,No,Yes,Yes,Yes,No,Month-to-month,0,Bank transfer,111.98,6831.99,6,48.08,16.86,11.95,0,-0.32,0,22,-6
+ID1086,Female,0,0,0,44,0,Yes,Fiber optic,No,Yes,Yes,No,Yes,No,One year,0,Electronic check,74.63,2812.43,2,33.03,11.41,17.77,0,0.26,0,23,-3
+ID1087,Female,0,0,1,65,1,No,DSL,No,Yes,No,Yes,No,Yes,One year,0,Credit card,68.75,1303.69,7,115.95,19.74,28.92,0,1.44,0,9,11
+ID1088,Male,0,0,1,16,0,No,No,Yes,Yes,No,No,Yes,Yes,Two year,1,Mailed check,62.33,7482.26,4,117.24,-1.58,14.13,0,0.64,1,16,-3
+ID1089,Female,0,1,0,21,1,No,No,Yes,No,No,No,Yes,No,Month-to-month,1,Credit card,91.28,1856.33,3,112.05,17.13,20.96,0,-0.29,0,18,7
+ID1090,Female,1,1,1,62,1,No,No,No,Yes,No,Yes,No,No,Two year,1,Bank transfer,34.72,7727.79,1,95.69,-2.86,22.11,0,0.76,1,31,-5
+ID1091,Female,0,0,1,31,1,Yes,Fiber optic,Yes,Yes,No,Yes,Yes,Yes,Two year,1,Mailed check,91.29,4932.91,8,58.27,8.27,19.34,0,1.0,1,4,3
+ID1092,Female,1,0,0,70,0,No,No,No,No,No,No,Yes,No,Month-to-month,1,Electronic check,68.07,6912.36,6,64.79,-6.51,29.9,1,0.73,1,8,11
+ID1093,Female,1,0,0,42,1,No,DSL,No,No,No,Yes,No,No,Month-to-month,0,Credit card,57.0,2374.29,7,56.19,0.55,12.08,1,-0.22,1,26,-6
+ID1094,Male,1,1,1,52,0,Yes,No,Yes,No,No,Yes,No,Yes,One year,1,Bank transfer,78.5,4267.42,1,114.6,-19.8,29.96,1,0.3,0,4,-4
+ID1095,Male,1,1,0,72,1,Yes,Fiber optic,Yes,No,Yes,Yes,No,No,One year,0,Electronic check,108.38,5974.76,7,35.69,-10.94,23.14,0,-0.04,0,2,-2
+ID1096,Female,0,0,0,23,0,No,DSL,Yes,Yes,Yes,No,Yes,Yes,Month-to-month,0,Mailed check,71.2,7275.68,3,56.3,-8.78,9.25,1,1.39,0,2,6
+ID1097,Female,1,0,1,32,0,No,DSL,No,No,No,No,No,No,One year,0,Electronic check,111.99,7187.1,2,40.74,-10.51,6.97,1,0.91,0,27,-3
+ID1098,Female,0,0,1,44,1,No,No,No,Yes,No,Yes,Yes,Yes,Month-to-month,1,Electronic check,40.58,2944.98,9,69.13,-16.3,9.46,0,0.57,0,6,4
+ID1099,Male,0,1,0,40,1,No,DSL,Yes,No,Yes,No,No,No,One year,1,Credit card,38.17,4121.61,2,112.53,14.28,24.12,1,-0.24,0,20,9
