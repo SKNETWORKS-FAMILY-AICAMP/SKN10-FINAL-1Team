@@ -552,7 +552,74 @@ async def category_predict_node(state: AgentState, config: Optional[RunnableConf
             current_messages = state.messages # Get current messages
             updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
             return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
-        input_df = await asyncio.to_thread(pd.read_csv, io.StringIO(csv_data_str))
+        # --- BEGIN REVISED CSV DATA CLEANING LOGIC ---
+        raw_lines = csv_data_str.strip().splitlines()
+        cleaned_lines = []
+
+        if not raw_lines:
+            final_answer = "❌ 오류: CSV 데이터 문자열이 비어있습니다."
+            current_messages = state.messages
+            updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
+            return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
+
+        MIN_COMMAS_THRESHOLD = 1  # 쉼표가 이 개수 이상이면 '강력한' CSV 라인으로 간주
+
+        # '강력한' CSV 라인들의 인덱스를 찾음
+        strong_csv_indices = [i for i, line in enumerate(raw_lines) if line.count(',') >= MIN_COMMAS_THRESHOLD]
+
+        if strong_csv_indices:
+            # '강력한' 라인들이 존재하면, 이들의 범위를 핵심 CSV 블록으로 간주
+            core_block_start_idx = strong_csv_indices[0]
+            core_block_end_idx = strong_csv_indices[-1]
+
+            if core_block_start_idx > 0:
+                print(f"INFO: CSV 시작 전 {core_block_start_idx}개의 라인을 질문으로 간주하고 제거합니다. 첫번째 제거된 라인: '{raw_lines[0][:100]}...'", flush=True)
+            if core_block_end_idx < len(raw_lines) - 1:
+                print(f"INFO: CSV 종료 후 {len(raw_lines) - 1 - core_block_end_idx}개의 라인을 질문으로 간주하고 제거합니다. 마지막 제거된 라인: '{raw_lines[-1][:100]}...'", flush=True)
+
+            # 핵심 CSV 블록 추출
+            core_block_lines = raw_lines[core_block_start_idx : core_block_end_idx + 1]
+
+            if not core_block_lines: # Should not happen if strong_csv_indices is not empty
+                final_answer = "❌ 오류: CSV 핵심 블록 추출에 실패했습니다."
+                current_messages = state.messages
+                updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
+                return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
+
+            # 핵심 블록의 첫 줄을 헤더로 사용
+            header_line = core_block_lines[0]
+            cleaned_lines.append(header_line)
+            commas_in_header = header_line.count(',') # 헤더는 MIN_COMMAS_THRESHOLD 이상일 것임
+
+            # 핵심 블록 내의 데이터 라인 정제
+            for i in range(1, len(core_block_lines)):
+                line = core_block_lines[i]
+                if line.count(',') >= MIN_COMMAS_THRESHOLD: # '강력한' 데이터 라인
+                    cleaned_lines.append(line)
+                elif commas_in_header >= MIN_COMMAS_THRESHOLD: # 헤더는 '강력'했으나, 현재 라인은 '약함' (0개의 쉼표)
+                    if not line.strip(): # 의도적으로 비어있는 라인이면 유지
+                        cleaned_lines.append(line)
+                    else: # 내용이 있는 0쉼표 라인은 블록 내 질문으로 의심하여 필터링
+                        print(f"INFO: CSV 블록 내에서 0개의 쉼표를 가진 비어있지 않은 라인을 필터링합니다: '{line[:100]}...'", flush=True)
+                else: # 헤더도 '약했고' (이 경우는 strong_csv_indices 로직상 거의 없음) 현재 라인도 '약하면' 일단 포함
+                    cleaned_lines.append(line)
+        else:
+            # '강력한' CSV 라인이 하나도 없음 (모든 라인의 쉼표 < MIN_COMMAS_THRESHOLD, 예: 모두 0개)
+            # 이 경우 단일 열 CSV이거나 전체가 질문일 수 있음. 일단 모든 라인을 사용.
+            print(f"INFO: 모든 라인의 쉼표 개수가 {MIN_COMMAS_THRESHOLD}개 미만입니다. 단일 열 CSV로 간주하거나 전체가 질문일 수 있습니다. 모든 라인을 사용합니다.", flush=True)
+            cleaned_lines = raw_lines
+
+        if not cleaned_lines:
+            final_answer = "❌ 오류: CSV 데이터 정제 후 내용이 없습니다."
+            current_messages = state.messages
+            updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
+            return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
+        
+        cleaned_csv_data_str = "\n".join(cleaned_lines)
+        
+        print(f"INFO: 최종 정제된 CSV 데이터 미리보기 (첫 200자): {cleaned_csv_data_str[:200]}...", flush=True)
+        input_df = await asyncio.to_thread(pd.read_csv, io.StringIO(cleaned_csv_data_str))
+        # --- END REVISED CSV DATA CLEANING LOGIC ---
 
         if CUSTOMER_ID_COL not in input_df.columns:
             final_answer = f"❌ 오류: '{CUSTOMER_ID_COL}' 컬럼이 CSV에 없습니다."
