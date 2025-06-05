@@ -25,5 +25,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     # 유연한 URL 패턴 사용 - 슬래시 유무 상관없이 처리
     re_path(r'^api/auth/?', include('accounts.urls')),
+    re_path(r'^api/chat/?', include('conversations.urls')),
     re_path(r'^api/health-check/?$', health_check, name='health-check'),
 ]

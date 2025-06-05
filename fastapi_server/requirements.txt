@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-dotenv
+pydantic
+langchain
+langchain-core
+langgraph
+openai
+async-timeout
+websockets
+httpx
