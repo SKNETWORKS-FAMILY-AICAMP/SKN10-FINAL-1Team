@@ -34,10 +34,10 @@ const API_BASE_URL = "/api"
  * Get authentication headers for API calls
  */
 function getAuthHeaders() {
-  const token = localStorage.getItem("token")
+  const token = localStorage.getItem("accessToken")
   return {
     "Content-Type": "application/json",
-    Authorization: `Token ${token}`,
+    Authorization: `Bearer ${token}`,
   }
 }
 
@@ -251,5 +251,43 @@ export async function endChatSession(sessionId: string): Promise<boolean> {
       variant: "destructive",
     })
     return false
+  }
+}
+
+/**
+ * Update a chat session's agent type
+ * Updates the agent_type field in the ChatSession model
+ */
+export async function updateSessionAgentType(sessionId: string, agentType: AgentType): Promise<ChatSession | null> {
+  // Use mock data in preview environment
+  if (isPreviewEnvironment()) {
+    const sessionIndex = mockChatSessions.findIndex((s) => s.id === sessionId)
+    if (sessionIndex !== -1) {
+      mockChatSessions[sessionIndex].agent_type = agentType
+      return Promise.resolve({ ...mockChatSessions[sessionIndex] })
+    }
+    return Promise.resolve(null)
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/chat/sessions/${sessionId}/`, {
+      method: "PATCH",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ agent_type: agentType }),
+    })
+
+    if (!response.ok) {
+      throw new Error("Failed to update session agent type")
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Error updating session agent type:", error)
+    toast({
+      title: "Error",
+      description: "Failed to update agent type",
+      variant: "destructive",
+    })
+    return null
   }
 }
