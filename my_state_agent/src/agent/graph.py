@@ -26,8 +26,9 @@ if project_root not in sys.path:
 from src.agent.tools import get_common_tools, data_analysis_tools, document_processing_tools, code_agent_tools
 from src.agent.state import MessagesState
 
-# Import the compiled RAG agent graph
+# Import the compiled agent graphs
 from src.agent.agent2 import graph as rag_agent_graph
+from src.agent.agent3 import graph as analytics_agent_graph
 
 # Import LLM and agent creation utilities
 from langchain.chat_models import init_chat_model
@@ -246,7 +247,8 @@ def determine_next_node(state: SupervisorState):
 workflow = StateGraph(SupervisorState)
 
 workflow.add_node("supervisor_router", supervisor_router_node)
-workflow.add_node("analytics_agent", analytics_agent_runnable)
+# Use the analytics_agent_graph directly since it now supports the message-based state format
+workflow.add_node("analytics_agent", analytics_agent_graph)
 # Use the rag_agent_graph directly since it now supports the message-based state format
 workflow.add_node("rag_agent", rag_agent_graph)
 workflow.add_node("code_agent", code_agent_runnable)
@@ -264,9 +266,9 @@ workflow.add_conditional_edges(
     }
 )
 
-workflow.add_edge("analytics_agent", "supervisor_router")
-workflow.add_edge("rag_agent", "supervisor_router")
-workflow.add_edge("code_agent", "supervisor_router")
+workflow.add_edge("analytics_agent", END)
+workflow.add_edge("rag_agent", END)
+workflow.add_edge("code_agent", END)
 
 # 5. Compile the graph
 # Checkpointer can be added here if persistence is needed
