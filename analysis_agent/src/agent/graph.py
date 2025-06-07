@@ -449,7 +449,6 @@ async def general_question_node(state: AgentState, config: Optional[RunnableConf
 async def category_predict_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     print("--- CATEGORY PREDICT NODE (Telecom Churn Prediction with Csv File Content) ---")
 
-    # --- 경로 설정 ---
     base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
     MODEL_PATH = os.path.join(base_path, 'churn_predictor_pipeline.pkl')
     CATEGORICAL_COLS_PATH = os.path.join(base_path, 'categorical_cols.pkl')
@@ -466,65 +465,243 @@ async def category_predict_node(state: AgentState, config: Optional[RunnableConf
     CUSTOMER_ID_COL = 'customerid'
     PREDICTION_THRESHOLD = 0.312
 
-    # --- CSV 문자열 확인 ---
-    if not state.csv_file_content:
-        return {"final_answer": "❌ 오류: CSV File Content가 전달되지 않았습니다."}
+    csv_data_str: Optional[str] = None
+
+    if state.csv_file_content:
+        print("INFO: Using CSV data from state.csv_file_content.")
+        csv_data_str = state.csv_file_content
+    elif hasattr(state, 'user_query') and state.user_query:
+        print(f"INFO: Attempting to use state.user_query for CSV data. Content (first 100 chars): '{state.user_query[:100]}...'")
+        if os.path.exists(state.user_query):
+            try:
+                def read_file_sync(path):
+                    with open(path, 'r', encoding='utf-8') as f_sync:
+                        return f_sync.read()
+                csv_data_str = await asyncio.to_thread(read_file_sync, state.user_query)
+            except Exception as e:
+                print(f"WARNING: Error reading file: {e}. Will attempt raw content.")
+        if csv_data_str is None:
+            csv_data_str = state.user_query
+
+    if not csv_data_str:
+        msg = "❌ 오류: CSV 데이터를 찾을 수 없습니다. 'Csv File Content' 또는 'User Query'를 확인해주세요."
+        return {
+            "final_answer": msg,
+            "messages": state.messages + [AIMessage(content=msg)],
+            "error_message": msg
+        }
+
+    print(f"INFO: CSV data obtained. Length: {len(csv_data_str)}. Preview: {csv_data_str[:200]}...")
 
     try:
-        # --- 모델과 전처리 객체 비동기 로드 ---
         pipeline_final = await asyncio.to_thread(joblib.load, MODEL_PATH)
         CATEGORICAL_COLS = await asyncio.to_thread(joblib.load, CATEGORICAL_COLS_PATH)
         label_encoders = await asyncio.to_thread(joblib.load, LABEL_ENCODERS_PATH)
 
-        # --- CSV 문자열 → DataFrame 변환 ---
-        input_df = await asyncio.to_thread(pd.read_csv, io.StringIO(state.csv_file_content))
+        input_df = await asyncio.to_thread(pd.read_csv, io.StringIO(csv_data_str))
 
         if CUSTOMER_ID_COL not in input_df.columns:
-            return {"final_answer": f"❌ 오류: '{CUSTOMER_ID_COL}' 컬럼이 CSV에 없습니다."}
+            msg = f"❌ 오류: '{CUSTOMER_ID_COL}' 컬럼이 없습니다."
+            return {
+                "final_answer": msg,
+                "messages": state.messages + [AIMessage(content=msg)],
+                "error_message": msg
+            }
 
         customer_ids = input_df[CUSTOMER_ID_COL]
         X_predict = input_df.drop(columns=[CUSTOMER_ID_COL], errors='ignore')
 
-        # --- 범주형 컬럼 인코딩 ---
         for col in CATEGORICAL_COLS:
-            if col in X_predict.columns:
-                if col in label_encoders:
-                    le = label_encoders[col]
-                    X_predict[col] = X_predict[col].apply(
-                        lambda x: le.transform([x])[0] if x in le.classes_ else np.nan
-                    )
-                else:
-                    return {"final_answer": f"❌ 오류: '{col}'에 대한 LabelEncoder를 찾을 수 없습니다."}
-            else:
-                return {"final_answer": f"❌ 오류: '{col}' 컬럼이 CSV에 없습니다."}
+            if col in X_predict.columns and col in label_encoders:
+                le = label_encoders[col]
+                X_predict[col] = X_predict[col].apply(
+                    lambda x: le.transform([x])[0] if x in le.classes_ else -1
+                )
 
-        # --- 누락 컬럼 보완 및 순서 정렬 ---
         for col in EXPECTED_FEATURE_ORDER:
             if col not in X_predict.columns:
-                X_predict[col] = np.nan
+                X_predict[col] = 0
+
         X_predict = X_predict[EXPECTED_FEATURE_ORDER]
-        X_np = X_predict.to_numpy()
 
-        # --- 예측 수행 ---
-        y_proba = pipeline_final.predict_proba(X_np)[:, 1]
-        y_pred = (y_proba >= PREDICTION_THRESHOLD).astype(int)
+        y_proba = await asyncio.to_thread(pipeline_final.predict_proba, X_predict)
+        y_pred = (y_proba[:, 1] >= PREDICTION_THRESHOLD).astype(int)
 
-        # --- 결과 출력 생성 ---
-        results = []
-        for cid, proba, pred in zip(customer_ids, y_proba, y_pred):
-            status = "🟥 이탈 예상" if pred == 1 else "🟩 유지 예상"
-            results.append(f"• 고객 ID `{cid}` → 이탈 확률: `{proba*100:.2f}%` → {status}")
+        result_df = pd.DataFrame({
+            CUSTOMER_ID_COL: customer_ids,
+            'Churn Probability': y_proba[:, 1],
+            'Churn Prediction (Threshold 0.312)': ['Yes' if p == 1 else 'No' for p in y_pred]
+        })
 
-        user_query = state.user_query if state.user_query else "(질문 없음)"
-        final_answer = f"🗨️ 사용자 질문: {user_query}\n\n" + "\n".join(results)
-
-        return {"final_answer": final_answer}
+        final_answer = "\U0001F4CA 고객 이탈 예측 결과:\n" + result_df.to_string(index=False)
+        return {
+            "final_answer": final_answer,
+            "messages": state.messages + [AIMessage(content=final_answer)],
+            "error_message": None
+        }
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"final_answer": f"❌ 예측 중 오류 발생: {e}"}
+        msg = f"❌ 예측 중 오류 발생: {e}"
+        return {
+            "final_answer": msg,
+            "messages": state.messages + [AIMessage(content=msg)],
+            "error_message": msg
+        }
+# async def category_predict_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
+#     print("--- CATEGORY PREDICT NODE (Telecom Churn Prediction with Csv File Content) ---")
 
+#     # --- 경로 설정 ---
+#     base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+#     MODEL_PATH = os.path.join(base_path, 'churn_predictor_pipeline.pkl')
+#     CATEGORICAL_COLS_PATH = os.path.join(base_path, 'categorical_cols.pkl')
+#     LABEL_ENCODERS_PATH = os.path.join(base_path, 'label_encoders.pkl')
+
+#     EXPECTED_FEATURE_ORDER = [
+#         'seniorcitizen', 'partner', 'dependents', 'tenure', 'phoneservice',
+#         'multiplelines', 'onlinesecurity', 'onlinebackup', 'techsupport',
+#         'contract', 'paperlessbilling', 'paymentmethod', 'monthlycharges', 'totalcharges',
+#         'new_totalservices', 'new_avg_charges', 'new_increase', 'new_avg_service_fee',
+#         'charge_increased', 'charge_growth_rate', 'is_auto_payment',
+#         'expected_contract_months', 'contract_gap'
+#     ]
+#     CUSTOMER_ID_COL = 'customerid'
+#     PREDICTION_THRESHOLD = 0.312
+
+#     csv_data_str: Optional[str] = None
+
+#     # 1. state.csv_file_content (LangGraph Studio의 'Csv File Content' 필드) 확인
+#     if state.csv_file_content:
+#         print("INFO: Using CSV data from state.csv_file_content.")
+#         csv_data_str = state.csv_file_content
+#     # 2. state.user_query (Chat 또는 Messages 입력) 확인
+#     elif hasattr(state, 'user_query') and state.user_query:
+#         print(f"INFO: Attempting to use state.user_query for CSV data. Content (first 100 chars): '{state.user_query[:100]}...'")
+#         # 2a. state.user_query를 파일 경로로 시도
+#         if os.path.exists(state.user_query):
+#             try:
+#                 print(f"INFO: state.user_query '{state.user_query}' is an existing path. Reading file.")
+#                 def read_file_sync(path):
+#                     with open(path, 'r', encoding='utf-8') as f_sync:
+#                         return f_sync.read()
+#                 csv_data_str = await asyncio.to_thread(read_file_sync, state.user_query)
+#                 if not csv_data_str:
+#                     print(f"WARNING: File at '{state.user_query}' was empty.")
+#             except Exception as e:
+#                 print(f"WARNING: Error reading file from state.user_query path '{state.user_query}': {e}. Will attempt to treat as raw content.")
+        
+#         # 2b. state.user_query를 파일 경로로 읽지 못했거나, 경로가 아니었다면 원본 CSV 내용으로 간주
+#         if csv_data_str is None: # 파일 읽기 실패 또는 경로가 아니었음
+#             print("INFO: Treating state.user_query as raw CSV content.")
+#             csv_data_str = state.user_query # pd.read_csv가 이후에 파싱 시도
+
+#     # CSV 데이터를 어디에서도 찾지 못한 경우 오류 반환
+#     if csv_data_str is None:
+#         error_message_parts = ["❌ 오류: CSV 데이터를 찾을 수 없습니다."]
+#         checked_sources = ["'Csv File Content' 필드"]
+#         if hasattr(state, 'user_query'):
+#             checked_sources.append("'User Query' / 채팅 메시지 (파일 경로 또는 CSV 내용 직접 입력)")
+#         error_message_parts.append(f"확인한 입력 소스: {', '.join(checked_sources)}.")
+#         error_message_parts.append("Csv File Content 필드에 직접 CSV 내용을 붙여넣거나, 채팅으로 CSV 파일의 전체 경로 또는 CSV 내용 자체를 입력해주세요.")
+#         final_answer = "\n".join(error_message_parts)
+#         current_messages = state.messages # Get current messages
+#         updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
+#         return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
+
+#     print(f"INFO: CSV data obtained. Length: {len(csv_data_str)}. Preview (first 200 chars): {csv_data_str[:200]}...")
+
+#     try:
+#         # --- 모델과 전처리 객체 비동기 로드 ---
+#         pipeline_final = await asyncio.to_thread(joblib.load, MODEL_PATH)
+#         CATEGORICAL_COLS = await asyncio.to_thread(joblib.load, CATEGORICAL_COLS_PATH)
+#         label_encoders = await asyncio.to_thread(joblib.load, LABEL_ENCODERS_PATH)
+
+#         # --- CSV 문자열 → DataFrame 변환 ---
+#         if not csv_data_str: # 이중 확인, csv_data_str이 None이나 빈 문자열이면 에러 발생 방지
+#             final_answer = "❌ 오류: 내부 로직 오류 - CSV 데이터 문자열이 비어있습니다."
+#             current_messages = state.messages # Get current messages
+#             updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
+#             return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
+#         input_df = await asyncio.to_thread(pd.read_csv, io.StringIO(csv_data_str))
+
+#         if CUSTOMER_ID_COL not in input_df.columns:
+#             final_answer = f"❌ 오류: '{CUSTOMER_ID_COL}' 컬럼이 CSV에 없습니다."
+#             current_messages = state.messages # Get current messages
+#             updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
+#             return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
+
+#         customer_ids = input_df[CUSTOMER_ID_COL]
+#         X_predict = input_df.drop(columns=[CUSTOMER_ID_COL], errors='ignore')
+
+#         # --- 범주형 컬럼 인코딩 ---
+#         for col in CATEGORICAL_COLS:
+#             if col in X_predict.columns:
+#                 if col in label_encoders:
+#                     le = label_encoders[col]
+#                     X_predict[col] = X_predict[col].apply(
+#                         lambda x: le.transform([x])[0] if x in le.classes_ else -1
+#                     )
+#                 else:
+#                     print(f"WARNING: Label encoder for column '{col}' not found. Skipping encoding.")
+#             else:
+#                 print(f"WARNING: Categorical column '{col}' not found in input CSV. Skipping.")
+
+#         # --- 누락된 컬럼 처리 (모델이 기대하는 모든 컬럼이 있는지 확인) ---
+#         missing_cols = set(EXPECTED_FEATURE_ORDER) - set(X_predict.columns)
+#         for col in missing_cols:
+#             print(f"INFO: Adding missing column '{col}' with default value 0.")
+#             X_predict[col] = 0 # 또는 np.nan 등 적절한 기본값
+
+#         # --- 컬럼 순서 정렬 ---
+#         X_predict = X_predict[EXPECTED_FEATURE_ORDER]
+
+#         # --- 예측 수행 ---
+#         predictions_proba = await asyncio.to_thread(pipeline_final.predict_proba, X_predict)
+#         predictions = (predictions_proba[:, 1] >= PREDICTION_THRESHOLD).astype(int)
+
+#         # --- 결과 생성 ---
+#         results_df = pd.DataFrame({
+#             CUSTOMER_ID_COL: customer_ids,
+#             'Churn Probability': predictions_proba[:, 1],
+#             'Churn Prediction (Threshold 0.312)': predictions
+#         })
+#         results_df['Churn Prediction (Threshold 0.312)'] = results_df['Churn Prediction (Threshold 0.312)'].map({1: 'Yes', 0: 'No'})
+
+#         final_answer = "📊 고객 이탈 예측 결과:\n" + results_df.to_string(index=False)
+#         print(f"Prediction successful. Result preview: {final_answer[:200]}...")
+#         current_messages = state.messages # Get current messages
+#         updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
+#         return {"messages": updated_messages, "final_answer": final_answer, "error_message": None}
+
+#     except pd.errors.EmptyDataError:
+#         error_msg = "❌ 오류: 입력된 CSV 데이터가 비어 있거나 잘못된 형식입니다. CSV 내용을 다시 확인해주세요."
+#         print(f"ERROR: {error_msg}")
+#         current_messages = state.messages # Get current messages
+#         updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
+#         return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
+#     except FileNotFoundError as e:
+#         error_msg = f"❌ 오류: 모델 또는 전처리 파일을 찾을 수 없습니다. 경로를 확인해주세요. ({e})"
+#         print(f"ERROR: {error_msg}")
+#         current_messages = state.messages # Get current messages
+#         updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
+#         return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
+#     except KeyError as e:
+#         error_msg = f"❌ 오류: CSV 데이터에 필요한 컬럼이 누락되었거나, 모델 학습 시 사용된 컬럼과 다릅니다. (오류 컬럼: {e}) CSV 파일을 확인해주세요."
+#         print(f"ERROR: {error_msg}")
+#         current_messages = state.messages # Get current messages
+#         updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
+#         return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
+#     except ValueError as e:
+#         error_msg = f"❌ 오류: 데이터 변환 중 값 오류가 발생했습니다. CSV 데이터 타입을 확인해주세요. (오류: {e})"
+#         print(f"ERROR: {error_msg}")
+#         current_messages = state.messages # Get current messages
+#         updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
+#         return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
+#     except Exception as e:
+#         error_msg = f"❌ 예측 중 알 수 없는 오류 발생: {e}"
+#         print(f"ERROR: {error_msg}")
+#         current_messages = state.messages # Get current messages
+#         updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
+#         return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
 
 def route_sql_output(state: AgentState) -> Literal["create_visualization_node", "summarize_sql_result_node"]:
     choice = state.sql_output_choice
