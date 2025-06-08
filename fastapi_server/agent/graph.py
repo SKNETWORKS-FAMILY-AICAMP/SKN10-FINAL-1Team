@@ -22,6 +22,8 @@ import json
 # 상대 임포트
 from .tools import data_analysis_tools, document_processing_tools, code_agent_tools
 from .state import MessagesState
+from .agent2 import graph as rag_agent_graph
+from .agent3 import graph as analytics_agent_graph
 
 # Import LLM and agent creation utilities
 from langchain_openai import ChatOpenAI
@@ -143,39 +145,8 @@ If a request requires specialized data analysis or document processing, use your
 # --- Agent Creation Functions --- #
 # Supervisor agent is now implemented directly as supervisor_router_node
 
-def create_analytics_agent(tools=None):
-    """Create the data analytics agent"""
-    analytics_llm = get_llm()
-    analytics_tools = data_analysis_tools
-    
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", ANALYTICS_SYSTEM_MESSAGE),
-        MessagesPlaceholder(variable_name="messages"),
-    ])
-    
-    return create_react_agent(
-        model=analytics_llm,
-        tools=analytics_tools, 
-        prompt=prompt,
-        name="analytics_agent"
-    )
-
-def create_rag_agent(tools=None):
-    """Create the document RAG agent"""
-    rag_llm = get_llm()
-    rag_tools = document_processing_tools
-    
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", RAG_SYSTEM_MESSAGE),
-        MessagesPlaceholder(variable_name="messages"),
-    ])
-    
-    return create_react_agent(
-        model=rag_llm,
-        tools=rag_tools,
-        prompt=prompt,
-        name="rag_agent"
-    )
+# The analytics_agent is now imported directly from agent3.py as analytics_agent_graph
+# The rag_agent is now imported directly from agent2.py as rag_agent_graph
 
 def create_code_agent(tools=None):
     """Create the code/conversation agent"""
@@ -476,11 +447,68 @@ async def agent_node_wrapper(state: SupervisorState, agent_runnable, agent_name:
     return {"messages": cleaned_messages}
 
 # --- Graph Construction --- #
+# Define adapters for imported agent graphs to handle message-based state format
+async def rag_agent_adapter(state: SupervisorState, config: RunnableConfig):
+    """Adapter for rag_agent_graph to handle message-based state"""
+    print("--- AGENT: rag_agent ---")
+    
+    # Extract query from the most recent human message
+    user_messages = [msg for msg in state["messages"] if isinstance(msg, HumanMessage)]
+    user_query = user_messages[-1].content if user_messages else ""
+    
+    # Prepare input for rag_agent_graph which expects a State with user_input
+    agent_input = {"user_input": user_query, "messages": state["messages"]}
+    
+    # Invoke the RAG agent graph
+    agent_result = await rag_agent_graph.ainvoke(agent_input, config=config)
+    
+    # Extract answer from agent result
+    if agent_result and "result" in agent_result:
+        answer = agent_result["result"]
+        # Create an AIMessage with the answer
+        response_message = AIMessage(content=answer)
+        return {"messages": [response_message]}
+    else:
+        # Fallback message if no result is found
+        return {"messages": [AIMessage(content="I couldn't find relevant information for your query.")]}
+
+async def analytics_agent_adapter(state: SupervisorState, config: RunnableConfig):
+    """Adapter for analytics_agent_graph to handle message-based state"""
+    print("--- AGENT: analytics_agent ---")
+    
+    # Analytics agent already expects messages-based state
+    agent_result = await analytics_agent_graph.ainvoke({"messages": state["messages"]}, config=config)
+    
+    # Extract only new messages from the result
+    if agent_result and "messages" in agent_result:
+        initial_messages_count = len(state["messages"])
+        new_messages = agent_result["messages"][initial_messages_count:]
+        
+        # Debug the new messages content
+        print(f"Analytics agent produced {len(new_messages)} new messages")
+        for i, msg in enumerate(new_messages):
+            print(f"Message {i}: {msg.type} - {msg.content[:100]}..." if len(msg.content) > 100 else msg.content)
+        
+        # Ensure there's at least one non-routing message for the user
+        has_user_facing_content = any(not is_routing_message(msg.content) for msg in new_messages if isinstance(msg, AIMessage))
+        
+        if not has_user_facing_content and new_messages:
+            # Extract the final answer from agent_result if available
+            final_answer = agent_result.get("final_answer", None)
+            if final_answer:
+                new_messages.append(AIMessage(content=final_answer))
+            else:
+                # If no final_answer and all messages are routing-only, add a generic response
+                new_messages.append(AIMessage(content="I've analyzed your request but found no specific answer to display."))
+        
+        return {"messages": new_messages}
+    else:
+        # Fallback message if no result is found
+        return {"messages": [AIMessage(content="I couldn't perform the requested analytics operation.")]}
+
 def build_graph():
     """Build the main supervisor graph with all agent nodes"""
-    # Create the specialized agent nodes
-    analytics_agent_runnable = create_analytics_agent()
-    rag_agent_runnable = create_rag_agent()
+    # Create the code agent node (still using the original implementation)
     code_agent_runnable = create_code_agent()
     
     # Create state graph with SupervisorState
@@ -489,17 +517,19 @@ def build_graph():
     # Add supervisor router node (asynchronous function node)
     workflow.add_node("supervisor_router", supervisor_router_node)
     
-    # Add agent nodes with wrapper functions
+    # Add analytics_agent node - using adapter for the compiled graph from agent3.py
     workflow.add_node(
         "analytics_agent", 
-        functools.partial(agent_node_wrapper, agent_runnable=analytics_agent_runnable, agent_name="analytics_agent")
+        analytics_agent_adapter
     )
     
+    # Add rag_agent node - using adapter for the compiled graph from agent2.py
     workflow.add_node(
         "rag_agent", 
-        functools.partial(agent_node_wrapper, agent_runnable=rag_agent_runnable, agent_name="rag_agent")
+        rag_agent_adapter
     )
     
+    # Add code agent node with wrapper function (keeping original implementation for this one)
     workflow.add_node(
         "code_agent", 
         functools.partial(agent_node_wrapper, agent_runnable=code_agent_runnable, agent_name="code_agent")

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { CodeIcon, FileTextIcon, BarChart3Icon, ThumbsUpIcon, ThumbsDownIcon, CopyIcon, CheckIcon } from "lucide-react"
 import { cleanFullMessageContent } from "@/lib/api/token-cleaner"
 import ReactMarkdown from "react-markdown"
+import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { nord } from "react-syntax-highlighter/dist/cjs/styles/prism"
 
@@ -53,6 +54,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           <div className="bg-primary text-primary-foreground rounded-lg px-4 py-2">
             {/* User messages can also use markdown rendering */}
             <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
               components={{
                 // Simple styling for user messages
                 code(props) {
@@ -90,6 +92,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
             <div className="bg-white dark:bg-slate-900 rounded-lg px-4 py-3 shadow-sm border">
               <div className="prose dark:prose-invert prose-sm max-w-none">
                 <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
                   components={{
                     code(props) {
                       const {children, className, node, ...rest} = props
@@ -128,8 +131,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     ul: ({children}) => <ul className="list-disc pl-5 mb-4">{children}</ul>,
                     ol: ({children}) => <ol className="list-decimal pl-5 mb-4">{children}</ol>,
                     blockquote: ({children}) => <blockquote className="border-l-4 border-slate-300 dark:border-slate-600 pl-4 italic my-4">{children}</blockquote>,
-                    table: ({children}) => <div className="overflow-x-auto my-4"><table className="border-collapse w-full">{children}</table></div>,
-                    th: ({children}) => <th className="border border-slate-300 dark:border-slate-600 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-left">{children}</th>,
+                    table: ({children}) => <div className="overflow-x-auto my-4"><table className="border-collapse w-full border-spacing-0 border border-slate-300 dark:border-slate-600">{children}</table></div>,
+                    thead: ({children}) => <thead className="bg-slate-50 dark:bg-slate-800">{children}</thead>,
+                    tbody: ({children}) => <tbody>{children}</tbody>,
+                    tr: ({children}) => <tr>{children}</tr>,
+                    th: ({children}) => <th className="border border-slate-300 dark:border-slate-600 px-4 py-2 text-left font-semibold">{children}</th>,
                     td: ({children}) => <td className="border border-slate-300 dark:border-slate-600 px-4 py-2">{children}</td>,
                   }}
                 >

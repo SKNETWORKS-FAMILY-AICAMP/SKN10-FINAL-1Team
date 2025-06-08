@@ -282,9 +282,9 @@ async def supervisor_node(state: AgentState, config: Optional[RunnableConfig] = 
         query_type = parsed_output.query_type
         print(f"Supervisor Decision: query_type = {query_type}")
 
-        #updated_messages = current_messages + [AIMessage(content=f"Routing to {query_type} based on supervisor decision.")]
+        updated_messages = current_messages + [AIMessage(content=f"Routing to {query_type} based on supervisor decision.")]
         return {
-            "messages": current_messages,
+            "messages": updated_messages,
             "user_query": user_query_to_process,
             "query_type": query_type,
             "error_message": None # Clear any previous error messages
