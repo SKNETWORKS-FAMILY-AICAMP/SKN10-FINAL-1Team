@@ -25,6 +25,8 @@ import pandas as pd
 import numpy as np
 import joblib
 from sklearn.preprocessing import LabelEncoder
+import json
+import io
 
 # --- Configuration (Optional - can be used to pass API keys, model names, etc.) ---
 class Configuration(TypedDict, total=False):
@@ -36,7 +38,7 @@ class AgentState(BaseModel):
     messages: Annotated[List[BaseMessage], operator.add] = Field(default_factory=list)
     user_query: Optional[str] = None
     csv_file_content: Optional[str] = None
-    query_type: Optional[Literal["db_query", "category_predict_query", "general_query"]] = None
+    query_type: Optional[Literal["db_query", "category_predict_query"]] = None
     sql_query: Optional[str] = None
     sql_result: Optional[Any] = None
     final_answer: Optional[str] = None
@@ -53,7 +55,7 @@ llm = ChatOpenAI(temperature=0, model="gpt-4o") # Or your preferred model
 
 supervisor_prompt = PromptTemplate.from_template(
     "Analyze the user's question. Respond with a JSON object.\n"
-    "The JSON object MUST contain a 'query_type' field set to one of 'db_query', 'category_predict_query', or 'general_query'.\n\n"
+    "The JSON object MUST contain a 'query_type' field set to one of 'db_query' or 'category_predict_query'.\n\n"
     "User Question: {user_query}\n\n"
     "JSON Response (must be a valid JSON object adhering to the Pydantic model `SupervisorDecision`):"
 )
@@ -193,15 +195,9 @@ summarization_prompt = PromptTemplate.from_template(
     "Summary Answer:"
 )
 
-general_answer_prompt = PromptTemplate.from_template(
-    "Please answer the following user question.\n\n"
-    "User Question: {user_query}\n\n"
-    "Answer:"
-)
-
 # --- Pydantic Models for Structured Output ---
 class SupervisorDecision(BaseModel):
-    query_type: str = Field(description="The type of the user's question (db_query, category_predict_query, or general_query)")
+    query_type: str = Field(description="The type of the user's question (db_query or category_predict_query)")
 
 class SQLGenerationOutput(BaseModel):
     sql_query: str = Field(description="The generated SQL query. This field MUST contain ONLY the SQL query string, without any surrounding text, explanations, or markdown formatting like ```sql.")
@@ -250,37 +246,48 @@ async def supervisor_node(state: AgentState, config: Optional[RunnableConfig] = 
         print(f"Supervisor - {error_msg}")
         return {
             "user_query": None,
-            "query_type": "general_query", # Default to general_query if no input
+            "query_type": "category_predict_query", # Default to category_predict_query if no input
             "error_message": error_msg,
             "messages": current_messages # Pass through existing messages
         }
 
-    # If user_query_to_process is successfully set, proceed with LLM analysis
-    print(f"Supervisor - Processing user query: '{user_query_to_process}' for LLM analysis.")
-    
-    supervisor_chain = supervisor_prompt | llm.with_structured_output(SupervisorDecision)
-    
-    try:
-        # Ensure the user_query for the LLM is the one we processed
-        parsed_output: SupervisorDecision = await supervisor_chain.ainvoke({"user_query": user_query_to_process}, config=config)
-        query_type = parsed_output.query_type
-        print(f"Supervisor Decision: query_type = {query_type}")
+    # If user_query_to_process is successfully set, decide routing strategy
+    print(f"Supervisor - User query for routing: '{user_query_to_process}'")
 
-        updated_messages = current_messages + [AIMessage(content=f"Routing to {query_type} based on supervisor decision.")]
+    if "예측" in user_query_to_process:
+        print(f"Supervisor - '예측' keyword found. Proceeding with LLM analysis for query type.")
+        supervisor_chain = supervisor_prompt | llm.with_structured_output(SupervisorDecision)
+        try:
+            parsed_output: SupervisorDecision = await supervisor_chain.ainvoke({"user_query": user_query_to_process}, config=config)
+            query_type = parsed_output.query_type
+            print(f"Supervisor LLM Decision: query_type = {query_type}")
+            updated_messages = current_messages + [AIMessage(content=f"Routing to {query_type} based on supervisor LLM decision.")]
+            return {
+                "messages": updated_messages,
+                "user_query": user_query_to_process,
+                "query_type": query_type,
+                "error_message": None
+            }
+        except Exception as e:
+            error_msg = f"Supervisor - Error during LLM decision for '예측' query '{user_query_to_process[:50]}...': {e}"
+            print(error_msg)
+            # Fallback if LLM fails for a "예측" query.
+            # Defaulting to category_predict_query as per original logic for LLM failure.
+            return {
+                "user_query": user_query_to_process,
+                "query_type": "category_predict_query", 
+                "error_message": error_msg,
+                "messages": current_messages
+            }
+    else:
+        print(f"Supervisor - '예측' keyword NOT found. Routing directly to generate_sql_node.")
+        query_type = "db_query"
+        updated_messages = current_messages + [AIMessage(content=f"Routing to {query_type} (SQL generation) as '예측' was not in query.")]
         return {
             "messages": updated_messages,
             "user_query": user_query_to_process,
             "query_type": query_type,
-            "error_message": None # Clear any previous error messages
-        }
-    except Exception as e:
-        error_msg = f"Supervisor - Error during LLM decision for query '{user_query_to_process[:50]}...': {e}"
-        print(error_msg)
-        return {
-            "user_query": user_query_to_process, # Query was extracted, but LLM failed
-            "query_type": "general_query", # Default to general if LLM fails
-            "error_message": error_msg,
-            "messages": current_messages # Pass through existing messages
+            "error_message": None
         }
 
 async def generate_sql_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
@@ -405,14 +412,310 @@ async def create_visualization_node(state: AgentState, config: Optional[Runnable
         print(f"Create Visualization Node: Error - {error_to_pass}")
         return {"error_message": error_to_pass, "sql_result": sql_result} # Pass original sql_result for context
 
-    # Placeholder: Simulate visualization creation
-    # In a real scenario, this would generate a chart, table, or some visual representation.
-    visualization_output = f"[Placeholder: Visualization for SQL result: {str(sql_result)[:100]}...]"
-    print(f"Create Visualization Node: Generated - {visualization_output}")
+    # --- Extract user query for visualization hint ---
+    user_query = ""
+    # Attempt to get the latest user message from state.get("messages")
+    # AgentState is expected to be dict-like or have a 'messages' attribute.
+    messages = state.messages
+    if messages and isinstance(messages, list) and len(messages) > 0:
+        last_message = messages[-1]
+        # Assuming last_message has a 'content' attribute (e.g., HumanMessage)
+        if hasattr(last_message, 'content'):
+            user_query = str(last_message.content)
+        elif isinstance(last_message, str): # If messages are just strings
+            user_query = last_message
+
+    print(f"Create Visualization Node: User query for context: '{user_query[:200]}...'" if user_query else "Create Visualization Node: No user query found for context.")
+
+    # Simple keyword-based hint extraction (Korean keywords)
+    visualization_hint = "auto" # Default
+    query_lower = user_query.lower()
+
+    if any(kw in query_lower for kw in ["시간", "추세", "흐름", "시계열"]):
+        visualization_hint = "timeseries"
+    elif any(kw in query_lower for kw in ["카테고리", "그룹", "항목", "비교"]):
+        # Check if it's not a pie chart request
+        if not any(kw_pie in query_lower for kw_pie in ["원형", "파이", "비율", "점유율"]):
+             visualization_hint = "barchart"
+    elif any(kw in query_lower for kw in ["관계", "상관"]):
+        visualization_hint = "scatterplot"
+    elif any(kw in query_lower for kw in ["분포", "히스토그램"]):
+        visualization_hint = "histogram"
     
-    # For now, we'll just pass the original sql_result and a note about visualization.
-    # If the next node needs specific visualization data, we'd add it to the state here.
-    return {"sql_result": sql_result, "visualization_output": visualization_output, "error_message": None}
+    # Pie chart has specific keywords and can override '비교' if '비율' etc. are present
+    if any(kw in query_lower for kw in ["원형", "파이", "비율", "점유율"]):
+        visualization_hint = "piechart"
+
+    print(f"Create Visualization Node: Determined visualization hint: '{visualization_hint}'")
+
+    # Prepare string literals for safe embedding in the generated Python code
+    # repr(json.dumps(sql_result)) creates a string like "'[\"key\": \"value\"]'"
+    # which is a valid Python string literal representing the JSON string.
+    safe_sql_data_json_literal = repr(json.dumps(sql_result))
+    safe_visualization_hint_literal = repr(str(visualization_hint)) # Ensure hint is string, then get its literal form
+
+    # Generate Python code for visualization, incorporating the hint
+    python_code_template = """
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np # For numeric type checking and NaN handling
+import json # For json.loads in generated code
+import io # Potentially for pd.read_json(io.StringIO(...)) if used later
+
+# Data obtained from the SQL query, as a Python string literal containing JSON
+sql_data_json_string = __SQL_DATA_JSON_LITERAL__
+# Hint from user query analysis, as a Python string literal
+visualization_hint_from_query = __VISUALIZATION_HINT_LITERAL__
+
+def generate_visualization(data_json_string, hint='auto'):
+    print(f"--- Executing Generated Visualization Code (Hint: {{hint}}) ---")
+    
+    # Attempt to load data from JSON string
+    data = []
+    if data_json_string:
+        try:
+            # It's safer to load the JSON string into a Python object first
+            loaded_data = json.loads(data_json_string)
+            # Then create a DataFrame. This handles various JSON structures.
+            if isinstance(loaded_data, list) and all(isinstance(item, dict) for item in loaded_data):
+                data = loaded_data # Looks like a list of records, good for DataFrame
+            elif isinstance(loaded_data, dict) and 'data' in loaded_data and 'columns' in loaded_data:
+                # Handles cases like {'columns': ['col1', 'col2'], 'data': [[val1, val2], ...]}
+                df_from_dict = pd.DataFrame(loaded_data['data'], columns=loaded_data['columns'])
+                data = df_from_dict.to_dict(orient='records') # Convert back to list of dicts for consistency if needed
+            else: # Fallback for other structures, or if it's already a list of dicts
+                data = loaded_data if isinstance(loaded_data, list) else [loaded_data]
+
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON data: {{e}}")
+            print(f"JSON string was: {{data_json_string[:500]}}...") # Print a snippet of the problematic string
+            return
+        except Exception as e_df: # Catch other potential pandas errors
+            print(f"Error creating DataFrame from JSON: {{e_df}}")
+            return
+    
+    if not data:
+        print("No data loaded from JSON string to visualize.")
+        return
+
+    try:
+        df = pd.DataFrame(data) # Now data should be a list of dictionaries
+        if df.empty:
+            print("\nDataFrame is empty. No data to visualize.")
+            if data and isinstance(data, list) and len(data) > 0 and isinstance(data[0], dict):
+                 print(f"Columns: {{list(data[0].keys())}}")
+            elif hasattr(data, 'columns'):
+                 print(f"Columns: {{list(data.columns)}}")
+            return
+
+        print("\n--- Data Preview (First 5 rows) ---")
+        print(df.head())
+        print("\n--- Descriptive Statistics (Numeric) ---")
+        print(df.describe(include=np.number))
+        print("\n--- Descriptive Statistics (Categorical) ---")
+        print(df.describe(include=['object', 'category']))
+
+        numeric_cols = df.select_dtypes(include=np.number).columns
+        categorical_cols = df.select_dtypes(include=['object', 'category']).columns
+        datetime_cols_initial = df.select_dtypes(include=['datetime', 'timedelta']).columns
+        potential_dt_cols = [col for col in df.columns if df[col].dtype == 'object']
+
+        for col in list(datetime_cols_initial) + potential_dt_cols:
+            if col in df.columns:
+                try:
+                    if not pd.api.types.is_datetime64_any_dtype(df[col]):
+                        converted_col = pd.to_datetime(df[col], errors='coerce')
+                        if not converted_col.isnull().all(): 
+                            df[col] = converted_col
+                except Exception:
+                    pass 
+        datetime_cols = df.select_dtypes(include=['datetime64[ns]', 'timedelta64[ns]']).columns
+
+        plotted = False
+
+        # --- 1. Attempt visualization based on HINT --- 
+        if hint != 'auto':
+            print(f"\n--- Attempting visualization based on hint: {{hint}} ---")
+            if hint == "timeseries":
+                if len(datetime_cols) > 0 and len(numeric_cols) > 0:
+                    time_col, val_col = datetime_cols[0], numeric_cols[0]
+                    try:
+                        plt.figure(figsize=(12, 6))
+                        df_sorted_time = df.dropna(subset=[time_col, val_col]).sort_values(by=time_col)
+                        if not df_sorted_time.empty:
+                            plt.plot(df_sorted_time[time_col], df_sorted_time[val_col], marker='o', linestyle='-')
+                            plt.title(f'Time Series Plot: {{val_col}} over {{time_col}} (Hinted)')
+                            plt.xlabel(time_col); plt.ylabel(val_col); plt.grid(True); plt.xticks(rotation=45, ha='right'); plt.tight_layout(); plt.show()
+                            print(f"Displayed time series plot (hinted): '{{val_col}}' vs '{{time_col}}'.")
+                            plotted = True
+                        else: print(f"No valid data for hinted time series: {{time_col}}, {{val_col}}.")
+                    except Exception as e: print(f"Hinted time series plot failed: {{e}}")
+                else: print(f"Hinted timeseries needs datetime & numeric cols. Found: D={{len(datetime_cols)}}, N={{len(numeric_cols)}})")
+            
+            elif hint == "barchart":
+                if len(categorical_cols) > 0 and len(numeric_cols) > 0:
+                    cat_col, num_col = categorical_cols[0], numeric_cols[0]
+                    unique_cats = df[cat_col].nunique()
+                    if 0 < unique_cats <= 25:
+                        try:
+                            if pd.api.types.is_numeric_dtype(df[num_col]):
+                                plt.figure(figsize=(12, 7))
+                                df.groupby(cat_col)[num_col].mean().plot(kind='bar', edgecolor='k')
+                                plt.title(f'Bar Chart: Mean {{num_col}} by {{cat_col}} (Hinted)')
+                                plt.xlabel(cat_col); plt.ylabel(f'Mean {{num_col}}'); plt.xticks(rotation=45, ha='right'); plt.tight_layout(); plt.show()
+                                print(f"Displayed bar chart (hinted): Mean '{{num_col}}' by '{{cat_col}}'.")
+                                plotted = True
+                            else: print(f"Hinted bar chart: '{{num_col}}' not numeric for mean.")
+                        except Exception as e: print(f"Hinted bar chart failed: {{e}}")
+                    elif unique_cats > 0: print(f"Hinted bar chart: '{{cat_col}}' has {{unique_cats}} unique values (max 25). Skipping.")
+                else: print(f"Hinted barchart needs categorical & numeric cols. Found: C={{len(categorical_cols)}}, N={{len(numeric_cols)}})")
+
+            elif hint == "scatterplot":
+                if len(numeric_cols) >= 2:
+                    x_scat, y_scat = numeric_cols[0], numeric_cols[1]
+                    try:
+                        plt.figure(figsize=(10, 6))
+                        plt.scatter(df[x_scat], df[y_scat], alpha=0.7)
+                        plt.title(f'Scatter Plot: {{y_scat}} vs {{x_scat}} (Hinted)')
+                        plt.xlabel(x_scat); plt.ylabel(y_scat); plt.grid(True); plt.tight_layout(); plt.show()
+                        print(f"Displayed scatter plot (hinted): '{{y_scat}}' vs '{{x_scat}}'.")
+                        plotted = True
+                    except Exception as e: print(f"Hinted scatter plot failed: {{e}}")
+                else: print(f"Hinted scatterplot needs >=2 numeric cols. Found: {{len(numeric_cols)}})")
+
+            elif hint == "histogram":
+                if len(numeric_cols) > 0:
+                    hist_c = numeric_cols[0]
+                    try:
+                        plt.figure(figsize=(10, 6))
+                        df[hist_c].plot(kind='hist', bins=15, edgecolor='k')
+                        plt.title(f'Histogram of {{hist_c}} (Hinted)'); plt.xlabel(hist_c); plt.ylabel('Frequency'); plt.tight_layout(); plt.show()
+                        print(f"Displayed histogram (hinted) of '{{hist_c}}'.")
+                        plotted = True
+                    except Exception as e: print(f"Hinted histogram failed: {{e}}")
+                else: print(f"Hinted histogram needs numeric col. Found: {{len(numeric_cols)}})")
+            
+            elif hint == "piechart":
+                if len(categorical_cols) > 0:
+                    pie_cat_col = categorical_cols[0]
+                    unique_pie_cats = df[pie_cat_col].nunique()
+                    if 0 < unique_pie_cats <= 10:
+                        try:
+                            plt.figure(figsize=(8, 8))
+                            pie_data_source = df[pie_cat_col].value_counts()
+                            title_suffix = f"Distribution of {{pie_cat_col}} (Hinted)"
+                            # If a numeric col is available and suitable, sum it by category
+                            if len(numeric_cols) > 0:
+                                pie_num_col = numeric_cols[0]
+                                # Check if numeric column is appropriate for sum (e.g. not an ID like column)
+                                if df[pie_num_col].nunique() > 1 and df[pie_num_col].sum() != 0 and not all(df[pie_num_col].apply(lambda x: isinstance(x, int) and x > 10000)) : # Heuristic
+                                    pie_data_source = df.groupby(pie_cat_col)[pie_num_col].sum()
+                                    title_suffix = f"Sum of {{pie_num_col}} by {{pie_cat_col}} (Hinted)"
+                            
+                            plt.pie(pie_data_source, labels=pie_data_source.index, autopct='%1.1f%%', startangle=90, counterclock=False)
+                            plt.title(title_suffix); plt.axis('equal'); plt.show()
+                            print(f"Displayed pie chart (hinted) for '{{pie_cat_col}}'.")
+                            plotted = True
+                        except Exception as e: print(f"Hinted pie chart failed: {{e}}")
+                    elif unique_pie_cats > 0: print(f"Hinted pie chart: '{{pie_cat_col}}' has {{unique_pie_cats}} unique values (max 10). Skipping.")
+                else: print(f"Hinted piechart needs categorical col. Found: {{len(categorical_cols)}})")
+            else:
+                print(f"Unknown or unsupported visualization hint: {{hint}}. Proceeding to automatic detection.")
+
+        # --- 2. Fallback to AUTOMATIC detection if hint failed or was 'auto' ---
+        if not plotted:
+            print("\n--- Hint-based visualization not performed or failed. Attempting automatic generic visualization ---")
+            # Auto Time series plot
+            if not plotted and len(datetime_cols) > 0 and len(numeric_cols) > 0:
+                time_col, val_col = datetime_cols[0], numeric_cols[0]
+                try:
+                    plt.figure(figsize=(12, 6))
+                    df_sorted_time = df.dropna(subset=[time_col, val_col]).sort_values(by=time_col)
+                    if not df_sorted_time.empty:
+                        plt.plot(df_sorted_time[time_col], df_sorted_time[val_col], marker='o', linestyle='-')
+                        plt.title(f'Time Series Plot of {{val_col}} over {{time_col}} (Auto)')
+                        plt.xlabel(time_col); plt.ylabel(val_col); plt.grid(True); plt.xticks(rotation=45, ha='right'); plt.tight_layout(); plt.show()
+                        print(f"Displayed auto time series: '{{val_col}}' vs '{{time_col}}'.")
+                        plotted = True
+                    else: print(f"No valid data for auto time series: {{time_col}}, {{val_col}}.")
+                except Exception as e: print(f"Auto time series failed: {{e}}")
+            
+            # Auto Bar chart
+            if not plotted and len(categorical_cols) > 0 and len(numeric_cols) > 0:
+                cat_col, num_col = categorical_cols[0], numeric_cols[0]
+                unique_cats = df[cat_col].nunique()
+                if 0 < unique_cats <= 25:
+                    try:
+                        if pd.api.types.is_numeric_dtype(df[num_col]):
+                            plt.figure(figsize=(12, 7))
+                            df.groupby(cat_col)[num_col].mean().plot(kind='bar', edgecolor='k')
+                            plt.title(f'Bar Chart: Mean {{num_col}} by {{cat_col}} (Auto)')
+                            plt.xlabel(cat_col); plt.ylabel(f'Mean {{num_col}}'); plt.xticks(rotation=45, ha='right'); plt.tight_layout(); plt.show()
+                            print(f"Displayed auto bar chart: Mean '{{num_col}}' by '{{cat_col}}'.")
+                            plotted = True
+                        else: print(f"Auto bar chart: '{{num_col}}' not numeric for mean.")
+                    except Exception as e: print(f"Auto bar chart failed: {{e}}")
+                elif unique_cats > 0: print(f"Auto bar chart: '{{cat_col}}' has {{unique_cats}} unique values (max 25). Skipping.")
+
+            # Auto Scatter plot
+            if not plotted and len(numeric_cols) >= 2:
+                x_scat, y_scat = numeric_cols[0], numeric_cols[1]
+                try:
+                    plt.figure(figsize=(10, 6))
+                    plt.scatter(df[x_scat], df[y_scat], alpha=0.7)
+                    plt.title(f'Scatter Plot: {{y_scat}} vs {{x_scat}} (Auto)')
+                    plt.xlabel(x_scat); plt.ylabel(y_scat); plt.grid(True); plt.tight_layout(); plt.show()
+                    print(f"Displayed auto scatter plot: '{{y_scat}}' vs '{{x_scat}}'.")
+                    plotted = True
+                except Exception as e: print(f"Auto scatter plot failed: {{e}}")
+
+            # Auto Histogram
+            if not plotted and len(numeric_cols) > 0:
+                hist_c = numeric_cols[0]
+                try:
+                    plt.figure(figsize=(10, 6))
+                    df[hist_c].plot(kind='hist', bins=15, edgecolor='k')
+                    plt.title(f'Histogram of {{hist_c}} (Auto)'); plt.xlabel(hist_c); plt.ylabel('Frequency'); plt.tight_layout(); plt.show()
+                    print(f"Displayed auto histogram of '{{hist_c}}'.")
+                    plotted = True
+                except Exception as e: print(f"Auto histogram failed: {{e}}")
+        
+        if not plotted:
+            print("\nCould not automatically determine or apply a suitable plot type.")
+            print("Please examine the DataFrame and descriptive statistics. You can use 'sql_data' or 'df' with Matplotlib/Seaborn/Plotly for custom visualizations.")
+
+    except ImportError as e_import:
+        print(f"Import error: {{e_import}}. Ensure pandas, matplotlib, numpy are installed.")
+    except Exception as e:
+        print(f"An error occurred during visualization: {{e}}")
+        if isinstance(data, (list, dict)) and len(str(data)) < 1000: print(data)
+        else: print(f"Data type {{type(data)}} may be too large to print.")
+
+if __name__ == '__main__':
+    # Example data for direct script execution (testing)
+    example_sql_data = [{'product_category': 'Electronics', 'sales_date': '2023-01-15', 'revenue': 1200, 'units_sold': 10},
+                        {'product_category': 'Books', 'sales_date': '2023-01-16', 'revenue': 150, 'units_sold': 12},
+                        {'product_category': 'Electronics', 'sales_date': '2023-01-17', 'revenue': 800, 'units_sold': 6},
+                        {'product_category': 'Home Goods', 'sales_date': '2023-01-18', 'revenue': 450, 'units_sold': 20}]
+    
+    # Test with different hints
+    # generate_visualization(example_sql_data, hint='timeseries') # Needs sales_date as datetime
+    # generate_visualization(example_sql_data, hint='barchart')
+    # generate_visualization(example_sql_data, hint='piechart') 
+    # generate_visualization(example_sql_data, hint='histogram') # for revenue
+    # generate_visualization(example_sql_data, hint='scatterplot') # revenue vs units_sold
+    
+    # Default execution with hint from global (if set by main node)
+    if 'sql_data' in globals() and sql_data is not None:
+        generate_visualization(sql_data, hint=visualization_hint_from_query if 'visualization_hint_from_query' in globals() else 'auto')
+    else:
+        print("sql_data not found. Running with example data and 'auto' hint.")
+        generate_visualization(example_sql_data, hint='auto')
+"""
+    python_code_for_visualization = python_code_template.replace("__SQL_DATA_JSON_LITERAL__", safe_sql_data_json_literal)
+    python_code_for_visualization = python_code_for_visualization.replace("__VISUALIZATION_HINT_LITERAL__", safe_visualization_hint_literal)
+    print(f"Create Visualization Node: Generated Python code for visualization (Hint: {visualization_hint}).")
+    return {"sql_result": sql_result, "visualization_output": python_code_for_visualization, "error_message": None}
 
 async def summarize_sql_result_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     print("--- SUMMARIZE SQL RESULT NODE ---")
@@ -446,43 +749,12 @@ async def summarize_sql_result_node(state: AgentState, config: Optional[Runnable
     
     return {"messages": updated_messages, "final_answer": final_answer}
 
-async def general_question_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
-    print("--- GENERAL QUESTION NODE ---")
-    current_messages = state.messages # Get current messages
-    
-    # Ensure there's a user query to process from the last HumanMessage
-    user_query_to_process: Optional[str] = None
-    if state.user_query: # Prefer user_query if set by supervisor
-        user_query_to_process = state.user_query
-    elif current_messages and isinstance(current_messages[-1], HumanMessage):
-        user_query_to_process = current_messages[-1].content
-    
-    if not user_query_to_process:
-        error_msg = "No user query found for general question."
-        print(f"General Question Node - Error: {error_msg}")
-        updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
-        return {"messages": updated_messages, "error_message": error_msg, "final_answer": ""}
-
-    print(f"General Question Node - Processing query: '{user_query_to_process}'")
-    general_answer_chain = general_answer_prompt | llm
-    try:
-        response = await general_answer_chain.ainvoke({"user_query": user_query_to_process}, config=config)
-        final_answer = response.content.strip()
-        print(f"General Answer: {final_answer}")
-        
-        updated_messages = current_messages + [AIMessage(content=final_answer)]
-        return {"messages": updated_messages, "final_answer": final_answer, "error_message": None}
-    except Exception as e:
-        error_msg = f"Error in general_question_node: {e}"
-        print(f"General Question Node - Error: {error_msg}")
-        updated_messages = current_messages + [AIMessage(content=f"Sorry, I encountered an error trying to answer: {error_msg}")]
-        return {"messages": updated_messages, "error_message": error_msg, "final_answer": ""}
 
 async def category_predict_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     print("--- CATEGORY PREDICT NODE (Telecom Churn Prediction with Csv File Content) ---")
 
     # --- 경로 설정 ---
-    base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+    base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     MODEL_PATH = os.path.join(base_path, 'churn_predictor_pipeline.pkl')
     CATEGORICAL_COLS_PATH = os.path.join(base_path, 'categorical_cols.pkl')
     LABEL_ENCODERS_PATH = os.path.join(base_path, 'label_encoders.pkl')
@@ -720,19 +992,21 @@ def route_sql_output(state: AgentState) -> Literal["create_visualization_node", 
         print(f"Warning: sql_output_choice is '{choice}'. Defaulting to summarize_sql_result_node.")
         return "summarize_sql_result_node"
 
-def route_query(state: AgentState) -> Literal["generate_sql_node", "category_predict_node", "general_question_node"]:
+def route_query(state: AgentState) -> Literal["generate_sql_node", "category_predict_node"]:
     query_type = state.query_type
     print(f"Routing based on query_type: {query_type}")
     if query_type == "db_query":
         return "generate_sql_node"
     elif query_type == "category_predict_query":
         return "category_predict_node"
-    elif query_type == "general_query":
-        return "general_question_node"
     else:
-        # This case should ideally not be reached if supervisor is strict
-        print(f"Warning: Unknown query_type '{query_type}', defaulting to general_question_node.")
-        return "general_question_node"
+        # This case should ideally not be reached if supervisor is strict and only returns valid types
+        # Consider raising an error or defaulting to a safe node if necessary.
+        print(f"ERROR: Unknown query_type '{query_type}' received in route_query. This should not happen.")
+        # As a fallback, returning one of the valid nodes, though this indicates an issue upstream.
+        # Depending on requirements, this could raise an exception.
+        # For now, let's default to category_predict_node if something unexpected happens, though supervisor should prevent this.
+        return "category_predict_node" # Or raise ValueError(f"Invalid query_type: {query_type}")
 
 # --- Graph Definition ---
 workflow = StateGraph(AgentState)
@@ -743,7 +1017,6 @@ workflow.add_node("generate_sql_node", generate_sql_node)
 workflow.add_node("execute_sql_node", execute_sql_node)
 workflow.add_node("create_visualization_node", create_visualization_node)
 workflow.add_node("summarize_sql_result_node", summarize_sql_result_node)
-workflow.add_node("general_question_node", general_question_node)
 workflow.add_node("category_predict_node", category_predict_node)
 
 # Set entry point
@@ -755,8 +1028,7 @@ workflow.add_conditional_edges(
     route_query,
     {
         "generate_sql_node": "generate_sql_node",
-        "category_predict_node": "category_predict_node",
-        "general_question_node": "general_question_node"
+        "category_predict_node": "category_predict_node"
     }
 )
 
@@ -776,9 +1048,6 @@ workflow.add_edge("summarize_sql_result_node", END)
 
 # Edges from placeholder nodes to the SQL generation flow
 workflow.add_edge("category_predict_node", END)
-
-# Edge for general question
-workflow.add_edge("general_question_node", END)
 
 # Compile the graph
 app = workflow.compile()
