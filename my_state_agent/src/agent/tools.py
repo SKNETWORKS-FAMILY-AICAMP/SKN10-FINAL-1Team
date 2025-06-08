@@ -7,165 +7,125 @@ from src.agent.state import WorkflowState # Assuming state.py is in the same dir
 import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
 import os
+import os
+from dotenv import load_dotenv
+import boto3
+from botocore.errorfactory import ClientError
+import logging
+import tempfile
+from github import Github
+from git import Repo as GitRepo
+from botocore.exceptions import NoCredentialsError
 
-# 공통 도구 - 에이전트 전환 도구
-@tool
-def transfer_to_analysis_agent():
-    """
-    데이터 분석이 필요한 경우 데이터 분석 전문가에게 전환합니다.
-    데이터 시각화, 통계 분석, 예측 모델링 등의 작업에 적합합니다.
-    """
-    return Command(
-        goto="analytics_agent",
-        update={"current_agent": "analytics_agent"},
-        graph=Command.PARENT
-    )
+# --- Load .env --- #
+dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
+load_dotenv(dotenv_path=dotenv_path)
 
-@tool
-def transfer_to_document_agent():
+# --- AWS S3 헬퍼 함수 ---
+def _get_s3_client():
+    """S3 클라이언트 객체를 반환합니다.
+    AWS 자격 증명은 환경 변수(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_DEFAULT_REGION),
+    IAM 역할 등을 통해 Boto3가 자동으로 로드하도록 설정되어 있어야 합니다.
     """
-    문서 처리가 필요한 경우 문서 처리 전문가에게 전환합니다.
-    문서 요약, 정보 추출, 질문 응답 등의 작업에 적합합니다.
-    """
-    return Command(
-        goto="rag_agent", # Name used in supervisor
-        update={"current_agent": "rag_agent"},
-        graph=Command.PARENT
-    )
+    try:
+        s3 = boto3.client('s3')
+        # 간단한 연결 테스트 (선택 사항)
+        s3.list_buckets() # 올바른 자격증명이 없으면 여기서 에러 발생
+        logging.info("S3 클라이언트 생성 성공.")
+        return s3
+    except NoCredentialsError:
+        logging.error("AWS 자격 증명을 찾을 수 없습니다. 환경 변수 또는 IAM 역할을 설정하세요.")
+        raise
+    except ClientError as e:
+        logging.error(f"S3 클라이언트 생성 중 오류 발생: {e}")
+        raise
 
-@tool
-def transfer_to_code_agent(): # Renamed from conversation for clarity with code_agent
+def _upload_directory_to_s3(local_directory: str, bucket_name: str, s3_prefix: str):
     """
-    코드 관련 작업이나 일반적인 대화가 필요한 경우 코드/대화 전문가에게 전환합니다.
-    코드 작성, 디버깅, 일상적인 질문, 조언 등에 적합합니다.
+    로컬 디렉토리를 S3에 업로드하되, 코드 관련 파일만 필터링하여 업로드합니다.
+    디렉토리 구조는 유지합니다.
+    
+    Args:
+        local_directory (str): 업로드할 로컬 디렉토리 경로
+        bucket_name (str): S3 버킷 이름
+        s3_prefix (str): S3 내 저장될 경로 접두사
     """
-    return Command(
-        goto="code_agent", # Name used in supervisor
-        update={"current_agent": "code_agent"},
-        graph=Command.PARENT
-    )
-
-def get_common_tools():
-    """모든 에이전트가 사용할 수 있는 공통 도구"""
-    return [
-        transfer_to_analysis_agent,
-        transfer_to_document_agent,
-        transfer_to_code_agent
+    # 코드 관련 확장자 목록
+    code_extensions = [
+        '.py', '.ipynb',  # Python
+        '.html', '.htm', '.css', '.js', '.jsx', '.ts', '.tsx',  # Web
+        '.md', '.markdown', '.rst',  # Documentation
+        '.java', '.kt', '.scala',  # JVM
+        '.c', '.cpp', '.h', '.hpp',  # C/C++
+        '.cs',  # C#
+        '.go',  # Go
+        '.rb',  # Ruby
+        '.php',  # PHP
+        '.swift',  # Swift
+        '.rs',  # Rust
+        '.sh', '.bash',  # Shell
+        '.sql',  # SQL
+        '.json', '.yml', '.yaml', '.xml', '.toml',  # Config
+        '.txt',  # Text
     ]
-
-# 데이터 분석 도구
-@tool
-def analyze_data(
-    data_description: str,
-    analysis_type: str,
-    state: Annotated[WorkflowState, InjectedState],
-    config: RunnableConfig
-) -> str:
-    """
-    데이터 분석을 수행합니다.
-    Args:
-        data_description: 분석할 데이터에 대한 설명
-        analysis_type: 분석 유형 (descriptive, correlation, regression, classification 등)
-    """
-    print(f"[Tool Call] analyze_data: desc='{data_description}', type='{analysis_type}'")
-    return f"{data_description}에 대한 {analysis_type} 분석 결과입니다: [분석 내용 샘플]"
-
-@tool
-def create_visualization(
-    data_description: str,
-    visualization_type: str,
-    state: Annotated[WorkflowState, InjectedState],
-    config: RunnableConfig
-) -> str:
-    """
-    데이터 시각화를 생성합니다.
-    Args:
-        data_description: 시각화할 데이터에 대한 설명
-        visualization_type: 시각화 유형 (bar, line, scatter, pie, heatmap 등)
-    """
-    print(f"[Tool Call] create_visualization: desc='{data_description}', type='{visualization_type}'")
-    return f"{data_description}에 대한 {visualization_type} 시각화가 생성되었습니다: [이미지 URL 또는 설명]"
-
-@tool
-def predict_trend(
-    data_description: str,
-    time_horizon: str,
-    state: Annotated[WorkflowState, InjectedState],
-    config: RunnableConfig
-) -> str:
-    """
-    데이터 기반 추세 예측을 수행합니다.
-    Args:
-        data_description: 예측할 데이터에 대한 설명
-        time_horizon: 예측 기간 (예: '1 month', '1 year', '5 years')
-    """
-    print(f"[Tool Call] predict_trend: desc='{data_description}', horizon='{time_horizon}'")
-    return f"{data_description}의 {time_horizon} 예측 결과: [예측 데이터 또는 설명]"
-
-def data_analysis_tools():
-    """데이터 분석 에이전트를 위한 도구 목록"""
-    return [
-        analyze_data,
-        create_visualization,
-        predict_trend
+    
+    # 확장자 없는 특수 파일 이름 목록
+    special_filenames = [
+        '.gitignore', '.dockerignore',  # Git/Docker
+        'Dockerfile', 'docker-compose.yml',  # Docker
+        'requirements.txt', 'Pipfile', 'pyproject.toml',  # Python deps
+        'package.json', 'package-lock.json', 'yarn.lock',  # JS deps
+        'Gemfile', 'Gemfile.lock',  # Ruby deps
+        'build.gradle', 'pom.xml',  # Java/Kotlin deps
+        'Makefile', 'CMakeLists.txt',  # Build files
+        'LICENSE', 'README'  # Common project files
     ]
+    
+    # S3 클라이언트 생성
+    s3 = _get_s3_client()
+    
+    # 파일 수 카운트
+    total_files = 0
+    uploaded_files = 0
+    skipped_files = 0
+    
+    for root, _, files in os.walk(local_directory):
+        for filename in files:
+            # 파일 경로 및 확장자 처리
+            local_path = os.path.join(root, filename)
+            relative_path = os.path.relpath(local_path, local_directory)
+            s3_key = os.path.join(s3_prefix, relative_path).replace("\\", "/")
+            
+            # 확장자 확인 (확장자가 없는 파일도 이름을 검사)
+            _, file_extension = os.path.splitext(filename)
+            total_files += 1
+            
+            # 파일이 코드 관련 확장자를 가지거나 특수 파일명과 일치하는지 확인
+            is_code_file = file_extension.lower() in code_extensions
+            is_special_file = filename in special_filenames
+            
+            # .git 디렉토리 내 파일은 제외 
+            if '.git' in relative_path:
+                skipped_files += 1
+                continue
+                
+            if is_code_file or is_special_file:
+                try:
+                    logging.info(f"Uploading {local_path} to s3://{bucket_name}/{s3_key}")
+                    s3.upload_file(local_path, bucket_name, s3_key)
+                    uploaded_files += 1
+                except ClientError as e:
+                    logging.warning(f"Failed to upload {local_path} to {s3_key}: {e}")
+                    # 부분적 실패 시 어떻게 처리할지 결정 (예: 계속 진행)
+                except FileNotFoundError:
+                    logging.error(f"업로드할 로컬 파일 없음 ({local_path})")
+            else:
+                skipped_files += 1
+                
+    logging.info(f"업로드 완료. 총 {total_files}개 파일 중 {uploaded_files}개 업로드됨, {skipped_files}개 건너뜀")
 
-# 문서 처리 도구
-@tool
-def summarize_document(
-    document_content: str,
-    state: Annotated[WorkflowState, InjectedState],
-    config: RunnableConfig,
-    max_length: Optional[int] = 500
-) -> str:
-    """
-    문서 내용을 요약합니다.
-    Args:
-        document_content: 요약할 문서 내용
-        max_length: 요약 최대 길이 (문자 수)
-    """
-    print(f"[Tool Call] summarize_document: content_len='{len(document_content)}', max_len='{max_length}'")
-    return f"문서 요약 (첫 50자): {document_content[:50]}... [요약된 내용]"
 
-@tool
-def extract_information(
-    document_content: str,
-    info_type: str,
-    state: Annotated[WorkflowState, InjectedState],
-    config: RunnableConfig
-) -> str:
-    """
-    문서에서 특정 유형의 정보를 추출합니다.
-    Args:
-        document_content: 정보를 추출할 문서 내용
-        info_type: 추출할 정보 유형 (entities, dates, numbers, key_points 등)
-    """
-    print(f"[Tool Call] extract_information: content_len='{len(document_content)}', info_type='{info_type}'")
-    return f"추출된 {info_type}: [추출된 정보 목록]"
 
-@tool
-def answer_document_question(
-    document_content: str,
-    question: str,
-    state: Annotated[WorkflowState, InjectedState],
-    config: RunnableConfig
-) -> str:
-    """
-    문서 내용을 기반으로 질문에 답변합니다.
-    Args:
-        document_content: 질문의 근거가 되는 문서 내용
-        question: 문서에 대한 질문
-    """
-    print(f"[Tool Call] answer_document_question: content_len='{len(document_content)}', question='{question}'")
-    return f"질문 '{question}'에 대한 답변: [이용자 수가 점점 증가할 것 같아요]"
-
-def document_processing_tools():
-    """문서 처리 에이전트를 위한 도구 목록"""
-    return [
-        summarize_document,
-        extract_information,
-        answer_document_question
-    ]
 
 # 대화/코드 도구 (code_agent가 사용할 도구들)
 @tool
