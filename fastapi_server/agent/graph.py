@@ -20,7 +20,7 @@ import re
 import json
 
 # 상대 임포트
-from .tools import data_analysis_tools, document_processing_tools, code_agent_tools
+from .tools import code_agent_tools
 from .state import MessagesState
 from .agent2 import graph as rag_agent_graph
 from .agent3 import graph as analytics_agent_graph
@@ -270,6 +270,33 @@ async def supervisor_router_node(state: SupervisorState, config: RunnableConfig)
     }
 
 # --- Message Cleaning --- #
+
+def is_routing_message(content):
+    """Check if the message is a routing message or a system message that shouldn't be shown to the user.
+    
+    Args:
+        content: The message content to check
+        
+    Returns:
+        bool: True if the message is a routing message, False otherwise
+    """
+    # Check for common routing/system message patterns
+    routing_indicators = [
+        'db_query',
+        'category_predict_query', 
+        'general_query',
+        'Routing to',
+        'ROUTING:',
+        'INTERNAL:',
+        'Transfer to'
+    ]
+    
+    # If the content is not a string, it's likely not a routing message
+    if not isinstance(content, str):
+        return False
+    
+    # Check if the content contains any routing indicators
+    return any(indicator in content for indicator in routing_indicators)
 def clean_message_content(content: str) -> str:
     """Clean routing directives from messages for frontend display.
     

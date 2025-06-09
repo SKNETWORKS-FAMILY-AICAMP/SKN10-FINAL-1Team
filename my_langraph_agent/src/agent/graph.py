@@ -236,7 +236,7 @@ async def main():
     ) as pool:
         memory_saver = AsyncPostgresSaver(pool)
         # 중요: 처음 DB 테이블을 생성할 때만 다음 줄의 주석을 해제하고 실행하세요.
-        # await memory_saver.setup()
+        await memory_saver.setup()
         # print("PostgreSQL checkpointer 테이블 설정 완료 (필요한 경우).")
 
         supervisor_graph = create_supervisor(
