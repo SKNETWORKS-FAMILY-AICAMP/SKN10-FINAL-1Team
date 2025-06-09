@@ -230,7 +230,16 @@ class AgentService:
                             content = str(chunk)
                             
                         if content:
-                            # Simply stream the content as-is
+                            # 내부 처리 데이터 필터링 (JSON, SQL 쿼리 등의 내부 상태 정보)
+                            # {"query_type":...} 또는 {"sql_query":...} 형식의 JSON 필터링
+                            if (content.startswith('{"query_type":') or 
+                                content.startswith('{"sql_query":') or
+                                '{"sql_query":' in content or
+                                '{"sql_output_choice":' in content):
+                                logger.debug(f"Filtering internal state data: {content}")
+                                continue
+                                
+                            # 최종 응답에 추가
                             content_buffer += content
                             await websocket.send_json({
                                 "event_type": "token",
@@ -243,37 +252,47 @@ class AgentService:
                         logger.warning(f"Error processing stream token: {str(e)}")
                         # Continue processing even if one token fails
                 
-                elif kind == "on_tool_start":
-                    # Tool execution start
-                    tool_name = event.get("name", "unknown_tool")
-                    tool_args = event.get("data", {}).get("input", {})
-                    
-                    await websocket.send_json({
-                        "event_type": "tool_start",
-                        "data": {
-                            "tool": {
-                                "name": tool_name,
-                                "args": tool_args
-                            },
-                            "agent": current_agent
-                        }
-                    })
+                # elif kind == "on_tool_start":
+                #     # Tool execution start
+                #     tool_name = event.get("name", "unknown_tool")
+                #     tool_args = event.get("data", {}).get("input", {})
+                #     
+                #     await websocket.send_json({
+                #         "event_type": "tool_start",
+                #         "data": {
+                #             "tool": {
+                #                 "name": tool_name,
+                #                 "args": tool_args
+                #             },
+                #             "agent": current_agent
+                #         }
+                #     })
                 
-                elif kind == "on_tool_end":
-                    # Tool execution end
-                    tool_name = event.get("name", "unknown_tool")
-                    tool_output = event.get("data", {}).get("output", "")
-                    
-                    await websocket.send_json({
-                        "event_type": "tool_end",
-                        "data": {
-                            "tool": {
-                                "name": tool_name,
-                                "output": str(tool_output)[:200] + ("..." if len(str(tool_output)) > 200 else "")
-                            },
-                            "agent": current_agent
-                        }
-                    })
+                # elif kind == "on_tool_end":
+                #     # Tool execution end
+                #     tool_name = event.get("name", "unknown_tool")
+                #     tool_output = event.get("data", {}).get("output", "")
+                #     
+                #     # SQL 관련 내부 데이터 필터링
+                #     filtered_output = tool_output
+                #     if isinstance(filtered_output, str):
+                #         # JSON 데이터 구조가 있는지 확인
+                #         if ('{"query_type":' in filtered_output or 
+                #             '{"sql_query":' in filtered_output or 
+                #             '{"sql_output_choice":' in filtered_output):
+                #             logger.info(f"Filtering internal SQL data from tool output: {tool_name}")
+                #             filtered_output = "[내부 처리 중...]"  # 사용자에게는 단순한 처리 중 메시지만 표시
+                #     
+                #     await websocket.send_json({
+                #         "event_type": "tool_end",
+                #         "data": {
+                #             "tool": {
+                #                 "name": tool_name,
+                #                 "output": str(filtered_output)[:200] + ("..." if len(str(filtered_output)) > 200 else "")
+                #             },
+                #             "agent": current_agent
+                #         }
+                #     })
                 
                 elif kind == "on_chain_start":
                     # Agent change detection

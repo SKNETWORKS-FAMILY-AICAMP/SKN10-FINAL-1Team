@@ -190,23 +190,37 @@ class State:
 
 
 def choose_document_type(message):
-    prompt = PromptTemplate(
-        input_variables=["input"],
-        template="The user's question is: '{input}'. Analyze the question and categorize it into one of these document types: product, hr_policy, technical_document, proceedings. " \
-        "Respond with EXACTLY ONE of these four values: 'product_document' for Product-related questions, 'proceedings' for Meeting Proceedings, 'internal_policy' for HR Policy documents, or 'technical_document' for Technical Documentation. " \
+    """
+    OpenAI API를 직접 사용하여 문서 타입을 분류합니다. 리턴 데이터 형식은 기존과 동일하게 유지합니다.
+    """
+    from openai import OpenAI
+    import os
+
+    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+    client = OpenAI(api_key=OPENAI_API_KEY)
+
+    system_prompt = (
+        "The user's question is: '{input}'. "
+        "Analyze the question and categorize it into one of these document types: product, hr_policy, technical_document, proceedings. "
+        "Respond with EXACTLY ONE of these four values: 'product_document' for Product-related questions, "
+        "'proceedings' for Meeting Proceedings, 'internal_policy' for HR Policy documents, or "
+        "'technical_document' for Technical Documentation. "
         "You must ONLY respond with one of these four exact values, without any additional text or explanation."
+    ).replace("{input}", message)
+
+    resp = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": system_prompt}
+        ],
+        temperature=0.0,
+        max_tokens=16
     )
-
-    # LLM 설정 
-    llm = ChatOpenAI(model="gpt-3.5-turbo")
-
-    # prompt + llm
-    chain = prompt | llm
-
-    # 4. 실행
-    response = chain.invoke({"input": message})
-    print(response.content)
-    return response
+    # langchain의 .content와 호환되게 객체 흉내냄
+    class ResponseTemp:
+        def __init__(self, content):
+            self.content = content
+    return ResponseTemp(resp.choices[0].message.content.strip())
 
 def choose_node(state: State):
     # Extract the user input from the state
