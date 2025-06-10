@@ -170,7 +170,7 @@ general_chat_prompt_agent3 = ChatPromptTemplate.from_messages([
 
 # Document type classification system prompt used in choose_document_type function in agent2.py
 document_type_system_prompt_agent2 = (
-    "The user's question is: '{input}'. "
+    "The user's question is: '{user_input}'. "
     "Analyze the question and categorize it into one of these document types: product, hr_policy, technical_document, proceedings. "
     "Respond with EXACTLY ONE of these four values: 'product_document' for Product-related questions, "
     "'proceedings' for Meeting Proceedings, 'internal_policy' for HR Policy documents, or "
