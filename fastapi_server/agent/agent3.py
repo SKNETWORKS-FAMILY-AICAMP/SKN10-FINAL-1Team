@@ -18,7 +18,7 @@ from langchain_core.messages import HumanMessage, AIMessage, BaseMessage, System
 from langchain_core.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder # Added ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableConfig # Added missing import
 from langchain_core.output_parsers import JsonOutputParser
-from langchain_openai import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI
 from langgraph.graph import StateGraph, END
 from pydantic import BaseModel, Field
 import pandas as pd
@@ -33,6 +33,10 @@ from openai import OpenAI # Added for direct OpenAI call
 
 # Setup logger for agent3
 logger = logging.getLogger(__name__)
+
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
+import json
 # Basic logging configuration if not configured elsewhere (e.g., in a main app setup)
 if not logger.hasHandlers():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -103,84 +107,109 @@ If a user's question is ambiguous or lacks detail for a precise query, ask for c
 Always prioritize accuracy and correctness of the SQL query.\n
 If the question implies a date range (e.g., 'last month', 'this year'), calculate the specific dates and use them in the WHERE clause.\n
 Today's date is {{current_date}}.\n\n
-Table Name: chat_sessions\n
-Columns:\n
-  - id (uuid)\n
-  - user_id (uuid)\n
-  - created_at (timestamp with time zone)\n
-  - updated_at (timestamp with time zone)\n
-  - title (text)\n
-  - system_prompt (text)\n
-  - agent_profile_id (uuid)\n
-  - org_id (uuid)\n\n
-Table Name: chat_messages\n
-Columns:\n
-  - id (uuid)\n
-  - session_id (uuid)\n
-  - content (text)\n
-  - message_type (character varying) -- enum: USER, AI, SYSTEM\n
-  - created_at (timestamp with time zone)\n
-  - metadata (jsonb)\n
-  - tokens (integer)\n
-  - model_name (character varying)\n\n
-Table Name: documents\n
-Columns:\n
-  - id (uuid)\n
-  - title (character varying)\n
-  - content (text)\n
-  - s3_url (character varying)\n
-  - created_at (timestamp with time zone)\n
-  - updated_at (timestamp with time zone)\n
-  - user_id (uuid)\n
-  - org_id (uuid)\n
-  - metadata (jsonb)\n\n
-Table Name: embed_chunks\n
-Columns:\n
-  - id (uuid)\n
-  - document_id (uuid)\n
-  - text (text)\n
-  - vector_id (character varying)\n
-  - metadata (jsonb)\n
-  - created_at (timestamp with time zone)\n
-  - user_id (uuid)\n
-  - session_id (uuid)\n\n
-Table Name: model_artifacts\n
-Columns:\n
-  - id (uuid)\n
-  - artifact_type (character varying)\n
-  - s3_key (text)\n
-  - meta (jsonb)\n
-  - created_at (timestamp with time zone)\n
-  - user_id (uuid)\n\n
-Table Name: organizations\n
-Columns:\n
-  - id (uuid)\n
-  - name (character varying)\n
-  - created_at (timestamp with time zone)\n\n
-Table Name: summary_news_keywords\n
-Columns:\n
-  - id (uuid)\n
-  - date (date)\n
-  - keyword (text)\n
-  - title (text)\n
-  - summary (text)\n
-  - category (character varying)\n
-  - source (character varying)\n
-  - score (double precision)\n
-  - created_at (timestamp with time zone)\n
-  - org_id (uuid)\n\n
-Table Name: users\n
-Columns:\n
-  - id (uuid)\n
-  - email (character varying)\n
-  - password (character varying) -- Hashed password, do not query directly for login\n
-  - full_name (character varying)\n
-  - is_superuser (boolean)\n
-  - created_at (timestamp with time zone)\n
-  - last_login (timestamp with time zone)\n
-  - is_active (boolean)\n
-  - is_staff (boolean)\n
-  - org_id (uuid)\n\n
+Database Schema Information:
+
+Table Name: analytics_results
+Columns:
+  - id (uuid)
+  - result_type (character varying)
+  - s3_key (text)
+  - meta (jsonb)
+  - created_at (timestamp with time zone)
+  - user_id (uuid)
+
+Table Name: chat_messages
+Columns:
+  - id (uuid)
+  - role (character varying)
+  - content (text)
+  - created_at (timestamp with time zone)
+  - session_id (uuid)
+  - metadata (text)
+
+Table Name: chat_sessions
+Columns:
+  - id (uuid)
+  - agent_type (character varying)
+  - started_at (timestamp with time zone)
+  - ended_at (timestamp with time zone)
+  - user_id (uuid)
+  - title (character varying)
+
+Table Name: llm_calls
+Columns:
+  - id (uuid)
+  - call_type (character varying)
+  - prompt (text)
+  - response (text)
+  - tokens_used (integer)
+  - latency_ms (integer)
+  - created_at (timestamp with time zone)
+  - user_id (uuid)
+  - session_id (uuid)
+
+Table Name: model_artifacts
+Columns:
+  - id (uuid)
+  - artifact_type (character varying)
+  - s3_key (text)
+  - meta (jsonb)
+  - created_at (timestamp with time zone)
+  - user_id (uuid)
+
+
+Table Name: organizations
+Columns:
+  - id (uuid)
+  - name (character varying)
+  - created_at (timestamp with time zone)
+
+Table Name: summary_news_keywords
+Columns:
+  - id (uuid)
+  - date (date)
+  - keyword (text)
+  - title (text)
+  - summary (text)
+  - url (text)
+
+Table Name: telecom_customers
+Columns:
+  - customer_id (character varying)
+  - gender (character varying)
+  - senior_citizen (boolean)
+  - partner (boolean)
+  - dependents (boolean)
+  - tenure (integer)
+  - phone_service (boolean)
+  - multiple_lines (character varying)
+  - internet_service (character varying)
+  - online_security (character varying)
+  - online_backup (character varying)
+  - device_protection (character varying)
+  - tech_support (character varying)
+  - streaming_tv (character varying)
+  - streaming_movies (character varying)
+  - contract (character varying)
+  - paperless_billing (boolean)
+  - payment_method (character varying)
+  - monthly_charges (numeric)
+  - total_charges (numeric)
+  - churn (boolean)
+
+Table Name: users
+Columns:
+  - password (character varying)
+  - is_superuser (boolean)
+  - id (uuid)
+  - email (character varying)
+  - name (character varying)
+  - role (character varying)
+  - created_at (timestamp with time zone)
+  - last_login (timestamp with time zone)
+  - is_active (boolean)
+  - is_staff (boolean)
+  - org_id (uuid)
 Respond with a JSON object that strictly adheres to the Pydantic model `SQLGenerationOutput` shown below.\n
 The `sql_query` field MUST contain ONLY the SQL query string, without any surrounding text, explanations, or markdown formatting like ```sql.\n
 The `sql_output_choice` field must be one of 'summarize' or 'visualize'. Choose 'visualize' if the user asks for a chart, graph, or any visual representation, or if the query result is likely to be complex and better understood visually (e.g., time series data, comparisons across multiple categories). Otherwise, choose 'summarize'."""),
@@ -397,7 +426,7 @@ async def execute_sql_node(state: AgentState, config: Optional[RunnableConfig] =
         )
         
         if isinstance(result_df, pd.DataFrame):
-            state.sql_result = result_df.to_string() # Or to_json, or keep as DataFrame if downstream can handle
+            state.sql_result = result_df.to_dict(orient='records') # Convert DataFrame to list of dicts
             logger.info(f"SQL Result:\n{state.sql_result}")
         elif isinstance(result_df, dict) and 'sql_result' in result_df:
             # 결과가 딕셔너리 형태로 반환된 경우 (sql_result 키가 있으면 정상적인 결과로 간주)
@@ -751,17 +780,81 @@ async def category_predict_node(state: AgentState, config: Optional[RunnableConf
         return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
 
 async def create_visualization_node(state: AgentState, config: Optional[RunnableConfig] = None):
-    logger.info("--- Entered create_visualization_node (placeholder) ---")
-    # In a real implementation, this node would generate a visualization
-    # based on state.sql_result or other relevant data.
-    # For now, it just passes through or sets a placeholder message.
-    if state.sql_result is not None:
-        state.visualization_output = f"Placeholder: Visualization for query result: {str(state.sql_result)[:200]}..."
-        state.final_answer = state.visualization_output # Or a message indicating visualization is ready
-    else:
-        state.error_message = "No SQL result available to visualize."
-        state.final_answer = "시각화할 SQL 결과가 없습니다."
-    logger.info(f"create_visualization_node state after processing: {state.visualization_output=}, {state.final_answer=}")
+    logger.info("--- Entered create_visualization_node ---")
+    
+    # Validate sql_result upfront
+    if (
+        not state.sql_result or 
+        not isinstance(state.sql_result, list) or
+        (state.sql_result and not all(isinstance(row, dict) for row in state.sql_result))
+    ):
+        logger.warning(f"SQL result is None, not a list of dicts, or empty. Type: {type(state.sql_result)}")
+        state.error_message = "SQL result is None, not a list of dicts, or empty."
+        state.final_answer = "시각화할 SQL 결과가 없거나 올바르지 않은 형식입니다."
+        state.visualization_output = "```mermaid\ngraph TD\n  A[데이터 없음 또는 형식 오류]\n```"
+        return state
+
+    try:
+        llm = ChatOpenAI(model="gpt-4o", temperature=0)
+        # OPENAI_API_KEY는 환경 변수에서 자동으로 로드됩니다.
+
+        # SQL 결과를 JSON 문자열로 변환 (ensure_ascii=False로 한글 처리)
+        # 프롬프트에 너무 긴 내용이 들어가지 않도록 길이 제한
+        sql_result_str = json.dumps(state.sql_result, indent=2, ensure_ascii=False)
+        MAX_PROMPT_SQL_RESULT_LEN = 3500 # LLM 프롬프트 토큰 제한 고려
+        
+        if len(sql_result_str) > MAX_PROMPT_SQL_RESULT_LEN:
+            truncation_note = f"... (내용이 너무 길어 일부가 잘렸습니다. 원본 행 수: {len(state.sql_result)})"
+            sql_result_str = sql_result_str[:MAX_PROMPT_SQL_RESULT_LEN - len(truncation_note) - 10] + "\n" + truncation_note
+            logger.info(f"Mermaid 생성을 위한 SQL 결과가 프롬프트 제한을 초과하여 일부 잘라냈습니다. 원본 길이: {len(sql_result_str)}")
+
+        prompt_text = f"""
+다음은 SQL 쿼리 결과입니다. 이 데이터를 시각적으로 효과적으로 표현할 수 있는 Mermaid 다이어그램(markdown 코드블록, 시작과 끝을 반드시 ```mermaid ... ```로 감쌀 것)과, 해당 시각화가 무엇을 의미하는지 간결한 한국어 설명(답변)을 함께 만들어주세요.
+
+- 데이터의 특성(집계, 분포, 관계, 순서 등)에 따라 pie, bar, line, graph TD, classDiagram, gantt 등 Mermaid에서 제공하는 가장 적합한 다이어그램 타입을 자동으로 선택하세요.
+- pie, bar, line 등 차트가 적합하면 반드시 해당 Mermaid 문법을 사용하세요.
+- 관계나 흐름이 중요하다면 graph TD, flowchart, classDiagram 등으로 그리세요.
+- 마크다운 코드블록 외의 불필요한 설명은 절대 포함하지 마세요.
+- 노드·라벨 이름에 특수문자(", \\n 등)는 Mermaid 문법에 맞게 적절히 이스케이프하거나 제거하세요.
+- 모든 다이어그램 내 텍스트(설명, 노드, 라벨 등)는 반드시 한국어로 작성하세요.
+- 마지막에 "설명:" 이라는 제목 아래, 시각화가 보여주는 핵심 인사이트를 한두 문장으로 한국어로 설명하세요.
+
+SQL 결과:
+```json
+{sql_result_str}
+```
+
+Mermaid 다이어그램과 설명:
+"""
+        messages = [HumanMessage(content=prompt_text)]
+        
+        logger.info(f"LLM에게 Mermaid 다이어그램 생성 요청 중... SQL 결과 (일부): {sql_result_str[:200]}...")
+        
+        response = await llm.ainvoke(messages)
+        llm_output = response.content.strip()
+
+        logger.info(f"LLM이 생성한 Mermaid 내용 (일부): {llm_output[:300]}...")
+
+        # LLM 출력이 올바른 Mermaid 마크다운 블록인지 확인
+        if llm_output.startswith("```mermaid") and llm_output.endswith("```"):
+            state.visualization_output = llm_output
+            state.final_answer = llm_output
+            state.error_message = None
+        else:
+            logger.error(f"LLM이 유효한 Mermaid 마크다운 블록을 반환하지 않았습니다. 출력: {llm_output}")
+            state.error_message = "LLM으로부터 유효한 Mermaid 다이어그램을 받지 못했습니다."
+            state.final_answer = "Mermaid 다이어그램 생성에 실패했습니다. LLM이 올바른 형식을 반환하지 않았습니다."
+            state.visualization_output = "```mermaid\ngraph TD\n  A[LLM 생성 오류: 잘못된 형식]\n```"
+            
+    except Exception as e:
+        logger.error(f"LLM을 통해 Mermaid 다이어그램 생성 중 오류: {e}", exc_info=True)
+        state.error_message = f"LLM Mermaid 다이어그램 생성 중 오류: {str(e)[:100]}"
+        state.final_answer = f"LLM Mermaid 다이어그램 생성 중 오류가 발생했습니다: {str(e)[:100]}"
+        state.visualization_output = "```mermaid\ngraph TD\n  A[오류 발생: 다이어그램 생성 실패]\n```"
+        return state # 예외 발생 시에도 state 반환 보장
+
+        
+    logger.info(f"create_visualization_node state after processing: visualization_output length: {len(state.visualization_output or '')}, final_answer length: {len(state.final_answer or '')}")
     return state
 
 def route_sql_output(state: AgentState) -> Literal["create_visualization_node", "summarize_sql_result_node"]:
@@ -918,9 +1011,10 @@ def _execute_sql_sync(sql_query: str, base_dir_analysis_env: str, base_dir_my_st
         conn = psycopg2.connect(conn_string)
         print(f"_execute_sql_sync: Executing SQL: {sql_query}")
         df = pd.read_sql_query(sql_query, conn)
-        sql_result_str = df.to_string()
-        print(f"_execute_sql_sync: SQL Result (first 200 chars): {sql_result_str[:200]}")
-        return {"sql_result": sql_result_str, "error_message": None}
+        # Instead of converting to string, we return the DataFrame directly.
+        # execute_sql_node will handle converting this DataFrame to a list of dicts.
+        print(f"_execute_sql_sync: SQL query executed successfully. DataFrame shape: {df.shape}, Columns: {df.columns.tolist()}")
+        return df  # Return the DataFrame object directly
     except (psycopg2.Error, pd.io.sql.DatabaseError) as e:
         error_msg = f"_execute_sql_sync: Database error: {e}"
         print(error_msg)

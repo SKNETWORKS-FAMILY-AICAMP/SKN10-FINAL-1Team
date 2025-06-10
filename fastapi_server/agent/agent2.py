@@ -312,9 +312,10 @@ def summarize_node(state: State):
         order = (
             "You are a meeting minutes assistant. When I give you the text of meeting minutes, "
             "first, summarize the meeting topic/purpose, "
-            "second, the key discussion points (preferably in a table format), "
-            "third, the decisions made (as a bulleted list), "
-            "and fourth, any items postponed or for further discussion. "
+            "second, present key discussion points (preferably in a markdown table), "
+            "third, list decisions made (as bullet points), "
+            "and fourth, indicate any postponed or further discussion items. "
+            "For process flows, timelines, or organizational discussions, use mermaid diagrams (such as flowcharts or Gantt charts) where appropriate. "
             "Use markdown tables and formatting to make your response well-structured and readable. "
             "Respond in Korean."
         )
@@ -322,7 +323,7 @@ def summarize_node(state: State):
         order = (
             f"You are a company policy document assistant. When I give you a company document, "
             f"summarize the answer to \"{user_input}\" in no more than 1500 characters. "
-            f"Use markdown tables to organize key policy points where appropriate. "
+            f"Use markdown tables to organize key policy points where appropriate, and if there are policy workflows, approval processes, or organizational structures, visualize them using mermaid diagrams. "
             f"Respond in Korean."
         )
     elif document_type == "product_document":
@@ -330,13 +331,14 @@ def summarize_node(state: State):
             f"You are a product document assistant. When I give you product-related text, "
             f"summarize the answer to \"{user_input}\" in no more than 1500 characters. "
             f"Present product specifications in a table format and use bullet points for features. "
+            f"If describing product architecture, user journeys, or release timelines, use mermaid diagrams for visual clarity. "
             f"Respond in Korean."
         )
     elif document_type == "technical_document":
         order = (
             f"You are a technical document assistant. When I give you technical documentation, "
             f"summarize the answer to \"{user_input}\" in no more than 1500 characters. "
-            f"Use code blocks for examples and present technical concepts in a table format. "
+            f"Use code blocks for examples, present technical concepts in a table format, and for system architectures, workflows, or data flows, use mermaid diagrams. "
             f"Respond in Korean."
         )
     else:
