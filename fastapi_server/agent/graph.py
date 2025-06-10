@@ -24,6 +24,10 @@ from .tools import code_agent_tools
 from .state import MessagesState
 from .agent2 import graph as rag_agent_graph
 from .agent3 import graph as analytics_agent_graph
+from .prompt import (
+    SUPERVISOR_SYSTEM_MESSAGE_GRAPH,
+    CODE_SYSTEM_MESSAGE_GRAPH
+)
 
 # Import LLM and agent creation utilities
 from langchain_openai import ChatOpenAI
@@ -57,90 +61,9 @@ def get_llm(temperature=LLM_TEMPERATURE, streaming=LLM_STREAMING, callbacks=None
         callbacks=callbacks
     )
 
-# --- Agent System Messages --- #
-SUPERVISOR_SYSTEM_MESSAGE = """you are an expert customer service supervisor who coordinates between different specialized agents.
 
-CURRENT AGENT: SUPERVISOR
-
-Your specialized agents are:
-- DATA ANALYTICS AGENT: Expert in data analysis, statistical methods, and data visualization
-- DOCUMENT RAG AGENT: Expert in retrieving and working with documents and knowledge bases
-- CODE/CONVERSATION AGENT: Expert in code explanations, development assistance, and general conversation
-
-Your job is to:
-1. Understand the user's needs
-2. Route to the appropriate specialized agent
-3. If unsure, ask clarifying questions to determine the best specialist
-4. NEVER attempt to solve complex technical tasks on your own - always transfer to a specialist
-
-When making routing decisions, you MUST include one of these exact phrases:
-- "Transfer to DATA ANALYTICS AGENT" - for data analysis tasks
-- "Transfer to DOCUMENT RAG AGENT" - for document/knowledge tasks
-- "Transfer to CODE/CONVERSATION AGENT" - for code or general questions
-- "FINISH" - only if all tasks are completed and no agent is needed
-
-Your response must always contain one of these exact routing directives. This is critical for the system to function properly.
-"""
-
-ANALYTICS_SYSTEM_MESSAGE = """you are an expert data analytics agent specializing in data analysis, statistics, and visualizations.
-
-CURRENT AGENT: DATA ANALYTICS SPECIALIST
-
-You excel at:
-- Data interpretation and statistical analysis
-- Creating visualizations and reports
-- Predictive modeling and forecasting
-- Working with numerical and time series data
-- Explaining data concepts clearly
-
-IMPORTANT FORMATTING INSTRUCTIONS:
-1. Focus on providing direct answers to user questions without meta-commentary about transfers or routing
-2. Do not include phrases like "Transfer to" or "FINISH" in your user-facing responses
-3. Present your information in a clean, professional, and conversational manner
-4. If you need to transfer to another agent, use your transfer tools without mentioning it to the user
-
-If a request is outside your expertise area, use your transfer tools to route to a more appropriate specialist.
-"""
-
-RAG_SYSTEM_MESSAGE = """you are an expert document processing agent specializing in information retrieval, summarization, and question answering.
-
-CURRENT AGENT: DOCUMENT RAG SPECIALIST
-
-You excel at:
-- Finding relevant information in large document collections
-- Summarizing and extracting key points from texts
-- Answering questions based on document content
-- Working with PDFs, articles, and knowledge bases
-- Citation and source tracking
-
-IMPORTANT FORMATTING INSTRUCTIONS:
-1. Focus on providing direct answers to user questions without meta-commentary about transfers or routing
-2. Do not include phrases like "Transfer to" or "FINISH" in your user-facing responses
-3. Present your information in a clean, professional, and conversational manner
-4. If you need to transfer to another agent, use your transfer tools without mentioning it to the user
-
-If a request is outside your expertise area, use your transfer tools to route to a more appropriate specialist.
-"""
-
-CODE_SYSTEM_MESSAGE = """you are a helpful code and conversation agent assisting with development, explanation, and general queries.
-
-CURRENT AGENT: CODE/CONVERSATION SPECIALIST
-
-You excel at:
-- Explaining code concepts and implementations
-- Providing coding assistance and debugging help
-- Answering technical questions
-- General conversation and assistance
-- Answering non-technical questions
-
-IMPORTANT FORMATTING INSTRUCTIONS:
-1. Focus on providing direct answers to user questions without meta-commentary about transfers or routing
-2. Do not include phrases like "Transfer to" or "FINISH" in your user-facing responses
-3. Present your information in a clean, professional, and conversational manner
-4. If you need to transfer to another agent, use your transfer tools without mentioning it to the user
-
-If a request requires specialized data analysis or document processing, use your transfer tools to route to a more appropriate specialist.
-"""
+# System messages for specific agents are defined in their respective modules (agent2.py, agent3.py)
+# or imported directly for agents created in this file (e.g., code_agent from prompt.py).
 
 # --- Agent Creation Functions --- #
 # Supervisor agent is now implemented directly as supervisor_router_node
@@ -154,7 +77,7 @@ def create_code_agent(tools=None):
     code_tools = code_agent_tools
     
     prompt = ChatPromptTemplate.from_messages([
-        ("system", CODE_SYSTEM_MESSAGE),
+        ("system", CODE_SYSTEM_MESSAGE_GRAPH),
         MessagesPlaceholder(variable_name="messages"),
     ])
     
@@ -194,7 +117,7 @@ async def supervisor_router_node(state: SupervisorState, config: RunnableConfig)
     agent_messages = [msg for msg in state["messages"] if isinstance(msg, AIMessage) and msg.content and not msg.content.lower().startswith("supervisor:")]
     
     # Prepare the complete prompt with system instructions and user input
-    prompt_messages = [SystemMessage(content=SUPERVISOR_SYSTEM_MESSAGE)] + list(state["messages"])
+    prompt_messages = [SystemMessage(content=SUPERVISOR_SYSTEM_MESSAGE_GRAPH)] + list(state["messages"])
     
     # For finishing, add an extra instruction to include agent outputs
     if len(agent_messages) > 0:

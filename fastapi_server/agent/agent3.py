@@ -30,6 +30,12 @@ from datetime import datetime
 import re # Added import for regex
 import json # Added for direct OpenAI call
 from openai import OpenAI # Added for direct OpenAI call
+from fastapi_server.agent.prompt import (
+    supervisor_chat_prompt_agent3,
+    sql_generation_chat_prompt_agent3,
+    sql_result_summary_chat_prompt_agent3,
+    general_chat_prompt_agent3
+)
 
 # Setup logger for agent3
 logger = logging.getLogger(__name__)
@@ -82,160 +88,6 @@ class AgentState(BaseModel):
 # Ensure OPENAI_API_KEY is set in your environment or passed via config
 llm = ChatOpenAI(temperature=0, model="gpt-4o") # Or your preferred model
 
-# MODIFIED: Changed supervisor_prompt to a ChatPromptTemplate for history
-supervisor_chat_prompt = ChatPromptTemplate.from_messages([
-    SystemMessage(content="""You are an expert routing assistant. Based on the entire conversation history,
-analyze the LATEST user's question to determine the query type.
-Respond with a JSON object. The JSON object MUST contain a 'query_type' field
-set to one of 'db_query', 'category_predict_query', or 'general_query'.
-Focus on the most recent user message for the specific question, but use the provided history for context if needed.
-Example: If the user asks '오늘 날씨 어때?', respond with {"query_type": "general_query"}.
-Example: If the user asks '지난 달 사용자 분석해줘', respond with {"query_type": "db_query"}.
-Example: If the user asks '이 고객은 어떤 상품을 살 것 같아?', respond with {"query_type": "category_predict_query"}."""),
-    MessagesPlaceholder(variable_name="messages")
-])
-
-# MODIFIED: Changed sql_generation_prompt to ChatPromptTemplate
-sql_generation_chat_prompt = ChatPromptTemplate.from_messages([
-    SystemMessage(content="""You are an expert SQL generation assistant. Based on the user's question from the conversation history and the database schema provided, 
-generate an accurate SQL query. \n\n
-Database Schema Information:\n
-You have access to the following tables and columns. Use this information to construct your queries.\n
-Ensure all column and table names match exactly as provided in the schema.\n
-If a user asks for information that requires joining tables, please construct the join correctly.\n
-If a user's question is ambiguous or lacks detail for a precise query, ask for clarification rather than guessing.\n
-Always prioritize accuracy and correctness of the SQL query.\n
-If the question implies a date range (e.g., 'last month', 'this year'), calculate the specific dates and use them in the WHERE clause.\n
-Today's date is {{current_date}}.\n\n
-Database Schema Information:
-
-Table Name: analytics_results
-Columns:
-  - id (uuid)
-  - result_type (character varying)
-  - s3_key (text)
-  - meta (jsonb)
-  - created_at (timestamp with time zone)
-  - user_id (uuid)
-
-Table Name: chat_messages
-Columns:
-  - id (uuid)
-  - role (character varying)
-  - content (text)
-  - created_at (timestamp with time zone)
-  - session_id (uuid)
-  - metadata (text)
-
-Table Name: chat_sessions
-Columns:
-  - id (uuid)
-  - agent_type (character varying)
-  - started_at (timestamp with time zone)
-  - ended_at (timestamp with time zone)
-  - user_id (uuid)
-  - title (character varying)
-
-Table Name: llm_calls
-Columns:
-  - id (uuid)
-  - call_type (character varying)
-  - prompt (text)
-  - response (text)
-  - tokens_used (integer)
-  - latency_ms (integer)
-  - created_at (timestamp with time zone)
-  - user_id (uuid)
-  - session_id (uuid)
-
-Table Name: model_artifacts
-Columns:
-  - id (uuid)
-  - artifact_type (character varying)
-  - s3_key (text)
-  - meta (jsonb)
-  - created_at (timestamp with time zone)
-  - user_id (uuid)
-
-
-Table Name: organizations
-Columns:
-  - id (uuid)
-  - name (character varying)
-  - created_at (timestamp with time zone)
-
-Table Name: summary_news_keywords
-Columns:
-  - id (uuid)
-  - date (date)
-  - keyword (text)
-  - title (text)
-  - summary (text)
-  - url (text)
-
-Table Name: telecom_customers
-Columns:
-  - customer_id (character varying)
-  - gender (character varying)
-  - senior_citizen (boolean)
-  - partner (boolean)
-  - dependents (boolean)
-  - tenure (integer)
-  - phone_service (boolean)
-  - multiple_lines (character varying)
-  - internet_service (character varying)
-  - online_security (character varying)
-  - online_backup (character varying)
-  - device_protection (character varying)
-  - tech_support (character varying)
-  - streaming_tv (character varying)
-  - streaming_movies (character varying)
-  - contract (character varying)
-  - paperless_billing (boolean)
-  - payment_method (character varying)
-  - monthly_charges (numeric)
-  - total_charges (numeric)
-  - churn (boolean)
-
-Table Name: users
-Columns:
-  - password (character varying)
-  - is_superuser (boolean)
-  - id (uuid)
-  - email (character varying)
-  - name (character varying)
-  - role (character varying)
-  - created_at (timestamp with time zone)
-  - last_login (timestamp with time zone)
-  - is_active (boolean)
-  - is_staff (boolean)
-  - org_id (uuid)
-Respond with a JSON object that strictly adheres to the Pydantic model `SQLGenerationOutput` shown below.\n
-The `sql_query` field MUST contain ONLY the SQL query string, without any surrounding text, explanations, or markdown formatting like ```sql.\n
-The `sql_output_choice` field must be one of 'summarize' or 'visualize'. Choose 'visualize' if the user asks for a chart, graph, or any visual representation, or if the query result is likely to be complex and better understood visually (e.g., time series data, comparisons across multiple categories). Otherwise, choose 'summarize'."""),
-    MessagesPlaceholder(variable_name="messages")
-])
-
-# MODIFIED: Changed sql_result_summary_prompt to ChatPromptTemplate with explicit SQL details
-sql_result_summary_chat_prompt = ChatPromptTemplate.from_messages([
-    SystemMessage(content="""You are an AI assistant that summarizes SQL query results in Korean. 
-Provide a concise and clear natural language answer based on the user's question (from the end of the conversation history) and the SQL query result.
-If the result is empty or indicates no data, state that clearly in Korean.
-Always respond in Korean regardless of how the question is asked.
-
-You MUST use the SQL result provided to answer the question. Focus on providing a direct, helpful answer that explains what the data shows.
-
-For example, if the SQL returns a count of 22 chat sessions, say "총 22개의 채팅 세션이 있습니다." Don't simply acknowledge receipt of the SQL - actually interpret the result and answer the question."""),
-    MessagesPlaceholder(variable_name="messages"),
-    HumanMessage(content="다음은 SQL 쿼리와 그 결과입니다:\n\nSQL 쿼리: {sql_query}\n\nSQL 결과:\n{sql_result}\n\n위 정보를 바탕으로 질문에 대한 답변을 한국어로 작성해주세요.")
-])
-
-# MODIFIED: Changed general_answer_prompt to ChatPromptTemplate
-general_chat_prompt = ChatPromptTemplate.from_messages([
-    SystemMessage(content="Please answer the user's question based on our conversation history. Provide the answer in Korean if the user is speaking Korean or requests it."),
-    MessagesPlaceholder(variable_name="messages")
-])
-
 # --- Helper function for OpenAI API message format ---
 def _lc_messages_to_openai_format(lc_messages: List[BaseMessage]) -> List[Dict[str, str]]:
     openai_messages = []
@@ -267,7 +119,7 @@ async def supervisor_node(state: AgentState, config: Optional[RunnableConfig] = 
         state.query_type = "general_query" # Fallback, or handle error appropriately
         state.error_message = "No input message found."
         return state
-
+        
     logger.debug(f"Supervisor_node: Current messages: {state.messages}")
     
     # The user_query is still useful for logging or if other parts need it, 
@@ -284,15 +136,14 @@ async def supervisor_node(state: AgentState, config: Optional[RunnableConfig] = 
             return state
 
     logger.info(f"Supervisor_node: User query for routing: '{state.user_query}'")
-    logger.debug(f"Supervisor_node: Full messages for prompt: {state.messages}")
-
-    # chain = supervisor_chat_prompt | llm.with_structured_output(SupervisorDecision) # Replaced with direct OpenAI call
+    logger.info(f"Invoking supervisor_chat_prompt_agent3 with messages: {state.messages}")
+    chain = supervisor_chat_prompt_agent3 | llm | JsonOutputParser(pydantic_object=SupervisorDecision) # Replaced with direct OpenAI call
     client = OpenAI()
     
     try:
         # Construct System Prompt for OpenAI API
         # supervisor_chat_prompt.messages[0] is the SystemMessage
-        system_prompt_content = supervisor_chat_prompt.messages[0].content
+        system_prompt_content = supervisor_chat_prompt_agent3.messages[0].content
 
         openai_api_messages = [{"role": "system", "content": system_prompt_content}]
         openai_api_messages.extend(_lc_messages_to_openai_format(state.messages))
@@ -333,14 +184,14 @@ async def generate_sql_node(state: AgentState, config: Optional[RunnableConfig] 
     logger.debug(f"generate_sql_node: User query from state: {state.user_query}") # user_query might be stale, messages is source of truth
     logger.debug(f"generate_sql_node: Full messages for prompt: {state.messages}")
 
-    # Prepare the chain with the new chat prompt
-    # chain = sql_generation_chat_prompt | llm.with_structured_output(SQLGenerationOutput) # Replaced with direct OpenAI call
+    logger.info(f"Invoking sql_generation_chat_prompt_agent3 with messages: {state.messages}")
+    chain = sql_generation_chat_prompt_agent3 | llm | JsonOutputParser(pydantic_object=SQLGenerationOutput) # Replaced with direct OpenAI call
     client = OpenAI()
 
     try:
         current_date_str = datetime.now().strftime("%Y-%m-%d")
         # sql_generation_chat_prompt.messages[0] is the SystemMessage
-        system_prompt_template = sql_generation_chat_prompt.messages[0].content
+        system_prompt_template = sql_generation_chat_prompt_agent3.messages[0].content
         system_prompt_content_sql = system_prompt_template.replace("{{current_date}}", current_date_str)
 
         openai_api_messages_sql = [{"role": "system", "content": system_prompt_content_sql}]
@@ -506,7 +357,7 @@ async def summarize_sql_result_node(state: AgentState, config: Optional[Runnable
         messages_with_sql.append(explicit_sql_message)
         
         # 체인 구성 및 호출
-        chain = sql_result_summary_chat_prompt | llm
+        chain = sql_result_summary_chat_prompt_agent3 | llm
         response = await chain.ainvoke(
             {
                 "messages": messages_with_sql, 
@@ -540,9 +391,8 @@ async def general_question_node(state: AgentState, config: Optional[RunnableConf
         return state
 
     logger.debug(f"Answering general question from user query (from state): {state.user_query}")
-    logger.debug(f"Full messages for prompt: {state.messages}")
-
-    chain = general_chat_prompt | llm
+    logger.info(f"Invoking general_chat_prompt_agent3 with messages: {state.messages}")
+    chain = general_chat_prompt_agent3 | llm
     try:
         # Pass the full message history to the chain
         response = await chain.ainvoke({"messages": state.messages}, config=config)
@@ -795,13 +645,13 @@ async def create_visualization_node(state: AgentState, config: Optional[Runnable
         return state
 
     try:
-        llm = ChatOpenAI(model="gpt-4o", temperature=0)
+        llm = ChatOpenAI(model="gpt-4.1-2025-04-14", temperature=0)
         # OPENAI_API_KEY는 환경 변수에서 자동으로 로드됩니다.
 
         # SQL 결과를 JSON 문자열로 변환 (ensure_ascii=False로 한글 처리)
         # 프롬프트에 너무 긴 내용이 들어가지 않도록 길이 제한
         sql_result_str = json.dumps(state.sql_result, indent=2, ensure_ascii=False)
-        MAX_PROMPT_SQL_RESULT_LEN = 3500 # LLM 프롬프트 토큰 제한 고려
+        MAX_PROMPT_SQL_RESULT_LEN = 8000 # LLM 프롬프트 토큰 제한 고려
         
         if len(sql_result_str) > MAX_PROMPT_SQL_RESULT_LEN:
             truncation_note = f"... (내용이 너무 길어 일부가 잘렸습니다. 원본 행 수: {len(state.sql_result)})"
@@ -809,15 +659,111 @@ async def create_visualization_node(state: AgentState, config: Optional[Runnable
             logger.info(f"Mermaid 생성을 위한 SQL 결과가 프롬프트 제한을 초과하여 일부 잘라냈습니다. 원본 길이: {len(sql_result_str)}")
 
         prompt_text = f"""
+        [사용자 질문]
+    {state.user_query}
 다음은 SQL 쿼리 결과입니다. 이 데이터를 시각적으로 효과적으로 표현할 수 있는 Mermaid 다이어그램(markdown 코드블록, 시작과 끝을 반드시 ```mermaid ... ```로 감쌀 것)과, 해당 시각화가 무엇을 의미하는지 간결한 한국어 설명(답변)을 함께 만들어주세요.
 
-- 데이터의 특성(집계, 분포, 관계, 순서 등)에 따라 pie, bar, line, graph TD, classDiagram, gantt 등 Mermaid에서 제공하는 가장 적합한 다이어그램 타입을 자동으로 선택하세요.
-- pie, bar, line 등 차트가 적합하면 반드시 해당 Mermaid 문법을 사용하세요.
-- 관계나 흐름이 중요하다면 graph TD, flowchart, classDiagram 등으로 그리세요.
-- 마크다운 코드블록 외의 불필요한 설명은 절대 포함하지 마세요.
-- 노드·라벨 이름에 특수문자(", \\n 등)는 Mermaid 문법에 맞게 적절히 이스케이프하거나 제거하세요.
-- 모든 다이어그램 내 텍스트(설명, 노드, 라벨 등)는 반드시 한국어로 작성하세요.
-- 마지막에 "설명:" 이라는 제목 아래, 시각화가 보여주는 핵심 인사이트를 한두 문장으로 한국어로 설명하세요.
+        - 데이터의 특성(집계, 분포, 관계, 순서 등)에 따라 다음 Mermaid 다이어그램 타입 중에서 가장 적합한 것을 자동으로 선택하여 생성해주세요. 각 타입의 예시와 간단한 설명은 다음과 같습니다. (실제 데이터에 맞게 내용을 채우고, 모든 텍스트는 한국어로 작성해야 합니다):
+
+          - **Pie Chart (pie):** 데이터 항목들의 전체에 대한 비율을 원형으로 표현합니다. 각 조각의 크기가 해당 항목의 비율을 나타냅니다.
+            예시:
+            ```mermaid
+            pie title 월별 지출 비율
+                "식비" : 40
+                "교통비" : 20
+                "공과금" : 15
+                "여가" : 25
+            ```
+
+          - **Line Chart (xyChart 사용):** 시간 경과나 순서에 따른 데이터 값의 변화 추세를 선으로 연결하여 보여줍니다. (Mermaid 최신 버전에서는 xyChart 사용 권장)
+            예시:
+            ```mermaid
+            xychart-beta
+                title "월별 웹사이트 방문자 수"
+                x-axis "월" ["1월", "2월", "3월", "4월", "5월"]
+                y-axis "방문자 수" 0 --> 1000
+                line [300, 450, 600, 500, 750]
+            ```
+
+          - **Bar Chart (xyChart 사용):** 데이터 항목들의 값을 막대로 표현하여 비교합니다. `xyChart`를 사용하여 바 차트도 그릴 수 있습니다.
+            예시:
+            ```mermaid
+            xychart-beta
+                title "분기별 제품 판매량"
+                x-axis "분기" ["1분기", "2분기", "3분기", "4분기"]
+                y-axis "판매량 (단위: 개)" 0 --> 200
+                bar [80, 120, 150, 100]
+            ```
+
+          - **Graph TD (Flowchart):** 작업, 프로세스, 시스템 구성 요소 간의 순서, 흐름, 관계를 노드와 화살표로 표현합니다.
+            예시:
+            ```mermaid
+            graph TD
+                A[데이터 입력] --> B(데이터 처리);
+                B --> C{{조건 분기}};
+                C -- 조건1 --> D[결과 A];
+                C -- 조건2 --> E[결과 B];
+            ```
+
+          - **C4Context Diagram:** 소프트웨어 시스템과 그 주변 환경(사용자, 외부 시스템) 간의 상호작용을 높은 수준에서 개략적으로 보여주는 아키텍처 다이어그램입니다.
+            예시:
+            ```mermaid
+            C4Context
+              title 온라인 쇼핑몰 시스템 컨텍스트
+              Enterprise_Boundary(b0, "회사 시스템 경계") {{
+                Person(customer, "고객", "상품을 구매하는 사용자")
+                System(shoppingMall, "온라인 쇼핑몰", "상품 검색, 주문, 결제 기능 제공")
+
+                System_Ext(paymentGateway, "결제 시스템", "외부 PG사 연동")
+                System_Ext(deliverySystem, "배송 시스템", "외부 배송 업체 연동")
+              }}
+
+              Rel(customer, shoppingMall, "상품 주문")
+              Rel(shoppingMall, paymentGateway, "결제 요청")
+              Rel(shoppingMall, deliverySystem, "배송 요청")
+            ```
+
+          - **Class Diagram:** 시스템을 구성하는 클래스들의 속성, 오퍼레이션(메서드) 및 클래스 간의 관계(상속, 연관, 의존 등)를 시각화합니다.
+            예시:
+            ```mermaid
+            classDiagram
+              주문 <|-- 일반주문
+              주문 <|-- 특별주문
+              주문 : +String 주문번호
+              주문 : +Date 주문일자
+              주문 : +calculateTotalPrice()
+              class 일반주문{{
+                  +String 배송지
+                  +calculateShippingCost()
+              }}
+              class 고객{{
+                  +String 이름
+                  +List<주문> 주문내역
+                  +placeOrder(주문)
+              }}
+              고객 "1" -- "*" 주문 : 주문한다
+            ```
+
+          - **Gantt Chart:** 프로젝트의 작업(태스크) 목록, 각 작업의 시작일, 종료일, 기간 등을 시간 축에 막대로 표시하여 일정 관리에 사용됩니다.
+            예시:
+            ```mermaid
+            gantt
+                dateFormat  YYYY-MM-DD
+                title       프로젝트 A 진행 현황
+                excludes    weekends
+
+                section 기획 단계
+                요구사항 분석    :task1, 2024-01-01, 7d
+                화면 설계       :task2, after task1, 5d
+
+                section 개발 단계
+                기능 개발      :task3, after task2, 20d
+                테스트         :task4, after task3, 10d
+            ```
+        - 마크다운 코드블록 외의 불필요한 설명은 절대 포함하지 마세요.
+        - 노드·라벨 이름에 특수문자(", \\n 등)는 Mermaid 문법에 맞게 적절히 이스케이프하거나 제거하세요.
+        - 모든 다이어그램 내 텍스트(설명, 노드, 라벨 등)는 반드시 한국어로 작성하세요.
+        - 마지막에 "설명:" 이라는 제목 아래, 시각화가 보여주는 핵심 인사이트를 한두 문장으로 한국어로 설명하세요.
 
 SQL 결과:
 ```json
