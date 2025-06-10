@@ -6,7 +6,7 @@ from typing import TypedDict, Dict, Sequence, Union, Optional, Any
 import asyncio
 
 from asgiref.sync import sync_to_async
-from langchain_core.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate, SystemMessagePromptTemplate,HumanMessagePromptTemplate,ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from dotenv import load_dotenv
@@ -191,11 +191,12 @@ def choose_document_type(message):
     """
     Langchain LLM을 사용하여 문서 타입을 분류합니다. 리턴 데이터 형식은 기존과 동일하게 유지합니다.
     """
-    llm = ChatOpenAI(temperature=0, model_name='gpt-3.5-turbo') # 또는 다른 모델
+    llm = ChatOpenAI(temperature=0, model_name='gpt-4o-mini') # 또는 다른 모델
     prompt = PromptTemplate.from_template(document_type_system_prompt_agent2)
     chain = prompt | llm
     
-    response = chain.ainvoke({"input": message})
+    response = chain.invoke({"user_input": message})
+    
     classified_type = response.content.strip()
     print(f"문서 타입 분류 결과: {classified_type}")
     return classified_type
