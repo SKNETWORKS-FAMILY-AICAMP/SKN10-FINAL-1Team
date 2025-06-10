@@ -13,13 +13,18 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pinecone import Pinecone, ServerlessSpec
 from langchain.chat_models import ChatOpenAI
-from langchain.prompts.chat import (
-    ChatPromptTemplate,
-    SystemMessagePromptTemplate,
-    HumanMessagePromptTemplate,
-)
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langgraph.graph.message import add_messages
+from fastapi_server.agent.prompt import (
+    document_type_system_prompt_agent2,
+    proceedings_summary_prompt_agent2,
+    internal_policy_summary_prompt_template_agent2,
+    product_document_summary_prompt_template_agent2,
+    technical_document_summary_prompt_template_agent2,
+    unknown_document_type_prompt_agent2,
+    rag_answer_generation_prompt_agent2,
+    rag_system_message_agent2
+)
 load_dotenv()
 
 def init_clients():
@@ -138,19 +143,12 @@ def generate_answer_with_context(openai_client: OpenAI, question: str, context: 
     """
     최신 OpenAI 클라이언트에서는 client.chat.completions.create(...) 형태를 씁니다.
     """
-    prompt = f"""아래 Context를 참고해서 질문에 답변해주세요.
-
-    Context:
-    {context}
-
-    질문:
-    {question}
-    """
+    formatted_prompt = rag_answer_generation_prompt_agent2.format(context=context, question=question)
     resp = openai_client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "당신은 친절한 어시스턴트입니다."},
-            {"role": "user", "content": prompt}
+            {"role": "system", "content": rag_system_message_agent2},
+            {"role": "user", "content": formatted_prompt}
         ],
         temperature=0.0,
         max_tokens=1024
@@ -191,43 +189,23 @@ class State:
 
 def choose_document_type(message):
     """
-    OpenAI API를 직접 사용하여 문서 타입을 분류합니다. 리턴 데이터 형식은 기존과 동일하게 유지합니다.
+    Langchain LLM을 사용하여 문서 타입을 분류합니다. 리턴 데이터 형식은 기존과 동일하게 유지합니다.
     """
-    from openai import OpenAI
-    import os
-
-    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-    client = OpenAI(api_key=OPENAI_API_KEY)
-
-    system_prompt = (
-        "The user's question is: '{input}'. "
-        "Analyze the question and categorize it into one of these document types: product, hr_policy, technical_document, proceedings. "
-        "Respond with EXACTLY ONE of these four values: 'product_document' for Product-related questions, "
-        "'proceedings' for Meeting Proceedings, 'internal_policy' for HR Policy documents, or "
-        "'technical_document' for Technical Documentation. "
-        "You must ONLY respond with one of these four exact values, without any additional text or explanation."
-    ).replace("{input}", message)
-
-    resp = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": system_prompt}
-        ],
-        temperature=0.0,
-        max_tokens=16
-    )
-    # langchain의 .content와 호환되게 객체 흉내냄
-    class ResponseTemp:
-        def __init__(self, content):
-            self.content = content
-    return ResponseTemp(resp.choices[0].message.content.strip())
+    llm = ChatOpenAI(temperature=0, model_name='gpt-3.5-turbo') # 또는 다른 모델
+    prompt = PromptTemplate.from_template(document_type_system_prompt_agent2)
+    chain = prompt | llm
+    
+    response = chain.ainvoke({"input": message})
+    classified_type = response.content.strip()
+    print(f"문서 타입 분류 결과: {classified_type}")
+    return classified_type
 
 def choose_node(state: State):
     # Extract the user input from the state
     user_input = state.user_input
 
     # Choose document type
-    document_type = choose_document_type(user_input).content.strip().lower()
+    document_type = choose_document_type(user_input)
     
     # Update state with document type
     state.document_type = document_type
@@ -306,47 +284,19 @@ def summarize_node(state: State):
     text = state.result
     document_type = state.document_type
     user_input = state.user_input
-    order = ""
 
-    if document_type == "proceedings":
-        order = (
-            "You are a meeting minutes assistant. When I give you the text of meeting minutes, "
-            "first, summarize the meeting topic/purpose, "
-            "second, present key discussion points (preferably in a markdown table), "
-            "third, list decisions made (as bullet points), "
-            "and fourth, indicate any postponed or further discussion items. "
-            "For process flows, timelines, or organizational discussions, use mermaid diagrams (such as flowcharts or Gantt charts) where appropriate. "
-            "Use markdown tables and formatting to make your response well-structured and readable. "
-            "Respond in Korean."
-        )
-    elif document_type == "internal_policy":
-        order = (
-            f"You are a company policy document assistant. When I give you a company document, "
-            f"summarize the answer to \"{user_input}\" in no more than 1500 characters. "
-            f"Use markdown tables to organize key policy points where appropriate, and if there are policy workflows, approval processes, or organizational structures, visualize them using mermaid diagrams. "
-            f"Respond in Korean."
-        )
-    elif document_type == "product_document":
-        order = (
-            f"You are a product document assistant. When I give you product-related text, "
-            f"summarize the answer to \"{user_input}\" in no more than 1500 characters. "
-            f"Present product specifications in a table format and use bullet points for features. "
-            f"If describing product architecture, user journeys, or release timelines, use mermaid diagrams for visual clarity. "
-            f"Respond in Korean."
-        )
-    elif document_type == "technical_document":
-        order = (
-            f"You are a technical document assistant. When I give you technical documentation, "
-            f"summarize the answer to \"{user_input}\" in no more than 1500 characters. "
-            f"Use code blocks for examples, present technical concepts in a table format, and for system architectures, workflows, or data flows, use mermaid diagrams. "
-            f"Respond in Korean."
-        )
-    else:
-        order = (
-            "You are a text assistant. Respond in Korean. No matter what text you receive, "
-            "just respond with this message. 'I could not determine the type of document you requested... sorry.'"
-        )
-    system_message = SystemMessagePromptTemplate.from_template(order)
+    if state.document_type == "proceedings":
+        system_message = proceedings_summary_prompt_agent2
+    elif state.document_type == "internal_policy":
+        system_message = internal_policy_summary_prompt_template_agent2.format(user_input=user_input)
+    elif state.document_type == "product_document":
+        system_message = product_document_summary_prompt_template_agent2.format(user_input=user_input)
+    elif state.document_type == "technical_document":
+        system_message = technical_document_summary_prompt_template_agent2.format(user_input=user_input)
+    else: # unknown or fallback
+        system_message = unknown_document_type_prompt_agent2
+    
+    system_message = SystemMessagePromptTemplate.from_template(system_message)
     human_message = HumanMessagePromptTemplate.from_template("{text}")
 
     chat_prompt = ChatPromptTemplate.from_messages([system_message, human_message])
