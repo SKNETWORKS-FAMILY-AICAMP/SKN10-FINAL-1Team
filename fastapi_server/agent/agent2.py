@@ -189,15 +189,21 @@ class State:
 
 def choose_document_type(message):
     """
-    Langchain LLM을 사용하여 문서 타입을 분류합니다. 리턴 데이터 형식은 기존과 동일하게 유지합니다.
+    OpenAI 클라이언트를 사용하여 문서 타입을 분류합니다. 리턴 데이터 형식은 기존과 동일하게 유지합니다.
     """
-    llm = ChatOpenAI(temperature=0, model_name='gpt-4o-mini') # 또는 다른 모델
-    prompt = PromptTemplate.from_template(document_type_system_prompt_agent2)
-    chain = prompt | llm
+    client = OpenAI()
+    formatted_prompt = document_type_system_prompt_agent2.format(user_input=message)
     
-    response = chain.invoke({"user_input": message})
+    resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": formatted_prompt}
+        ],
+        temperature=0,
+        max_tokens=100
+    )
     
-    classified_type = response.content.strip()
+    classified_type = resp.choices[0].message.content.strip()
     print(f"문서 타입 분류 결과: {classified_type}")
     return classified_type
 

@@ -19,6 +19,7 @@ interface ChatMessageProps {
     agentType?: string;
     id?: string;
   };
+  isStreaming?: boolean; // 스트리밍 상태를 나타내는 prop 추가
 }
 
 // 머메이드 다이어그램 감지 함수
@@ -172,7 +173,7 @@ const MermaidDiagram = memo(({ chart }: { chart: string }) => {
 
 MermaidDiagram.displayName = "MermaidDiagram"
 
-export function ChatMessage({ message }: ChatMessageProps) {
+export function ChatMessage({ message, isStreaming }: ChatMessageProps) {
   const [copied, setCopied] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
 
@@ -266,8 +267,18 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
                       // Special handling for Mermaid diagrams
                       if (language?.toLowerCase() === 'mermaid') {
-                        const mermaidCode = String(children).trim()
-                        return mermaidCode ? <MermaidDiagram chart={mermaidCode} /> : null
+                        const mermaidCode = String(children).trim();
+                        if (isStreaming) {
+                          // 스트리밍 중에는 Mermaid 코드를 텍스트로 표시
+                          return (
+                            <div className="my-4 p-4 bg-slate-100 dark:bg-slate-800 rounded-md">
+                              <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">Mermaid 다이어그램 로딩 중...</p>
+                              <pre className="text-xs whitespace-pre-wrap"><code>{mermaidCode}</code></pre>
+                            </div>
+                          );
+                        }
+                        // 스트리밍 완료 시 다이어그램 렌더링
+                        return mermaidCode ? <MermaidDiagram chart={mermaidCode} /> : null;
                       }
 
                       return (
