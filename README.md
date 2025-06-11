@@ -58,19 +58,3 @@
 *   **일정/이슈 관리**: GitHub Project를 활용하여 업무 이슈 등록, 담당자 배정, 진행 상황 추적.
 *   **커뮤니케이션**: Discord, KakaoTalk 등을 활용하여 실시간 소통.
 *   **기술 스터디**: LangGraph, LangSmith, Pinecone 사용법 등 핵심 기술에 대한 팀원 간 스터디 진행.
-
-```mermaid
-mindmap
-  root((SKN10-FINAL-1Team))
-  ::icon(fa fa-robot)
-    개요
-      지능형 사내 업무 보조 챗봇 시스템 
-      AI 기반 데이터 분석 및 채팅 애플리케이션 
-      핵심 구성 요소 탐험 
-    데이터 설계도 (Django 모델)
-      애플리케이션의 근본 뼈대 
-      정보 저장 방식 정의 
-      models.py 파일에 정의 
-      사용자 정보, 대화 내용 관리 
-      기능별 설계도 (knowledge, mlops 등) 
-```
