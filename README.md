@@ -14,22 +14,18 @@
 
 ## 기술 스택
 *   **백엔드/AI**:
-    *   웹 프레임워크: **Django** (애플리케이션 데이터 설계 및 전통적인 API 연동)
-    *   AI 통신 게이트웨이: **FastAPI** (실시간 통신 처리 및 에이전트 시스템 연동)
-    *   실시간 통신: **WebSocket**
-    *   AI 오케스트레이션: **LangGraph** (다양한 에이전트들의 작업 흐름 및 협업 설계)
-    *   LLM: **GPT 모델** (주요 모델), 필요에 따라 **Local LLM** (Qwen 1.5 32B 등) 서빙 (Runpod 활용), 다른 오픈소스 모델 (Mistral 등) 및 상용 모델 (Claude, Gemini) 고려.
-    *   임베딩 모델: **BGE-M3** (Dense 및 Sparse 벡터 생성 지원). OpenAI 임베딩 모델도 사용됨.
-    *   벡터 데이터베이스: **Pinecone** (문서 임베딩 저장 및 검색), PostgreSQL w/ pgvector (논의됨). 하이브리드 서치 및 리랭킹 기능 고려.
-    *   관계형 데이터베이스: **PostgreSQL** (사용자 정보, 채팅 내용, 분석 결과, 정형 데이터셋 등 저장).
-    *   객체 스토리지: **AWS S3** (업로드 파일, 원본 문서, 모델 저장 등).
-    *   ETL 스크립트: **Python** (requests, psycopg2, tqdm, pdfplumber, beautifulsoup, OpenAI API 등 활용).
-    *   배포: **AWS EC2**, **Runpod** (VLLM 서빙).
-    *   툴 호출 표준: **MCP** (논의됨).
-    *   AI 개발 환경: **LangSmith** (LangGraph 흐름 설계 및 디버깅).
-*   **프론트엔드**:
-    *   프레임워크: **Next.js** (React 기반).
-    *   UI/UX 디자인: **Figma** (별도 작업).
+    *   웹 프레임워크: ![Django](https://img.shields.io/badge/Django-092E20?style=flat-square&logo=django&logoColor=white) (애플리케이션 데이터 설계 및 전통적인 API 연동)
+    *   AI 통신 게이트웨이: ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white) (실시간 통신 처리 및 에이전트 시스템 연동)
+    *   실시간 통신: ![WebSocket](https://img.shields.io/badge/WebSocket-4353FF?style=flat-square&logo=socketdotio&logoColor=white)
+    *   AI 오케스트레이션: ![LangGraph](https://img.shields.io/badge/LangGraph-FF5A5F?style=flat-square&logo=langchain&logoColor=white) (다양한 에이전트들의 작업 흐름 및 협업 설계)
+    *   LLM: ![GPT](https://img.shields.io/badge/GPT-74aa9c?style=flat-square&logo=openai&logoColor=white) (주요 모델), 필요에 따라 ![Local LLM](https://img.shields.io/badge/Local_LLM-4B32C3?style=flat-square&logo=artificial-intelligence&logoColor=white) (Qwen3 32B 등) 서빙 (Runpod 활용), 다른 오픈소스 모델 (Mistral 등) 및 상용 모델 (Claude, Gemini) 고려.
+    *   임베딩 모델: ![OpenAI Embeddings](https://img.shields.io/badge/OpenAI_Embeddings-74aa9c?style=flat-square&logo=openai&logoColor=white) (문서 및 쿼리 벡터 생성)
+    *   벡터 데이터베이스: ![Pinecone](https://img.shields.io/badge/Pinecone-000000?style=flat-square&logo=pinecone&logoColor=white) (문서 임베딩 저장 및 검색), ![PostgreSQL](https://img.shields.io/badge/PostgreSQL_pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white) (논의됨). 하이브리드 서치 및 리랭킹 기능 고려.
+    *   관계형 데이터베이스: ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white) (사용자 정보, 채팅 내용, 분석 결과, 정형 데이터셋 등 저장).
+    *   객체 스토리지: ![AWS S3](https://img.shields.io/badge/AWS_S3-569A31?style=flat-square&logo=amazons3&logoColor=white) (업로드 파일, 원본 문서, 모델 저장 등).
+    *   ETL 스크립트: ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) ![AWS Lambda](https://img.shields.io/badge/AWS_Lambda-FF9900?style=flat-square&logo=awslambda&logoColor=white) (requests, psycopg2, tqdm, pdfplumber, beautifulsoup, OpenAI API 등 활용).
+    *   배포: ![AWS EC2](https://img.shields.io/badge/AWS_EC2-FF9900?style=flat-square&logo=amazonec2&logoColor=white), ![Runpod](https://img.shields.io/badge/Runpod-6C47FF?style=flat-square&logo=runpod&logoColor=white) (VLLM 서빙).
+    *   툴 호출 표준: ![MCP](https://img.shields.io/badge/MCP-007ACC?style=flat-square&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAqFBMVEX///8AAP8AgP8AgIAAgIBVVaoAYIBAgIBAYGBAYIBJbYBJbXFJbW1Nc21NbnZNbnFNbm1QcXFQcXZQcW1SdG1SdHFSdG1VVXFVVXZVVXFVVWpVVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1)
 
 ## 팀원 및 역할 (Roles and Responsibilities)
 | 이름 | 이미지 | 역할 |
