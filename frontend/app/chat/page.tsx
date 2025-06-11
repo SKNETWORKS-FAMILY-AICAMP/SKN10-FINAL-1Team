@@ -558,8 +558,17 @@ export default function ChatPage() {
                 </div>
               ) : (
                 <>
-                  {messages.map((message) => (
-                    <ChatMessageComponent key={message.id} message={message} />
+                  {messages.map((message, index) => (
+                    <ChatMessageComponent
+                      key={message.id}
+                      message={message}
+                      isStreaming={ // 스트리밍 상태를 ChatMessageComponent에 전달
+                        message.role === 'assistant' &&
+                        index === messages.length - 1 &&
+                        isLoading &&
+                        isReceivingResponse
+                      }
+                    />
                   ))}
                   {isLoading && !isReceivingResponse && (
                     <div className="flex items-start gap-3">
