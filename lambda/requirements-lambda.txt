@@ -1,0 +1,3 @@
+requests==2.31.0
+# psycopg2-binary==2.9.9 이건 람다에서 사용할수없음 awspsycopg2 레포지터리에서 다운받아서 직접 넣을것!
+

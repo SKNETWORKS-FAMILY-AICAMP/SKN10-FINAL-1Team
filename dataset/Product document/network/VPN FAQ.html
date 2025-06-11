@@ -1,0 +1,31 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>VPN FAQ</title>{% endblock %}    
+{% block content %}
+
+<h1>VPN FAQ</h1>
+<h2>FAQ</h2>
+<hr>
+<p>Q. VPN 설정 작업 소요 시간은 어느정도 걸리나요?</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>연동작업은 고객사 사내 네트워크 환경과 정합을 맞추는 작업 및 방화벽 작업 등 적지 않은 시간이 걸리는 작업으로</li>
+    <li>개통 요청부터 개통 완료까지 업무일 기준 최소 3 일이상 소요될 수 있으므로 일정을 지나치게 촉박하게 잡지 않는 것이 좋습니다.</li>
+</div><br>
+
+<p>Q. 고객사 VPN 장비는 이중화 구성을 꼭 해야 하나요?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>고객사 VPN 장비는 되도록 이중화를 권고합니다. kt cloud VPN 은 자체적으로 이중화되어 있으나</li>
+    <li>고객사 VPN 이 이중화되어 있지 않은 경우 단일 장애지점 (SPoF) 가 될 수 있습니다.</li>
+</div><br>
+
+<p>Q. VPN 관련 문의는 어디로 해야 하나요?</p>
+
+<img src="/static/images/network_vpn8.png" alt="VPN FAQ 1" width="500"><br><br>
+
+
+
+
+
+{% endblock %}

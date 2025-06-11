@@ -1,0 +1,79 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>VPN 상품 신청 - Public Cloud</title>{% endblock %}    
+{% block content %}
+
+<h1>VPN 상품 신청 - Public Cloud</h1>
+<h2>Public Cloud VPN 구조</h2>
+<hr>
+<p>서비스 구조</p>
+
+<img src="/static/images/network_vpn3.png" alt="VPN 상품 신청 - Public Cloud 1" width="500"><br><br>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>고객사 전산실의 시스템은 VPN 이용, Public Cloud VM 과 CIP 를 이용하여 연동</li>
+    <li>고객사 전산실내에는 일반적으로 방화벽으로 내부망으로 보호하도록 구성</li>
+    <li>연동경로 : 고객사 서버팜 <-> 고객사 F/W <-> 고객사 VPN 장비 <-> 인터넷 <-> kt CDC VPN 장비 <-> Public Cloud VM</li>
+    <li>고객사로부터 kt CDC 로 라우팅되는 IP 는 VM 의 CIP Network (10.x.y.z/23~27)</li>
+    <li>고객사로부터 VPN 으로 연동하는 경우 kt cloud LB 에 연동하는 것은 불가</li>
+</div><br>
+
+<p>
+    Public Cloud 연동 VPN 장비<br>
+    Public Cloud 의 공용 VPN 장비는 Cisco 장비로 대국측 (고객사) 도 Cisco 호환 장비로 구성 권고
+</p><br>
+
+<h2>개통 프로세스 및 체크리스트</h2>
+<hr>
+<p>개통 프로세스</p>
+
+<img src="/static/images/network_vpn4.png" alt="VPN 상품 신청 - Public Cloud 2" width="500"><br><br>
+
+<h2>Public Cloud VPN 신청 방법</h2>
+<hr>
+<p>
+    kt cloud 포탈에서 VPN 신청<br>
+    kt cloud 서비스 포탈 로그인후 > 클라우드 콘솔 > kt cloud server > 네트워크 > VPN > VPN 신청
+</p>
+
+<img src="/static/images/network_vpn5.png" alt="VPN 상품 신청 - Public Cloud 3" width="600"><br><br>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>zone : VPN 을 구성하려는 Public Cloud 의 Zone 을 선택</li>
+    <li>계정 : 자동입력</li>
+    <li>연동 CIP(KT 측) VLAN ID : VPN 을 연동하려는 CIP 를 선택 ( CIP 가 없는 경우 CIP 를 먼저 구성 ( 클라우드 콘솔 > kt cloud server > 네트워크 > CIP )</li>
+    <li>VPN 연동용 공인 IP (KT 측) : 자동입력</li>
+    <li>VPN 장비모델 (고객측) : 고객사에 설치된 VPN 장비 모델명 입력</li>
+    <li>VPN 연동용 공인 IP (고객측) : VPN 을 연동하기 위한 공인 IP 입력</li>
+    <li>대역폭 : 10/20/30Mbps 중에서 선택</li>
+    <li>연동 IP 대역(고객측) : 고객사 네트워크 대역, 보통 사설 IP 대역</li>
+    <li>인증/암호화 방식 IKE 정책 설정 : Encryption 만 고객사가 선호하는 방식으로 선택, IPSEC 설정 : Encryption, Authentication, 
+        Security Association Lifetime 을 고객사가 선호하는 방식으로 설정</li>
+    <li>Option 설정 : 선호하는 방식으로 설정</li>
+    <li>VPN 담당자 연락처 : 고객사의 VPN 설정작업 실무를 담당할 담당자 연락처를 기재</li>
+</div><br>
+
+<p>
+    고객사 VPN 장비 설정<br>
+    고객사의 VPN 담당자는 Public VPN 방식과 정합을 위해 위 신청화면에 기재한 내용과 같이 VPN 장비를 설정합니다.<br><br>
+    고객사 VPN 장비가 Proxy 모드로 설정된 경우 로컬 Network 을 여러 개 등록이 불가한 경우가 있으므로 이 경우 any address 로 등록합니다.<br><br>
+    고객사 네트워크 장비 라우팅 설정<br>
+    kt cloud 와 연동하려는 고객사 네트워크를 VPN 을 통해 연동할 수 있도록 고객사 라우터에서 라우팅을 설정합니다.<br><br>
+    하나의 고객사 네트워크를 VPN 방향으로 라우팅하지 않고 개별 시스템별로 라우팅 처리를 하고자 하는 경우 개별 시스템상에서 VPN으로 향하는 라우팅 테이블이 추가 되어야 합니다.<br><br>
+    고객사 방화벽 오픈<br>
+    Public Cloud 와 고객사 전산실 간 VPN 연결 구성도에서 보는 것처럼 고객사 전산실에서 외부로 나가는 내부 방화벽이 있는 경우 방화벽에 대한 오픈 작업을 진행합니다.<br><br>
+    라우터를 VPN endpoint 로 사용하는 경우 라우터의 ACL (Access Control List) 에 로컬 네트워크 및 리모트 네트워크가 모두 허용이 되었는지 확인합니다.<br><br>
+    VM 라우팅 설정<br>
+    위 모든 과정에 문제가 없으면 VM 에서는 VPN 으로 가기 위한 Routing Table 을 추가합니다. Linux 를 기준으로 하면 아래와 같이 될 것입니다.
+</p>
+
+<img src="/static/images/network_vpn6.png" alt="VPN 상품 신청 - Public Cloud 4" width="600"><br><br>
+
+<p>
+    Ping Test<br>
+    모든 작업이 완료되면 단계적으로 ping test 를 수행하여 점검합니다.
+</p>
+
+<img src="/static/images/network_vpn7.png" alt="VPN 상품 신청 - Public Cloud 5" width="600"><br><br>
+{% endblock %}
