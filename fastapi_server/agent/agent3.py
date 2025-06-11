@@ -411,9 +411,9 @@ async def category_predict_node(state: AgentState, config: Optional[RunnableConf
 
     # --- 경로 설정 ---
     base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-    MODEL_PATH = os.path.join(base_path, 'churn_predictor_pipeline.pkl')
-    CATEGORICAL_COLS_PATH = os.path.join(base_path, 'categorical_cols.pkl')
-    LABEL_ENCODERS_PATH = os.path.join(base_path, 'label_encoders.pkl')
+    MODEL_PATH = os.path.join(base_path, 'models', 'churn_predictor_pipeline.pkl')
+    CATEGORICAL_COLS_PATH = os.path.join(base_path, 'models', 'categorical_cols.pkl')
+    LABEL_ENCODERS_PATH = os.path.join(base_path, 'models', 'label_encoders.pkl')
 
     EXPECTED_FEATURE_ORDER = [
         'seniorcitizen', 'partner', 'dependents', 'tenure', 'phoneservice',
