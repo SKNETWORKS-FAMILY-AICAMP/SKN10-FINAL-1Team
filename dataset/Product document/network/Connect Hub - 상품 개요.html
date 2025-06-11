@@ -1,0 +1,49 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>Connect Hub - 상품 개요</title>{% endblock %}    
+{% block content %}
+
+<h1>Connect Hub - 상품 개요</h1>
+<h2>목적 및 용도</h2>
+<hr>
+<p>
+    Connect Hub는 대외 고객사 시스템 환경과 kt cloud 내부, IDC 등 다수의 Cloud를 원포인트로 연동할 수 있는 kt cloud의 연결허브입니다.<br>
+    Connect Hub를 통해 고품질의 안정적인 NW 환경에서 하나로 연결된 Hybrid Cloud를 간단하게 구성할 수 있습니다.
+</p>
+
+<h2>서비스 특장점</h2>
+<hr>
+<p>
+    1. NW 운영 효율화<br>
+    다수의 연동을 할 필요 없이, Connect Hub 서비스만으로 고객 장비,C3, 클라우드 접속 기능을 모두 구현 할 수 있습니다. 일원화된 통합 운영으로 자원 관리 포인트가 감소하며,
+    저렴한 비용으로 서비스를 구현할 수 있습니다.<br><br>
+    2. NW 품질 및 보안성 향상<br>
+    Connect Hub 기반의 Hybrid Cloud 구성은 외부 우회를 하지 않고, kt cloud와 제휴사 Cloud를 직접 내부 연동합니다.<br>
+    내부 연동으로 Hop, Latency를 감소하여 NW 품질 향상 및 보안 안정성을 높였습니다.
+</p>
+
+<img src="/static/images/network_hub1.png" alt="Connect Hub 상품 개요 1" width="600"><br><br>
+
+<h2>Connect Hub 연동 예시</h2>
+<hr>
+<p>
+    Connect Hub 의 가상 라우터는 각 존간의 연결성을 제공합니다.<br>
+    각 존에서 외부로 나가는 라우팅 및 인,아웃 방화벽 정책이  모두 필요하며, 포탈 콘솔을 통한 제어 및 확인이 가능합니다.<br><br>
+    아래는 Connect Hub 연동 구성 예시입니다.<br>
+    1. DX-M1(목동) 과 DX-Central(천안) 의 연결<br>
+    2. kt cloud  Zone 과 VPN(단독형) 연결
+</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>A : 방화벽에서 가상라우터로 B 와 C 가 사용하는 IP 에 대한 Destination Rouing 필요, DX-M1 의 Connect Hub 사용 대역에 대한 Tier 추가 필요<br> 
+        &nbsp;&nbsp;&nbsp;&nbsp;Inbound 방화벽 정책 / Outbound 방화벽 정책 설정 필요</li><br>
+    <li>B : 방화벽에서 가상라우터로 A 와 C 가 사용하는 IP 에 대한 Destination Rouing 필요, DX-Central 의 Connect Hub 사용 대역에 대한 Tier 추가 필요<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;Inbound 방화벽 정책 / Outbound 방화벽 정책 설정 필요</li><br>
+    <li>C : VPN 사용 IP 에 대한 Destination Routing 필요</li>
+</div><br><br>
+
+<img src="/static/images/network_hub2.png" alt="Connect Hub 상품 개요 2" width="600"><br><br>
+
+
+{% endblock %}
