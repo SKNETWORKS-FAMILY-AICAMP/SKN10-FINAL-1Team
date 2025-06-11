@@ -38,7 +38,7 @@
 | **경규휘** | <img src="./img/경규희.png" width="150"> | 문서 검색 전문 에이전트 (RAG) 개발 및 데이터 검색 (Product 문서 데이터 수집 및 RAG 테스트 포함) |
 | **남궁승원** | <img src="./img/남궁승원.png" width="150"> | 데이터 분석 에이전트 개발 및 머신러닝 모델링 (ML 부분 포함) (기술 문서 및 사내 정책 문서 데이터 수집 포함) |
 | **이태수** | <img src="./img/이태수.png" width="150"> | 시장 조사 및 문서 검색 전문 에이전트 (RAG) 개발 (뉴스 수집 API 개발 및 이슈/동향 수집 포함) |
-| **황인호** | <img src="./img/인호.png" width="150"> | AI 에이전트 총괄 시스템 (LangGraph Supervisor), 코드 에이전트, 프론트엔드 개발 (ERD, 배포, 데이터 조회 프로그램 개발 포함) |
+| **황인호** | <img src="./img/인호.jpeg" width="150"> | AI 에이전트 총괄 시스템 (LangGraph Supervisor), 코드 에이전트, 프론트엔드 개발 (ERD, 배포, 데이터 조회 프로그램 개발 포함) |
 
 ## 문서 구조 (Chapters)
 프로젝트의 핵심 구성 요소 및 개발 과정에 대한 자세한 내용은 다음 장에서 확인할 수 있습니다.
@@ -58,3 +58,19 @@
 *   **일정/이슈 관리**: GitHub Project를 활용하여 업무 이슈 등록, 담당자 배정, 진행 상황 추적.
 *   **커뮤니케이션**: Discord, KakaoTalk 등을 활용하여 실시간 소통.
 *   **기술 스터디**: LangGraph, LangSmith, Pinecone 사용법 등 핵심 기술에 대한 팀원 간 스터디 진행.
+
+```mermaid
+mindmap
+  root((SKN10-FINAL-1Team))
+  ::icon(fa fa-robot)
+    개요
+      지능형 사내 업무 보조 챗봇 시스템 
+      AI 기반 데이터 분석 및 채팅 애플리케이션 
+      핵심 구성 요소 탐험 
+    데이터 설계도 (Django 모델)
+      애플리케이션의 근본 뼈대 
+      정보 저장 방식 정의 
+      models.py 파일에 정의 
+      사용자 정보, 대화 내용 관리 
+      기능별 설계도 (knowledge, mlops 등) 
+```
