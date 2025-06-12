@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup, Comment
 import glob
 from tqdm import tqdm
 import unicodedata
+import re
 
 # Import functions from emb.py
 from emb import setup_pinecone_index, get_dense_embeddings, get_sparse_embeddings, index_documents
@@ -20,7 +21,7 @@ print(f"Pinecone 클라이언트 버전: {installed_packages.get('pinecone', '�
 
 # Define paths
 DATASET_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'dataset')
-NAMESPACES = ['Internal Policy', 'Product document', 'Technical document']
+NAMESPACES = ['Internal Policy', 'Product document', 'Technical document', 'Proceedings']
 
 def extract_text_from_pdf(pdf_path: str) -> str:
     """
@@ -153,7 +154,8 @@ def sanitize_id(id_str: str) -> str:
     namespace_map = {
         "Internal Policy": "internal_policy",
         "Product document": "product_doc", 
-        "Technical document": "tech_doc"
+        "Technical document": "tech_doc",
+        "Proceedings": "proceedings"
     }
     
     # 네임스페이스 추출 (ID에서 첫 부분)
@@ -165,6 +167,56 @@ def sanitize_id(id_str: str) -> str:
     
     # 해시 앞에 네임스페이스 접두사 추가 (분류 용이하게)
     return f"{namespace_prefix}_{hash_str}"
+
+def chunk_text(text: str, max_chars: int = 7000, overlap: int = 200) -> List[str]:
+    """
+    텍스트를 지정된 최대 문자 수와 오버랩을 사용하여 청크로 나눕니다.
+    OpenAI text-embedding-3-large 모델의 최대 토큰은 8192입니다.
+    1 토큰 ~= 4자로 가정하고, max_chars는 토큰 한계보다 충분히 작게 설정합니다.
+    (예: 7000자 ~= 1750 토큰)
+
+    Args:
+        text (str): 청킹할 원본 텍스트
+        max_chars (int): 각 청크의 최대 문자 수
+        overlap (int): 청크 간의 문자 오버랩 수
+
+    Returns:
+        List[str]: 텍스트 청크 목록
+    """
+    if not text or not isinstance(text, str):
+        return []
+
+    chunks = []
+    start_index = 0
+    text_len = len(text)
+
+    while start_index < text_len:
+        end_index = min(start_index + max_chars, text_len)
+        chunk = text[start_index:end_index]
+        chunks.append(chunk)
+
+        if end_index == text_len:
+            break  # 텍스트의 끝에 도달
+
+        # 다음 청크의 시작 위치를 오버랩을 고려하여 설정
+        start_index += (max_chars - overlap)
+        
+        # 만약 오버랩으로 인해 start_index가 end_index를 넘어가면 무한 루프 방지
+        if start_index >= end_index:
+            # 이 경우는 max_chars가 overlap보다 작거나 같을 때 발생 가능성이 있지만,
+            # 일반적인 사용 (max_chars > overlap)에서는 드묾.
+            # 남은 텍스트가 매우 짧을 때도 발생 가능.
+            # 마지막 청크를 이미 추가했으므로 중단.
+            if end_index == text_len and chunks[-1] == text[start_index- (max_chars - overlap):]:
+                 break
+            # 혹은 남은 부분을 새 청크로 추가하고 종료
+            remaining_text = text[start_index:]
+            if remaining_text.strip():
+                chunks.append(remaining_text)
+            break
+            
+    # 비어 있거나 공백만 있는 청크 제거
+    return [c for c in chunks if c and c.strip()]
 
 def preprocess_text(text: str) -> str:
     """
@@ -247,70 +299,110 @@ def process_namespace(namespace: str, file_paths: List[str]):
             f.write(f"{file_id}\t{original_name}\n")
     
     print(f"ID 매핑 저장 완료: {id_map_file}")
-    
+
+    date_prefixes = []
+    if namespace == "Proceedings":
+        for original_file_name_for_date in original_filenames:
+            match = re.search(r"(\d{4})[-_]?(\d{2})[-_]?(\d{2})", original_file_name_for_date)
+            if match:
+                year, month, day = match.groups()
+                date_prefixes.append(f"{year}년 {month}월 {day}일 회의록: ")
+            else:
+                date_prefixes.append("") # No date found, empty prefix
+    else:
+        date_prefixes = [""] * len(original_filenames)
+
     # Dense 인덱스 설정 (첫 네임스페이스만 force_recreate=True, 나머지는 False)
     is_first = namespace == NAMESPACES[0]
-    # emb.py의 setup_pinecone_index 기본값을 사용 (index_name="dense-index", metric="cosine")
-    dense_index = setup_pinecone_index(force_recreate=is_first) 
-    
+    dense_index = setup_pinecone_index(force_recreate=is_first)
+
+    all_chunk_texts: List[str] = []
+    all_chunk_ids: List[str] = []
+    all_chunk_metadata: List[Dict] = []
+
+    print(f"문서 내용 청킹 시작 ({len(texts)}개 문서)...")
+    for doc_idx, doc_text in enumerate(tqdm(texts, desc=f"Chunking {namespace}")):
+        doc_id = ids[doc_idx]
+        original_file = original_filenames[doc_idx]
+        date_prefix = date_prefixes[doc_idx]
+        
+        # 텍스트 청킹 (최대 7000자, 약 1750 토큰, 오버랩 200자)
+        # OpenAI text-embedding-3-large 모델의 최대 토큰은 8192
+        # 1 토큰 ~= 4자로 가정하고 안전 마진을 둠
+        doc_chunks = chunk_text(doc_text, max_chars=7000, overlap=200) 
+        
+        for chunk_idx, chunk_content in enumerate(doc_chunks):
+            # 청크 ID는 원래 문서 ID에 청크 번호를 추가하여 생성
+            # sanitize_id는 이미 md5 해시된 doc_id에 대해 불필요할 수 있으나, 일관성 유지
+            chunk_id = sanitize_id(f"{doc_id}_chunk_{chunk_idx}")
+            
+            prefixed_chunk_content = date_prefix + chunk_content
+            
+            all_chunk_texts.append(prefixed_chunk_content)
+            all_chunk_ids.append(chunk_id)
+            all_chunk_metadata.append({
+                "text": prefixed_chunk_content,
+                "original_document_id": doc_id,
+                "original_filename": original_file,
+                "namespace": namespace,
+                "chunk_index": chunk_idx
+            })
+
+    if not all_chunk_texts:
+        print(f"{namespace} 네임스페이스에서 처리할 청크가 없습니다.")
+        return
+
+    print(f"{namespace} 네임스페이스: {len(all_chunk_texts)}개 청크 생성 완료, 임베딩 및 업서트 시작...")
+
     # 배치 처리 (메모리 효율성 위해)
-    batch_size = 5
-    for i in range(0, len(texts), batch_size):
-        batch_end = min(i + batch_size, len(texts))
-        batch_texts = texts[i:batch_end]
-        batch_ids = ids[i:batch_end]
+    batch_size = 32 # OpenAI API 및 Pinecone 권장 사항에 따라 배치 크기 조정 가능
+    for i in range(0, len(all_chunk_texts), batch_size):
+        batch_end = min(i + batch_size, len(all_chunk_texts))
+        current_batch_texts = all_chunk_texts[i:batch_end]
+        current_batch_ids = all_chunk_ids[i:batch_end]
+        current_batch_metadata_list = all_chunk_metadata[i:batch_end]
         
         # Dense 임베딩 생성
-        dense_embeddings = get_dense_embeddings(batch_texts)
-        if not dense_embeddings:
-            print(f"배치 {i//batch_size+1} Dense 임베딩 생성 실패")
+        # get_dense_embeddings 함수는 내부적으로 OpenAI API의 배치 제한을 처리할 수 있음
+        dense_embeddings = get_dense_embeddings(current_batch_texts)
+        if not dense_embeddings or len(dense_embeddings) != len(current_batch_texts):
+            print(f"배치 {i//batch_size+1} Dense 임베딩 생성 실패 또는 개수 불일치. 건너<0xEB><0x84><0x88>니다.")
+            # 실패한 텍스트 로깅 (선택 사항)
+            # for k, txt in enumerate(current_batch_texts):
+            #     if k >= len(dense_embeddings):
+            #         print(f"  실패 텍스트 (ID: {current_batch_ids[k]}): {txt[:100]}...")
             continue
-        
-
-        
-        # 메타데이터 준비 (텍스트와 네임스페이스 포함)
-        metadata = [
-            {
-                "text": text, 
-                "namespace": namespace,
-                "original_filename": original_filenames[i+j] if i+j < len(original_filenames) else ""
-            } 
-            for j, text in enumerate(batch_texts)
-        ]
         
         # 네임스페이스 변환 (공백 제거 및 소문자로 변환)
         pinecone_namespace = namespace.lower().replace(' ', '_')
         
-        records_in_batch = []
-        for j, doc_id in enumerate(batch_ids):
-            dense_vec = dense_embeddings[j]
-            meta = metadata[j]
+        records_to_upsert = []
+        for j, chunk_id_val in enumerate(current_batch_ids):
+            # 메타데이터는 이미 all_chunk_metadata에서 준비됨
+            meta = current_batch_metadata_list[j]
             record = {
-                "id": doc_id,
-                "values": dense_vec,
+                "id": chunk_id_val,
+                "values": dense_embeddings[j],
                 "metadata": meta
             }
-            
-
-
-            records_in_batch.append(record)
+            records_to_upsert.append(record)
         
-        if records_in_batch:
+        if records_to_upsert:
             try:
-                print(f"배치 업서트 시도: {len(records_in_batch)}개 레코드, 네임스페이스: {pinecone_namespace}")
+                # print(f"배치 업서트 시도: {len(records_to_upsert)}개 레코드, 네임스페이스: {pinecone_namespace}")
                 dense_index.upsert(
-                    vectors=records_in_batch,
+                    vectors=records_to_upsert,
                     namespace=pinecone_namespace
                 )
-                print(f"{namespace} 배치 {i//batch_size+1}/{(len(texts)-1)//batch_size+1} 업서트 성공 ({len(records_in_batch)}개 레코드)")
+                # print(f"{namespace} 배치 {i//batch_size+1}/{(len(all_chunk_texts)-1)//batch_size+1} 업서트 성공 ({len(records_to_upsert)}개 레코드)")
             except Exception as e:
                 print(f"배치 {i//batch_size+1} 업서트 중 오류 발생: {e}")
-                import traceback
-                traceback.print_exc()
-        else:
-            print(f"{namespace} 배치 {i//batch_size+1}/{(len(texts)-1)//batch_size+1}: 업서트할 레코드가 없습니다.")
+                # import traceback
+                # traceback.print_exc()
+        # else:
+            # print(f"{namespace} 배치 {i//batch_size+1}/{(len(all_chunk_texts)-1)//batch_size+1}: 업서트할 레코드가 없습니다.")
     
-    print(f"=== {namespace} 네임스페이스 처리 완료 ===\n")
+    print(f"=== {namespace} 네임스페이스 처리 완료 ({len(all_chunk_texts)} 청크 업서트 시도) ===\n")
 
 def main():
     """
