@@ -4,6 +4,18 @@
  */
 
 /**
+ * Check if a string is likely part of a Mermaid diagram code block
+ * @param text The text to check
+ * @returns Boolean indicating if the text is likely part of a Mermaid code block
+ */
+export function isMermaidContent(text: string): boolean {
+  if (!text || text.trim().length === 0) return false;
+  
+  // 오직 Mermaid 코드 블록만 감지
+  return /```mermaid/i.test(text);
+}
+
+/**
  * Clean a streaming token to remove routing directives
  * @param token The token from the streaming API
  * @returns Cleaned token without routing directives
@@ -11,6 +23,11 @@
 export function cleanStreamingToken(token: string): string {
   // Don't process empty tokens
   if (!token || token.trim().length === 0) {
+    return token;
+  }
+  
+  // Skip processing if it looks like Mermaid content
+  if (isMermaidContent(token)) {
     return token;
   }
   
@@ -79,6 +96,55 @@ export function cleanStreamingToken(token: string): string {
 }
 
 /**
+ * Preserves content within Mermaid code blocks
+ * @param content Full message content
+ * @returns Message content with Mermaid blocks preserved separately
+ */
+interface BlockPreservationResult {
+  cleanedContent: string;
+  preservedBlocks: { placeholder: string; originalContent: string }[];
+}
+
+function preserveMermaidBlocks(content: string): BlockPreservationResult {
+  if (!content) return { cleanedContent: content, preservedBlocks: [] };
+  
+  const preservedBlocks: { placeholder: string; originalContent: string }[] = [];
+  let cleanedContent = content;
+  
+  // Preserve Mermaid code blocks
+  const mermaidBlockRegex = /(```mermaid[\s\S]*?```)/g;
+  let match;
+  let counter = 0;
+  
+  while ((match = mermaidBlockRegex.exec(content)) !== null) {
+    const originalContent = match[0];
+    const placeholder = `__MERMAID_BLOCK_${counter++}__`;
+    
+    preservedBlocks.push({ placeholder, originalContent });
+    cleanedContent = cleanedContent.replace(originalContent, placeholder);
+  }
+  
+  // 코드 블록 외부의 머메이드 다이어그램은 보존하지 않음
+  
+  return { cleanedContent, preservedBlocks };
+}
+
+/**
+ * Restores previously preserved Mermaid blocks
+ * @param result BlockPreservationResult from preserveMermaidBlocks
+ * @returns Content with original Mermaid blocks restored
+ */
+function restoreMermaidBlocks(result: BlockPreservationResult): string {
+  let restoredContent = result.cleanedContent;
+  
+  for (const block of result.preservedBlocks) {
+    restoredContent = restoredContent.replace(block.placeholder, block.originalContent);
+  }
+  
+  return restoredContent;
+}
+
+/**
  * Cleans a full message content to remove routing directives
  * @param content The full message content
  * @returns Cleaned message content
@@ -86,8 +152,11 @@ export function cleanStreamingToken(token: string): string {
 export function cleanFullMessageContent(content: string): string {
   if (!content) return content;
   
-  // Remove exact routing directive phrases
-  let cleaned = content;
+  // First preserve Mermaid blocks
+  const preservation = preserveMermaidBlocks(content);
+  
+  // Clean the content without Mermaid blocks
+  let cleaned = preservation.cleanedContent;
   
   const directivePatterns = [
     // Transfer directives with quotation handling
@@ -172,6 +241,12 @@ export function cleanFullMessageContent(content: string): string {
   
   // Clean up any potential empty lines at the end
   cleaned = cleaned.replace(/\n+\s*$/g, '');
+  
+  // Restore the Mermaid blocks
+  cleaned = restoreMermaidBlocks({ 
+    cleanedContent: cleaned, 
+    preservedBlocks: preservation.preservedBlocks 
+  });
   
   return cleaned.trim();
 }

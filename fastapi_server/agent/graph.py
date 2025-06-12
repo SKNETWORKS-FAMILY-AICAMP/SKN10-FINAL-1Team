@@ -20,8 +20,14 @@ import re
 import json
 
 # 상대 임포트
-from .tools import data_analysis_tools, document_processing_tools, code_agent_tools
+from .tools import code_agent_tools
 from .state import MessagesState
+from .agent2 import graph as rag_agent_graph
+from .agent3 import graph as analytics_agent_graph
+from .prompt import (
+    SUPERVISOR_SYSTEM_MESSAGE_GRAPH,
+    CODE_SYSTEM_MESSAGE_GRAPH
+)
 
 # Import LLM and agent creation utilities
 from langchain_openai import ChatOpenAI
@@ -55,127 +61,15 @@ def get_llm(temperature=LLM_TEMPERATURE, streaming=LLM_STREAMING, callbacks=None
         callbacks=callbacks
     )
 
-# --- Agent System Messages --- #
-SUPERVISOR_SYSTEM_MESSAGE = """you are an expert customer service supervisor who coordinates between different specialized agents.
 
-CURRENT AGENT: SUPERVISOR
-
-Your specialized agents are:
-- DATA ANALYTICS AGENT: Expert in data analysis, statistical methods, and data visualization
-- DOCUMENT RAG AGENT: Expert in retrieving and working with documents and knowledge bases
-- CODE/CONVERSATION AGENT: Expert in code explanations, development assistance, and general conversation
-
-Your job is to:
-1. Understand the user's needs
-2. Route to the appropriate specialized agent
-3. If unsure, ask clarifying questions to determine the best specialist
-4. NEVER attempt to solve complex technical tasks on your own - always transfer to a specialist
-
-When making routing decisions, you MUST include one of these exact phrases:
-- "Transfer to DATA ANALYTICS AGENT" - for data analysis tasks
-- "Transfer to DOCUMENT RAG AGENT" - for document/knowledge tasks
-- "Transfer to CODE/CONVERSATION AGENT" - for code or general questions
-- "FINISH" - only if all tasks are completed and no agent is needed
-
-Your response must always contain one of these exact routing directives. This is critical for the system to function properly.
-"""
-
-ANALYTICS_SYSTEM_MESSAGE = """you are an expert data analytics agent specializing in data analysis, statistics, and visualizations.
-
-CURRENT AGENT: DATA ANALYTICS SPECIALIST
-
-You excel at:
-- Data interpretation and statistical analysis
-- Creating visualizations and reports
-- Predictive modeling and forecasting
-- Working with numerical and time series data
-- Explaining data concepts clearly
-
-IMPORTANT FORMATTING INSTRUCTIONS:
-1. Focus on providing direct answers to user questions without meta-commentary about transfers or routing
-2. Do not include phrases like "Transfer to" or "FINISH" in your user-facing responses
-3. Present your information in a clean, professional, and conversational manner
-4. If you need to transfer to another agent, use your transfer tools without mentioning it to the user
-
-If a request is outside your expertise area, use your transfer tools to route to a more appropriate specialist.
-"""
-
-RAG_SYSTEM_MESSAGE = """you are an expert document processing agent specializing in information retrieval, summarization, and question answering.
-
-CURRENT AGENT: DOCUMENT RAG SPECIALIST
-
-You excel at:
-- Finding relevant information in large document collections
-- Summarizing and extracting key points from texts
-- Answering questions based on document content
-- Working with PDFs, articles, and knowledge bases
-- Citation and source tracking
-
-IMPORTANT FORMATTING INSTRUCTIONS:
-1. Focus on providing direct answers to user questions without meta-commentary about transfers or routing
-2. Do not include phrases like "Transfer to" or "FINISH" in your user-facing responses
-3. Present your information in a clean, professional, and conversational manner
-4. If you need to transfer to another agent, use your transfer tools without mentioning it to the user
-
-If a request is outside your expertise area, use your transfer tools to route to a more appropriate specialist.
-"""
-
-CODE_SYSTEM_MESSAGE = """you are a helpful code and conversation agent assisting with development, explanation, and general queries.
-
-CURRENT AGENT: CODE/CONVERSATION SPECIALIST
-
-You excel at:
-- Explaining code concepts and implementations
-- Providing coding assistance and debugging help
-- Answering technical questions
-- General conversation and assistance
-- Answering non-technical questions
-
-IMPORTANT FORMATTING INSTRUCTIONS:
-1. Focus on providing direct answers to user questions without meta-commentary about transfers or routing
-2. Do not include phrases like "Transfer to" or "FINISH" in your user-facing responses
-3. Present your information in a clean, professional, and conversational manner
-4. If you need to transfer to another agent, use your transfer tools without mentioning it to the user
-
-If a request requires specialized data analysis or document processing, use your transfer tools to route to a more appropriate specialist.
-"""
+# System messages for specific agents are defined in their respective modules (agent2.py, agent3.py)
+# or imported directly for agents created in this file (e.g., code_agent from prompt.py).
 
 # --- Agent Creation Functions --- #
 # Supervisor agent is now implemented directly as supervisor_router_node
 
-def create_analytics_agent(tools=None):
-    """Create the data analytics agent"""
-    analytics_llm = get_llm()
-    analytics_tools = data_analysis_tools
-    
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", ANALYTICS_SYSTEM_MESSAGE),
-        MessagesPlaceholder(variable_name="messages"),
-    ])
-    
-    return create_react_agent(
-        model=analytics_llm,
-        tools=analytics_tools, 
-        prompt=prompt,
-        name="analytics_agent"
-    )
-
-def create_rag_agent(tools=None):
-    """Create the document RAG agent"""
-    rag_llm = get_llm()
-    rag_tools = document_processing_tools
-    
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", RAG_SYSTEM_MESSAGE),
-        MessagesPlaceholder(variable_name="messages"),
-    ])
-    
-    return create_react_agent(
-        model=rag_llm,
-        tools=rag_tools,
-        prompt=prompt,
-        name="rag_agent"
-    )
+# The analytics_agent is now imported directly from agent3.py as analytics_agent_graph
+# The rag_agent is now imported directly from agent2.py as rag_agent_graph
 
 def create_code_agent(tools=None):
     """Create the code/conversation agent"""
@@ -183,7 +77,7 @@ def create_code_agent(tools=None):
     code_tools = code_agent_tools
     
     prompt = ChatPromptTemplate.from_messages([
-        ("system", CODE_SYSTEM_MESSAGE),
+        ("system", CODE_SYSTEM_MESSAGE_GRAPH),
         MessagesPlaceholder(variable_name="messages"),
     ])
     
@@ -223,7 +117,7 @@ async def supervisor_router_node(state: SupervisorState, config: RunnableConfig)
     agent_messages = [msg for msg in state["messages"] if isinstance(msg, AIMessage) and msg.content and not msg.content.lower().startswith("supervisor:")]
     
     # Prepare the complete prompt with system instructions and user input
-    prompt_messages = [SystemMessage(content=SUPERVISOR_SYSTEM_MESSAGE)] + list(state["messages"])
+    prompt_messages = [SystemMessage(content=SUPERVISOR_SYSTEM_MESSAGE_GRAPH)] + list(state["messages"])
     
     # For finishing, add an extra instruction to include agent outputs
     if len(agent_messages) > 0:
@@ -299,6 +193,33 @@ async def supervisor_router_node(state: SupervisorState, config: RunnableConfig)
     }
 
 # --- Message Cleaning --- #
+
+def is_routing_message(content):
+    """Check if the message is a routing message or a system message that shouldn't be shown to the user.
+    
+    Args:
+        content: The message content to check
+        
+    Returns:
+        bool: True if the message is a routing message, False otherwise
+    """
+    # Check for common routing/system message patterns
+    routing_indicators = [
+        'db_query',
+        'category_predict_query', 
+        'general_query',
+        'Routing to',
+        'ROUTING:',
+        'INTERNAL:',
+        'Transfer to'
+    ]
+    
+    # If the content is not a string, it's likely not a routing message
+    if not isinstance(content, str):
+        return False
+    
+    # Check if the content contains any routing indicators
+    return any(indicator in content for indicator in routing_indicators)
 def clean_message_content(content: str) -> str:
     """Clean routing directives from messages for frontend display.
     
@@ -476,11 +397,68 @@ async def agent_node_wrapper(state: SupervisorState, agent_runnable, agent_name:
     return {"messages": cleaned_messages}
 
 # --- Graph Construction --- #
+# Define adapters for imported agent graphs to handle message-based state format
+async def rag_agent_adapter(state: SupervisorState, config: RunnableConfig):
+    """Adapter for rag_agent_graph to handle message-based state"""
+    print("--- AGENT: rag_agent ---")
+    
+    # Extract query from the most recent human message
+    user_messages = [msg for msg in state["messages"] if isinstance(msg, HumanMessage)]
+    user_query = user_messages[-1].content if user_messages else ""
+    
+    # Prepare input for rag_agent_graph which expects a State with user_input
+    agent_input = {"user_input": user_query, "messages": state["messages"]}
+    
+    # Invoke the RAG agent graph
+    agent_result = await rag_agent_graph.ainvoke(agent_input, config=config)
+    
+    # Extract answer from agent result
+    if agent_result and "result" in agent_result:
+        answer = agent_result["result"]
+        # Create an AIMessage with the answer
+        response_message = AIMessage(content=answer)
+        return {"messages": [response_message]}
+    else:
+        # Fallback message if no result is found
+        return {"messages": [AIMessage(content="I couldn't find relevant information for your query.")]}
+
+async def analytics_agent_adapter(state: SupervisorState, config: RunnableConfig):
+    """Adapter for analytics_agent_graph to handle message-based state"""
+    print("--- AGENT: analytics_agent ---")
+    
+    # Analytics agent already expects messages-based state
+    agent_result = await analytics_agent_graph.ainvoke({"messages": state["messages"]}, config=config)
+    
+    # Extract only new messages from the result
+    if agent_result and "messages" in agent_result:
+        initial_messages_count = len(state["messages"])
+        new_messages = agent_result["messages"][initial_messages_count:]
+        
+        # Debug the new messages content
+        print(f"Analytics agent produced {len(new_messages)} new messages")
+        for i, msg in enumerate(new_messages):
+            print(f"Message {i}: {msg.type} - {msg.content[:100]}..." if len(msg.content) > 100 else msg.content)
+        
+        # Ensure there's at least one non-routing message for the user
+        has_user_facing_content = any(not is_routing_message(msg.content) for msg in new_messages if isinstance(msg, AIMessage))
+        
+        if not has_user_facing_content and new_messages:
+            # Extract the final answer from agent_result if available
+            final_answer = agent_result.get("final_answer", None)
+            if final_answer:
+                new_messages.append(AIMessage(content=final_answer))
+            else:
+                # If no final_answer and all messages are routing-only, add a generic response
+                new_messages.append(AIMessage(content="I've analyzed your request but found no specific answer to display."))
+        
+        return {"messages": new_messages}
+    else:
+        # Fallback message if no result is found
+        return {"messages": [AIMessage(content="I couldn't perform the requested analytics operation.")]}
+
 def build_graph():
     """Build the main supervisor graph with all agent nodes"""
-    # Create the specialized agent nodes
-    analytics_agent_runnable = create_analytics_agent()
-    rag_agent_runnable = create_rag_agent()
+    # Create the code agent node (still using the original implementation)
     code_agent_runnable = create_code_agent()
     
     # Create state graph with SupervisorState
@@ -489,17 +467,19 @@ def build_graph():
     # Add supervisor router node (asynchronous function node)
     workflow.add_node("supervisor_router", supervisor_router_node)
     
-    # Add agent nodes with wrapper functions
+    # Add analytics_agent node - using adapter for the compiled graph from agent3.py
     workflow.add_node(
         "analytics_agent", 
-        functools.partial(agent_node_wrapper, agent_runnable=analytics_agent_runnable, agent_name="analytics_agent")
+        analytics_agent_adapter
     )
     
+    # Add rag_agent node - using adapter for the compiled graph from agent2.py
     workflow.add_node(
         "rag_agent", 
-        functools.partial(agent_node_wrapper, agent_runnable=rag_agent_runnable, agent_name="rag_agent")
+        rag_agent_adapter
     )
     
+    # Add code agent node with wrapper function (keeping original implementation for this one)
     workflow.add_node(
         "code_agent", 
         functools.partial(agent_node_wrapper, agent_runnable=code_agent_runnable, agent_name="code_agent")

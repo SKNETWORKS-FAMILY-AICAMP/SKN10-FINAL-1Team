@@ -23,11 +23,12 @@ if project_root not in sys.path:
 
 
 # Import tools and state
-from src.agent.tools import get_common_tools, data_analysis_tools, document_processing_tools, code_agent_tools
+from src.agent.tools import code_agent_tools
 from src.agent.state import MessagesState
 
-# Import the compiled RAG agent graph
+# Import the compiled agent graphs
 from src.agent.agent2 import graph as rag_agent_graph
+from src.agent.agent3 import graph as analytics_agent_graph
 
 # Import LLM and agent creation utilities
 from langchain.chat_models import init_chat_model
@@ -72,7 +73,7 @@ analytics_agent_llm = init_chat_model(
     temperature=LLM_TEMPERATURE,
     model_kwargs={"streaming": LLM_STREAMING}
 )
-analytics_agent_tools_list = data_analysis_tools() 
+
 analytics_agent_system_prompt_string = """당신은 데이터 분석 전문가입니다.
 데이터 시각화, 통계 분석, 예측 모델링과 같은 데이터 관련 작업을 수행합니다.
 복잡한 데이터셋을 처리하고 실행 가능한 인사이트를 도출할 수 있습니다.
@@ -125,7 +126,7 @@ supervisor_system_prompt_text = (
     "You are a supervisor of multiple AI agents. "
     "You receive user requests and determine which agent is best suited to handle them. "
     "The agents are:\n"
-    "- 'analytics_agent': Data analysis, visualization, statistics, prediction.\n"
+    "- 'analytics_agent': Data analysis, visualization, statistics, prediction, database information retrieval.\n"
     "- 'rag_agent': Document summarization, information extraction, document-based Q&A.\n"
     "- 'code_agent': Code writing, debugging, general questions, coding-related questions, advice, code snippets, programming concepts, etc.\n"
     "Please respond in Korean, and the agents will respond in Korean as well. "
@@ -138,14 +139,7 @@ supervisor_system_prompt_text = (
     "you can answer it directly and respond with 'FINISH'."
 )
 
-# Initialize the agent runnables
-analytics_agent_runnable = create_react_agent(
-    model=analytics_agent_llm,
-    tools=analytics_agent_tools_list,
-    prompt=analytics_agent_system_prompt_string,
-    name="analytics_agent"
-)
-print("Analytics Agent Runnable created successfully")
+
 
 
 
@@ -246,7 +240,8 @@ def determine_next_node(state: SupervisorState):
 workflow = StateGraph(SupervisorState)
 
 workflow.add_node("supervisor_router", supervisor_router_node)
-workflow.add_node("analytics_agent", analytics_agent_runnable)
+# Use the analytics_agent_graph directly since it now supports the message-based state format
+workflow.add_node("analytics_agent", analytics_agent_graph)
 # Use the rag_agent_graph directly since it now supports the message-based state format
 workflow.add_node("rag_agent", rag_agent_graph)
 workflow.add_node("code_agent", code_agent_runnable)
@@ -264,9 +259,9 @@ workflow.add_conditional_edges(
     }
 )
 
-workflow.add_edge("analytics_agent", "supervisor_router")
-workflow.add_edge("rag_agent", "supervisor_router")
-workflow.add_edge("code_agent", "supervisor_router")
+workflow.add_edge("analytics_agent", END)
+workflow.add_edge("rag_agent", END)
+workflow.add_edge("code_agent", END)
 
 # 5. Compile the graph
 # Checkpointer can be added here if persistence is needed
