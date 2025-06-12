@@ -406,6 +406,10 @@ async def general_question_node(state: AgentState, config: Optional[RunnableConf
     logger.info("--- Exiting general_question_node ---")
     return state
 
+from openai import OpenAI
+import os # For API key
+
+
 async def category_predict_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     print("--- CATEGORY PREDICT NODE (Telecom Churn Prediction with Csv File Content) ---")
 
@@ -480,74 +484,105 @@ async def category_predict_node(state: AgentState, config: Optional[RunnableConf
             current_messages = state.messages # Get current messages
             updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
             return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
-        # --- BEGIN REVISED CSV DATA CLEANING LOGIC ---
-        raw_lines = csv_data_str.strip().splitlines()
-        cleaned_lines = []
+        # --- BEGIN LLM-BASED CSV DATA PARSING ---
+        print("INFO: Attempting to parse CSV using OpenAI LLM.")
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            error_message = "❌ 오류: OPENAI_API_KEY 환경 변수가 설정되지 않았습니다. LLM을 사용한 CSV 파싱을 할 수 없습니다."
+            current_messages = state.messages
+            updated_messages = current_messages + [AIMessage(content=error_message)] if current_messages else [AIMessage(content=error_message)]
+            return {"messages": updated_messages, "final_answer": error_message, "error_message": error_message}
+        
+        client = OpenAI(api_key=api_key)
+        
+        system_prompt = """You are an expert data parsing assistant. Your primary function is to extract and clean CSV data from potentially messy text inputs.
 
-        if not raw_lines:
-            final_answer = "❌ 오류: CSV 데이터 문자열이 비어있습니다."
+Input Details:
+- The input text may contain CSV data, which is often space-delimited but could also be comma-delimited or tab-delimited.
+- This CSV data can be surrounded by natural language, instructions, commands (e.g., "예측해줘", "분석해줘"), or have inconsistent formatting.
+
+Your Task:
+1.  Identify the main block of CSV data within the input text.
+2.  The first line of this identified CSV block should be treated as the header row.
+3.  Remove ALL surrounding non-CSV text. This includes any leading or trailing sentences, questions, commands, or conversational filler.
+4.  Reformat the extracted CSV data:
+    - Delimiter: Ensure the output CSV is strictly comma-separated (,).
+    - Newlines: Each row of the CSV data must be on a new line.
+    - Whitespace: Trim leading/trailing whitespace from each cell. Ensure no empty lines unless they were truly empty rows in the source data.
+5.  If, after your best effort, you cannot find or reliably extract valid CSV data, you MUST return the exact string "NO_CSV_FOUND".
+6.  Output ONLY the cleaned, comma-separated CSV data string, or "NO_CSV_FOUND". Do NOT include any additional explanations, apologies, or conversational text in your response.
+
+Example of desired output format if CSV is found:
+customerid,gender,seniorcitizen,partner,dependents,tenure,phoneservice,multiplelines,onlinesecurity,onlinebackup,deviceprotection,techsupport,streamingtv,streamingmovies,contract,paperlessbilling,paymentmethod,monthlycharges,totalcharges
+A123,Male,0,Yes,No,1,No,No phone service,No,Yes,No,No,No,No,Month-to-month,Yes,Electronic check,29.85,29.85
+B456,Female,1,No,No,2,Yes,No,No,No,Yes,No,No,No,One year,No,Mailed check,50.00,100.00
+
+If no CSV is found, output:
+NO_CSV_FOUND
+"""
+        
+        prompt_messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Here is the text to parse:\n\n```text\n{csv_data_str}\n```"}
+        ]
+
+        def get_llm_parsed_csv_sync():
+            response = client.chat.completions.create(
+                model="gpt-4o", # Consider gpt-4o-mini or gpt-4o for higher accuracy if needed
+                messages=prompt_messages,
+                temperature=0.0, # For deterministic output
+            )
+            return response.choices[0].message.content.strip()
+
+        try:
+            llm_output_str = await asyncio.to_thread(get_llm_parsed_csv_sync)
+        except Exception as e:
+            error_message = f"❌ 오류: OpenAI API 호출 중 오류 발생: {str(e)}"
+            current_messages = state.messages
+            updated_messages = current_messages + [AIMessage(content=error_message)] if current_messages else [AIMessage(content=error_message)]
+            return {"messages": updated_messages, "final_answer": error_message, "error_message": error_message}
+
+        if not llm_output_str or llm_output_str == "NO_CSV_FOUND":
+            error_message = "❌ 오류: LLM이 CSV 데이터를 추출하지 못했습니다. 입력 형식을 확인하거나, CSV 데이터가 올바르게 포함되었는지 확인해주세요."
+            if llm_output_str == "NO_CSV_FOUND":
+                 print("INFO: LLM indicated NO_CSV_FOUND.")
+            else:
+                 print(f"INFO: LLM returned empty or unexpected output: '{llm_output_str[:200]}...' ")
+            current_messages = state.messages
+            updated_messages = current_messages + [AIMessage(content=error_message)] if current_messages else [AIMessage(content=error_message)]
+            return {"messages": updated_messages, "final_answer": error_message, "error_message": error_message}
+
+        print(f"INFO: LLM processed CSV output (first 200 chars): {llm_output_str[:200]}...", flush=True)
+        print(f"DEBUG: repr(llm_output_str) (first 500 chars): {repr(llm_output_str[:500])}", flush=True)
+
+        # Parse the LLM-generated CSV (now expected to be comma-separated)
+        # The original CSV might be space-separated, but we asked the LLM to convert it to comma-separated.
+        try:
+            input_df = await asyncio.to_thread(pd.read_csv, io.StringIO(llm_output_str), sep=',')
+        except pd.errors.EmptyDataError:
+            error_message = "❌ 오류: LLM이 반환한 CSV 데이터가 비어있거나 pandas가 파싱할 수 없는 형식입니다."
+            print(f"ERROR: pandas EmptyDataError parsing LLM output: {llm_output_str[:500]}")
+            current_messages = state.messages
+            updated_messages = current_messages + [AIMessage(content=error_message)] if current_messages else [AIMessage(content=error_message)]
+            return {"messages": updated_messages, "final_answer": error_message, "error_message": error_message}
+        except Exception as e:
+            error_message = f"❌ 오류: LLM이 반환한 CSV 데이터를 pandas로 파싱하는 중 오류 발생: {str(e)}"
+            print(f"ERROR: pandas parsing LLM output: {llm_output_str[:500]}")
+            current_messages = state.messages
+            updated_messages = current_messages + [AIMessage(content=error_message)] if current_messages else [AIMessage(content=error_message)]
+            return {"messages": updated_messages, "final_answer": error_message, "error_message": error_message}
+            
+        print(f"INFO: input_df.shape after LLM parsing and pd.read_csv: {input_df.shape}")
+        print(f"INFO: input_df.head(3) after LLM parsing and pd.read_csv:\n{input_df.head(3)}")
+        print(f"INFO: input_df.info() after LLM parsing and pd.read_csv:")
+        input_df.info()
+
+        if input_df.empty:
+            final_answer = "❌ 오류: LLM 기반 CSV 파싱 후 DataFrame이 비어있습니다 (0행 또는 0열). LLM이 CSV를 제대로 추출했는지 또는 원본 데이터에 문제가 있는지 확인해주세요."
             current_messages = state.messages
             updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
             return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
-
-        MIN_COMMAS_THRESHOLD = 1  # 쉼표가 이 개수 이상이면 '강력한' CSV 라인으로 간주
-
-        # '강력한' CSV 라인들의 인덱스를 찾음
-        strong_csv_indices = [i for i, line in enumerate(raw_lines) if line.count(',') >= MIN_COMMAS_THRESHOLD]
-
-        if strong_csv_indices:
-            # '강력한' 라인들이 존재하면, 이들의 범위를 핵심 CSV 블록으로 간주
-            core_block_start_idx = strong_csv_indices[0]
-            core_block_end_idx = strong_csv_indices[-1]
-
-            if core_block_start_idx > 0:
-                print(f"INFO: CSV 시작 전 {core_block_start_idx}개의 라인을 질문으로 간주하고 제거합니다. 첫번째 제거된 라인: '{raw_lines[0][:100]}...'", flush=True)
-            if core_block_end_idx < len(raw_lines) - 1:
-                print(f"INFO: CSV 종료 후 {len(raw_lines) - 1 - core_block_end_idx}개의 라인을 질문으로 간주하고 제거합니다. 마지막 제거된 라인: '{raw_lines[-1][:100]}...'", flush=True)
-
-            # 핵심 CSV 블록 추출
-            core_block_lines = raw_lines[core_block_start_idx : core_block_end_idx + 1]
-
-            if not core_block_lines: # Should not happen if strong_csv_indices is not empty
-                final_answer = "❌ 오류: CSV 핵심 블록 추출에 실패했습니다."
-                current_messages = state.messages
-                updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
-                return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
-
-            # 핵심 블록의 첫 줄을 헤더로 사용
-            header_line = core_block_lines[0]
-            cleaned_lines.append(header_line)
-            commas_in_header = header_line.count(',') # 헤더는 MIN_COMMAS_THRESHOLD 이상일 것임
-
-            # 핵심 블록 내의 데이터 라인 정제
-            for i in range(1, len(core_block_lines)):
-                line = core_block_lines[i]
-                if line.count(',') >= MIN_COMMAS_THRESHOLD: # '강력한' 데이터 라인
-                    cleaned_lines.append(line)
-                elif commas_in_header >= MIN_COMMAS_THRESHOLD: # 헤더는 '강했으나', 현재 라인은 '약함' (0개의 쉼표)
-                    if not line.strip(): # 의도적으로 비어있는 라인이면 유지
-                        cleaned_lines.append(line)
-                    else: # 내용이 있는 0쉼표 라인은 블록 내 질문으로 의심하여 필터링
-                        print(f"INFO: CSV 블록 내에서 0개의 쉼표를 가진 비어있지 않은 라인을 필터링합니다: '{line[:100]}...'", flush=True)
-                else: # 헤더도 '약했고' (이 경우는 strong_csv_indices 로직상 거의 없음) 현재 라인도 '약하면' 일단 포함
-                    cleaned_lines.append(line)
-        else:
-            # '강력한' CSV 라인이 하나도 없음 (모든 라인의 쉼표 < MIN_COMMAS_THRESHOLD, 예: 모두 0개)
-            # 이 경우 단일 열 CSV이거나 전체가 질문일 수 있음. 일단 모든 라인을 사용.
-            print(f"INFO: 모든 라인의 쉼표 개수가 {MIN_COMMAS_THRESHOLD}개 미만입니다. 단일 열 CSV로 간주하거나 전체가 질문일 수 있습니다. 모든 라인을 사용합니다.", flush=True)
-            cleaned_lines = raw_lines
-
-        if not cleaned_lines:
-            final_answer = "❌ 오류: CSV 데이터 정제 후 내용이 없습니다."
-            current_messages = state.messages
-            updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
-            return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
-        
-        cleaned_csv_data_str = "\n".join(cleaned_lines)
-        
-        print(f"INFO: 최종 정제된 CSV 데이터 미리보기 (첫 200자): {cleaned_csv_data_str[:200]}...", flush=True)
-        input_df = await asyncio.to_thread(pd.read_csv, io.StringIO(cleaned_csv_data_str))
-        # --- END REVISED CSV DATA CLEANING LOGIC ---
+        # --- END LLM-BASED CSV DATA PARSING ---
 
         if CUSTOMER_ID_COL not in input_df.columns:
             final_answer = f"❌ 오류: '{CUSTOMER_ID_COL}' 컬럼이 CSV에 없습니다."
@@ -592,8 +627,47 @@ async def category_predict_node(state: AgentState, config: Optional[RunnableConf
         })
         results_df['Churn Prediction (Threshold 0.312)'] = results_df['Churn Prediction (Threshold 0.312)'].map({1: 'Yes', 0: 'No'})
 
-        final_answer = "📊 고객 이탈 예측 결과:\n" + results_df.to_string(index=False)
-        print(f"Prediction successful. Result preview: {final_answer[:200]}...")
+        # --- LLM을 사용하여 결과 요약 ---
+        print("INFO: Generating final answer using ChatOpenAI.")
+        results_as_string = results_df.to_csv(index=False)
+
+        # LangChain's ChatOpenAI will automatically pick up the OPENAI_API_KEY environment variable.
+        llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
+
+        summary_prompt = f"""
+You are a helpful data analyst assistant. Your task is to present customer churn prediction results to a user in a clear, friendly, and insightful way.
+
+Here are the prediction results in CSV format:
+```csv
+{results_as_string}
+```
+
+Based on this data, please generate a summary for the user. Your summary should:
+1. Start with a clear heading like "📊 고객 이탈 예측 분석 결과".
+2. Briefly explain what the results mean (e.g., "아래는 각 고객의 이탈 확률 및 예측 결과입니다.").
+3. Present the key findings using a Markdown table to display the results clearly.
+4. If there are many customers, summarize the overall trend first (e.g., "총 {len(results_df)}명의 고객 중 {results_df[results_df['Churn Prediction (Threshold 0.312)'] == 'Yes'].shape[0]}명이 이탈할 것으로 예측됩니다.").
+5. Then display the results in a nicely formatted Markdown table with headers and aligned columns.
+6. If there are only a few customers (e.g., less than 10), include all of them in the table.
+7. If there are many customers, show the top 5-10 customers with highest churn probability in the table.
+8. Conclude with a friendly closing remark, suggesting actions that could be taken (e.g., "이탈 가능성이 높은 고객에게는 특별 프로모션을 제공하는 것을 고려해볼 수 있습니다.").
+9. The entire response MUST be in Korean.
+
+Please provide a comprehensive and easy-to-understand summary.
+"""
+        try:
+            # Using await with ainvoke for async call
+            response = await llm.ainvoke(summary_prompt)
+            final_answer = response.content
+        except Exception as e:
+            error_msg = f"❌ 오류: ChatOpenAI로 결과 요약 중 오류 발생: {e}"
+            print(f"ERROR: {error_msg}")
+            current_messages = state.messages # Get current messages
+            updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
+            return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
+
+
+        print(f"Prediction successful. LLM-generated result preview: {final_answer[:200]}...")
         current_messages = state.messages # Get current messages
         updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
         return {"messages": updated_messages, "final_answer": final_answer, "error_message": None}
