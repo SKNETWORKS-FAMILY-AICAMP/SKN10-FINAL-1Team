@@ -73,53 +73,6 @@ def embed_query(openai_client: OpenAI, text: str) -> list:
 
 
 # --------------------------------------------------
-# 3) 여러 네임스페이스 중 “가장 높은 유사도”를 준 네임스페이스와 매칭 결과 반환
-# --------------------------------------------------
-def retrieve_best_namespace(index, query_vector: list, top_k: int = 5):
-    """
-    1) index.describe_index_stats()를 통해 모든 네임스페이스 목록을 얻는다.
-    2) 각 네임스페이스별로 query_vector를 index.query()로 검색하고,
-       matches[0].score 를 비교해서 “최고 유사도”를 찾는다.
-    3) 가장 높은 유사도를 준 네임스페이스(best_ns)와 해당 네임스페이스의 전체 매칭 결과(best_matches)를 반환.
-    """
-    stats = index.describe_index_stats()
-    available_namespaces = list(stats.namespaces.keys())
-    if not available_namespaces:
-        raise ValueError("⚠️ 인덱스에 네임스페이스가 없습니다.")
-
-    best_ns = None
-    best_score = -1.0
-    best_matches = None
-
-    for ns in available_namespaces:
-        count = stats.namespaces[ns]["vector_count"]
-        if count == 0:
-            # 비어 있는 네임스페이스 건너뛰기
-            continue
-
-        res = index.query(
-            vector=query_vector,
-            namespace=ns,
-            top_k=top_k,
-            include_metadata=True
-        )
-        if not res.matches:
-            continue
-
-        top_score = res.matches[0].score
-        if top_score > best_score:
-            best_score = top_score
-            best_ns = ns
-            best_matches = res.matches
-
-    if best_ns is None:
-        raise ValueError("⚠️ 어떤 네임스페이스에서도 매칭 결과를 찾을 수 없습니다.")
-    
-    print(f"🔍 선택된 네임스페이스: '{best_ns}' (최고 유사도: {best_score:.4f})")
-    return best_ns, best_matches
-
-
-# --------------------------------------------------
 # 4) 검색된 매칭 결과에서 실제 텍스트(메타데이터)를 꺼내 Context 로 결합
 # --------------------------------------------------
 def build_context_from_matches(matches):
@@ -139,22 +92,6 @@ def build_context_from_matches(matches):
 # --------------------------------------------------
 # 5) LLM ChatCompletion 호출하여 답변 생성
 # --------------------------------------------------
-def generate_answer_with_context(openai_client: OpenAI, question: str, context: str) -> str:
-    """
-    최신 OpenAI 클라이언트에서는 client.chat.completions.create(...) 형태를 씁니다.
-    """
-    formatted_prompt = rag_answer_generation_prompt_agent2.format(context=context, question=question)
-    resp = openai_client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": rag_system_message_agent2},
-            {"role": "user", "content": formatted_prompt}
-        ],
-        temperature=0.0,
-        max_tokens=1024
-    )
-    # resp.choices[0].message.content 으로 답변 추출
-    return resp.choices[0].message.content.strip()
 
 
 
@@ -268,7 +205,7 @@ def execute_rag(state: State):
     )
     matches = res.matches
     # print(f"   - Pinecone 검색 완료: {len(matches)}개 결과 수신")
-
+    print(matches)
     if not matches:
         message = f"'{namespace_to_search}' 네임스페이스에서 '{state.user_input}' 질문과 관련된 정보를 찾지 못했습니다."
         # print(f"   - 정보 없음: {message}")
@@ -293,7 +230,7 @@ def summarize_node(state: State):
     user_input = state.user_input
 
     if state.document_type == "proceedings":
-        system_message = proceedings_summary_prompt_agent2
+        system_message = proceedings_summary_prompt_agent2.format(user_input=user_input)
     elif state.document_type == "internal_policy":
         system_message = internal_policy_summary_prompt_template_agent2.format(user_input=user_input)
     elif state.document_type == "product_document":
