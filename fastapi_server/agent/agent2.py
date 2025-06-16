@@ -23,7 +23,8 @@ from fastapi_server.agent.prompt import (
     technical_document_summary_prompt_template_agent2,
     unknown_document_type_prompt_agent2,
     rag_answer_generation_prompt_agent2,
-    rag_system_message_agent2
+    rag_system_message_agent2,
+    create_similar_questions_agent2
 )
 load_dotenv()
 
@@ -71,56 +72,8 @@ def embed_query(openai_client: OpenAI, text: str) -> list:
     )
     return resp.data[0].embedding
 
-
 # --------------------------------------------------
-# 3) 여러 네임스페이스 중 “가장 높은 유사도”를 준 네임스페이스와 매칭 결과 반환
-# --------------------------------------------------
-def retrieve_best_namespace(index, query_vector: list, top_k: int = 5):
-    """
-    1) index.describe_index_stats()를 통해 모든 네임스페이스 목록을 얻는다.
-    2) 각 네임스페이스별로 query_vector를 index.query()로 검색하고,
-       matches[0].score 를 비교해서 “최고 유사도”를 찾는다.
-    3) 가장 높은 유사도를 준 네임스페이스(best_ns)와 해당 네임스페이스의 전체 매칭 결과(best_matches)를 반환.
-    """
-    stats = index.describe_index_stats()
-    available_namespaces = list(stats.namespaces.keys())
-    if not available_namespaces:
-        raise ValueError("⚠️ 인덱스에 네임스페이스가 없습니다.")
-
-    best_ns = None
-    best_score = -1.0
-    best_matches = None
-
-    for ns in available_namespaces:
-        count = stats.namespaces[ns]["vector_count"]
-        if count == 0:
-            # 비어 있는 네임스페이스 건너뛰기
-            continue
-
-        res = index.query(
-            vector=query_vector,
-            namespace=ns,
-            top_k=top_k,
-            include_metadata=True
-        )
-        if not res.matches:
-            continue
-
-        top_score = res.matches[0].score
-        if top_score > best_score:
-            best_score = top_score
-            best_ns = ns
-            best_matches = res.matches
-
-    if best_ns is None:
-        raise ValueError("⚠️ 어떤 네임스페이스에서도 매칭 결과를 찾을 수 없습니다.")
-    
-    print(f"🔍 선택된 네임스페이스: '{best_ns}' (최고 유사도: {best_score:.4f})")
-    return best_ns, best_matches
-
-
-# --------------------------------------------------
-# 4) 검색된 매칭 결과에서 실제 텍스트(메타데이터)를 꺼내 Context 로 결합
+# 3) 검색된 매칭 결과에서 실제 텍스트(메타데이터)를 꺼내 Context 로 결합
 # --------------------------------------------------
 def build_context_from_matches(matches):
     """
@@ -135,28 +88,32 @@ def build_context_from_matches(matches):
 
     return "\n---\n".join(contexts)
 
+def get_document_id(matches) :
+    ids = []
+    for m in matches:
+        ids.append(m.id)
+    return ids
+
 
 # --------------------------------------------------
-# 5) LLM ChatCompletion 호출하여 답변 생성
+# 5) 유사 질문 생성 함수 (4개의 유사 질문 생성)
 # --------------------------------------------------
-def generate_answer_with_context(openai_client: OpenAI, question: str, context: str) -> str:
-    """
-    최신 OpenAI 클라이언트에서는 client.chat.completions.create(...) 형태를 씁니다.
-    """
-    formatted_prompt = rag_answer_generation_prompt_agent2.format(context=context, question=question)
-    resp = openai_client.chat.completions.create(
+def create_similar_questions(message) :
+    client = OpenAI()
+    formatted_prompt = create_similar_questions_agent2.format(user_input=message)
+    resp = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": rag_system_message_agent2},
-            {"role": "user", "content": formatted_prompt}
+            {"role": "system", "content": formatted_prompt}
         ],
-        temperature=0.0,
-        max_tokens=1024
+        temperature=0,
+        max_tokens=100
     )
-    # resp.choices[0].message.content 으로 답변 추출
-    return resp.choices[0].message.content.strip()
-
-
+    
+    similar_questions = resp.choices[0].message.content.strip().split("\n")
+    print(similar_questions)
+    print(f"생성된 유사 질문의 자료형 : {type(similar_questions)}")
+    return similar_questions
 
 @dataclass
 class State:
@@ -235,55 +192,64 @@ def choose_one(state: State) -> str:
 def execute_rag(state: State):
     # print(f"\n📄 RAG 노드 실행: 문서 타입 = '{state.document_type}', 질문 = '{state.user_input}'")
     openai_client, pinecone_index = init_clients()
+    namespace_to_search = state.document_type
+    index_stats = pinecone_index.describe_index_stats()
+    question_to_doc = dict.fromkeys([0,1,2,3,4])
     # print("   - 클라이언트 초기화 완료")
 
-    query_vector = embed_query(openai_client, state.user_input)
-    # print(f"   - 질문 임베딩 완료 (벡터 크기: {len(query_vector)})")
-
-    namespace_to_search = state.document_type
-    if not namespace_to_search or namespace_to_search == "unknown":
-        message = f"문서 타입이 '{namespace_to_search}'(으)로 분류되어 Pinecone 검색을 수행하지 않습니다."
-        # print(f"   - 정보: {message}")
-        # 'unknown'일 경우, unknown_handler_node에서 이미 메시지를 설정했을 수 있으므로, 여기서는 덮어쓰지 않거나
-        # 혹은 여기서 다른 메시지를 설정할 수 있습니다. 여기서는 검색 불가 메시지만 남깁니다.
-        # 실제로는 'unknown' 타입은 이 노드로 오지 않고 unknown_handler_node로 가야 합니다.
-        # 이 코드는 execute_rag_node가 'unknown' 타입으로 호출될 경우를 대비한 방어 코드입니다.
-        state.result = "적절한 문서 저장소를 찾을 수 없어 검색을 수행할 수 없습니다."
-        return state.dict()
-
-    # print(f"   - Pinecone 네임스페이스 '{namespace_to_search}'에서 검색 시작...")
-    index_stats = pinecone_index.describe_index_stats()
-    if namespace_to_search not in index_stats.namespaces or \
-        index_stats.namespaces[namespace_to_search].vector_count == 0:
-        message = f"'{namespace_to_search}' 네임스페이스를 Pinecone에서 찾을 수 없거나, 해당 네임스페이스에 데이터가 없습니다. Pinecone 대시보드에서 네임스페이스 이름과 데이터 존재 여부를 확인해주세요."
-        # print(f"   - 경고: {message}")
-        state.result = message
-        return state.dict()
-
-    res = pinecone_index.query(
-        vector=query_vector,
-        namespace=namespace_to_search,
-        top_k=5, # 검색할 문서 수
-        include_metadata=True
-    )
-    matches = res.matches
-    # print(f"   - Pinecone 검색 완료: {len(matches)}개 결과 수신")
-
-    if not matches:
-        message = f"'{namespace_to_search}' 네임스페이스에서 '{state.user_input}' 질문과 관련된 정보를 찾지 못했습니다."
-        # print(f"   - 정보 없음: {message}")
-        state.result = message
-        return state.dict()
+    # 유사 질문 4개 생성
+    similar_questions = create_similar_questions(state.user_input)
+    similar_questions.append(state.user_input) # 원래 질문도 추가
     
-    context = build_context_from_matches(matches)
-    if not context:
-        message = "검색된 정보에서 답변을 생성할 컨텍스트를 추출하지 못했습니다."
-        print(f"   - 컨텍스트 구축 실패: {message}")
-        state.result = message
-        return state.dict()
-    print(f"   - 컨텍스트 구축 완료 (길이: {len(context)})")
+    for i , question in enumerate(similar_questions) :
+        query_vector = embed_query(openai_client, question.strip())
+        if not namespace_to_search or namespace_to_search == "unknown":
+            message = f"문서 타입이 '{namespace_to_search}'(으)로 분류되어 Pinecone 검색을 수행하지 않습니다."
+            # print(f"   - 정보: {message}")
+            # 'unknown'일 경우, unknown_handler_node에서 이미 메시지를 설정했을 수 있으므로, 여기서는 덮어쓰지 않거나
+            # 혹은 여기서 다른 메시지를 설정할 수 있습니다. 여기서는 검색 불가 메시지만 남깁니다.
+            # 실제로는 'unknown' 타입은 이 노드로 오지 않고 unknown_handler_node로 가야 합니다.
+            # 이 코드는 execute_rag_node가 'unknown' 타입으로 호출될 경우를 대비한 방어 코드입니다.
+            state.result = "적절한 문서 저장소를 찾을 수 없어 검색을 수행할 수 없습니다."
+            return state.dict()
 
-    state.result = context
+        # print(f"   - Pinecone 네임스페이스 '{namespace_to_search}'에서 검색 시작...")
+        if namespace_to_search not in index_stats.namespaces or \
+            index_stats.namespaces[namespace_to_search].vector_count == 0:
+            message = f"'{namespace_to_search}' 네임스페이스를 Pinecone에서 찾을 수 없거나, 해당 네임스페이스에 데이터가 없습니다. Pinecone 대시보드에서 네임스페이스 이름과 데이터 존재 여부를 확인해주세요."
+            # print(f"   - 경고: {message}")
+            state.result = message
+            return state.dict()
+
+        res = pinecone_index.query(
+            vector=query_vector,
+            namespace=namespace_to_search,
+            top_k=4, # 검색할 문서 수
+            include_metadata=True
+        )
+        # print(f"   - 질문 임베딩 완료 (벡터 크기: {len(query_vector)})")
+
+        matches = res.matches
+        print(f"   - Pinecone 검색 완료: {len(matches)}개 결과 수신")
+
+        if not matches:
+            message = f"'{namespace_to_search}' 네임스페이스에서 '{question}' 질문과 관련된 정보를 찾지 못했습니다."
+            # print(f"   - 정보 없음: {message}")
+            state.result = message
+            return state.dict()
+    
+        context = build_context_from_matches(matches)
+        question_to_doc[i] = get_document_id(matches)
+
+        if not context:
+            message = "검색된 정보에서 답변을 생성할 컨텍스트를 추출하지 못했습니다."
+            print(f"   - 컨텍스트 구축 실패: {message}")
+            state.result = message
+            return state.dict()
+        print(f" 질문 : {question} (길이: {len(context)})")
+        print(f"컨텍스트 요약 50자 : {context[:50]}") # 디버깅용 출력
+        state.result = context
+    print(question_to_doc) # 디버깅용 출력 (질문1~5에 대한 문서 id 매핑)
     return state.dict()
     
 
@@ -329,16 +295,16 @@ def summarize_node(state: State):
     return result_state
 
 # 비동기 노드 래퍼 함수들 정의
-async def async_choose_node(state: State):
+async def async_choose_node(state: State) :
     return await sync_to_async(choose_node)(state)
 
-async def async_execute_rag(state: State):
+async def async_execute_rag(state: State) :
     return await sync_to_async(execute_rag)(state)
 
-async def async_summarize_node(state: State):
+async def async_summarize_node(state: State) :
     return await sync_to_async(summarize_node)(state)
 
-async def async_choose_one(state: State):
+async def async_choose_one(state: State) :
     return await sync_to_async(choose_one)(state)
 
 # Define the graph with async nodes

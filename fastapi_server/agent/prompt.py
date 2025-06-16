@@ -225,6 +225,7 @@ unknown_document_type_prompt_agent2 = (
 # RAG answer generation prompt from generate_answer_with_context in agent2.py
 rag_answer_generation_prompt_agent2 = """아래 Context를 참고해서 질문에 답변해주세요.
 
+
 Context:
 {context}
 
@@ -235,7 +236,16 @@ Context:
 # System message for RAG answer generation from generate_answer_with_context in agent2.py
 rag_system_message_agent2 = "당신은 친절한 어시스턴트입니다."
 
-
+create_similar_questions_agent2 = (
+    "The user's question is: '{user_input}'."
+    "You must tell me 4 questions similar to {user_input}. Don't repeat it too similarly and in various ways."
+    "Please answer the format as follows."
+    "Until when can I use my vacation?\n"
+    "What is the expiration date of the vacation?\n"
+    "How many days can I use the rest of my vacation?\n"
+    "What is the last date you can use your vacation?\n"
+    "Each question must have a '\n' at the end of each question. And please do all the questions in Korean. OK?"
+)
 # ============================
 # Prompts from graph.py
 # ============================
@@ -327,3 +337,4 @@ IMPORTANT FORMATTING INSTRUCTIONS:
 
 If a request requires specialized data analysis or document processing, use your transfer tools to route to a more appropriate specialist.
 """
+
