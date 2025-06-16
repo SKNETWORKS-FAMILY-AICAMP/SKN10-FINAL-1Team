@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { CodeIcon, FileTextIcon, BarChart3Icon, BotIcon, ChevronUpIcon } from "lucide-react"
+import { CodeIcon, FileTextIcon, BarChart3Icon, BotIcon, ChevronUpIcon, BrainIcon } from "lucide-react" // Added BrainIcon for prediction
 
 // Map Django AgentType enum values to display names and icons
 const agentTypeMap = {
@@ -21,7 +21,12 @@ const agentTypeMap = {
   analytics: {
     icon: <BarChart3Icon className="h-4 w-4 text-green-500" />,
     name: "Business Analysis Agent",
-    description: "Data visualization and business insights",
+    description: "Data visualization, SQL queries, and general business analysis",
+  },
+  prediction: { // New Prediction Agent
+    icon: <BrainIcon className="h-4 w-4 text-purple-500" />,
+    name: "Data Prediction Agent",
+    description: "Performs machine learning predictions (e.g., customer churn) using CSV data.",
   },
   auto: {
     icon: <BotIcon className="h-4 w-4 text-slate-500" />,
@@ -30,7 +35,14 @@ const agentTypeMap = {
   },
 }
 
-export function AgentSelector({ selectedAgent, onAgentChange }) {
+export type AgentTypeKey = keyof typeof agentTypeMap;
+
+export interface AgentSelectorProps {
+  selectedAgent: AgentTypeKey;
+  onAgentChange: (value: AgentTypeKey) => void;
+}
+
+export function AgentSelector({ selectedAgent, onAgentChange }: AgentSelectorProps) {
   return (
     <div className="border-t p-2 bg-slate-50 dark:bg-slate-900">
       <Popover>
@@ -46,7 +58,7 @@ export function AgentSelector({ selectedAgent, onAgentChange }) {
         <PopoverContent className="w-80" align="center">
           <div className="space-y-4">
             <h4 className="font-medium">Select Agent</h4>
-            <RadioGroup value={selectedAgent} onValueChange={onAgentChange} className="gap-3">
+            <RadioGroup value={selectedAgent} onValueChange={(value) => onAgentChange(value as AgentTypeKey)} className="gap-3">
               <div className="flex items-center space-x-2 border rounded-md p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900">
                 <RadioGroupItem value="auto" id="auto" />
                 <Label htmlFor="auto" className="flex items-center gap-2 cursor-pointer">
@@ -87,6 +99,17 @@ export function AgentSelector({ selectedAgent, onAgentChange }) {
                   <div>
                     <div>{agentTypeMap.analytics.name}</div>
                     <div className="text-xs text-slate-500">{agentTypeMap.analytics.description}</div>
+                  </div>
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2 border rounded-md p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900">
+                <RadioGroupItem value="prediction" id="prediction" />
+                <Label htmlFor="prediction" className="flex items-center gap-2 cursor-pointer">
+                  {agentTypeMap.prediction.icon}
+                  <div>
+                    <div>{agentTypeMap.prediction.name}</div>
+                    <div className="text-xs text-slate-500">{agentTypeMap.prediction.description}</div>
                   </div>
                 </Label>
               </div>

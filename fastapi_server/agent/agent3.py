@@ -21,10 +21,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from langchain_community.chat_models import ChatOpenAI
 from langgraph.graph import StateGraph, END
 from pydantic import BaseModel, Field
-import pandas as pd
-import numpy as np
-import joblib
-from sklearn.preprocessing import LabelEncoder
+
 import logging # Added logging
 from datetime import datetime
 import re # Added import for regex
@@ -57,7 +54,7 @@ class AgentState(BaseModel):
     messages: Annotated[List[BaseMessage], operator.add] = Field(default_factory=list)
     user_query: Optional[str] = None
     csv_file_content: Optional[str] = None
-    query_type: Optional[Literal["db_query", "category_predict_query", "general_query"]] = None
+    query_type: Optional[Literal["db_query", "general_query"]] = None
     sql_query: Optional[str] = None
     sql_result: Optional[Any] = None
     final_answer: Optional[str] = None
@@ -103,7 +100,7 @@ def _lc_messages_to_openai_format(lc_messages: List[BaseMessage]) -> List[Dict[s
 
 # --- Pydantic Models for Structured Output ---
 class SupervisorDecision(BaseModel):
-    query_type: str = Field(description="The type of the user's question (db_query, category_predict_query, or general_query)")
+    query_type: str = Field(description="The type of the user's question (db_query or general_query)")
 
 class SQLGenerationOutput(BaseModel):
     sql_query: str = Field(description="The generated SQL query. This field MUST contain ONLY the SQL query string, without any surrounding text, explanations, or markdown formatting like ```sql.")
@@ -406,302 +403,7 @@ async def general_question_node(state: AgentState, config: Optional[RunnableConf
     logger.info("--- Exiting general_question_node ---")
     return state
 
-from openai import OpenAI
-import os # For API key
 
-
-async def category_predict_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
-    print("--- CATEGORY PREDICT NODE (Telecom Churn Prediction with Csv File Content) ---")
-
-    # --- 경로 설정 ---
-    base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-    MODEL_PATH = os.path.join(base_path, 'SKN10-FINAL-1Team', 'fastapi_server', 'models', 'churn_predictor_pipeline.pkl')
-    CATEGORICAL_COLS_PATH = os.path.join(base_path, 'SKN10-FINAL-1Team', 'fastapi_server', 'models', 'categorical_cols.pkl')
-    LABEL_ENCODERS_PATH = os.path.join(base_path, 'SKN10-FINAL-1Team', 'fastapi_server', 'models', 'label_encoders.pkl')
-
-    EXPECTED_FEATURE_ORDER = [
-        'seniorcitizen', 'partner', 'dependents', 'tenure', 'phoneservice',
-        'multiplelines', 'onlinesecurity', 'onlinebackup', 'techsupport',
-        'contract', 'paperlessbilling', 'paymentmethod', 'monthlycharges', 'totalcharges',
-        'new_totalservices', 'new_avg_charges', 'new_increase', 'new_avg_service_fee',
-        'charge_increased', 'charge_growth_rate', 'is_auto_payment',
-        'expected_contract_months', 'contract_gap'
-    ]
-    CUSTOMER_ID_COL = 'customerid'
-    PREDICTION_THRESHOLD = 0.312
-
-    csv_data_str: Optional[str] = None
-
-    # 1. state.csv_file_content (LangGraph Studio의 'Csv File Content' 필드) 확인
-    if state.csv_file_content:
-        print("INFO: Using CSV data from state.csv_file_content.")
-        csv_data_str = state.csv_file_content
-    # 2. state.user_query (Chat 또는 Messages 입력) 확인
-    elif hasattr(state, 'user_query') and state.user_query:
-        print(f"INFO: Attempting to use state.user_query for CSV data. Content (first 100 chars): '{state.user_query[:100]}...'")
-        # 2a. state.user_query를 파일 경로로 시도
-        if os.path.exists(state.user_query):
-            try:
-                print(f"INFO: state.user_query '{state.user_query}' is an existing path. Reading file.")
-                def read_file_sync(path):
-                    with open(path, 'r', encoding='utf-8') as f_sync:
-                        return f_sync.read()
-                csv_data_str = await asyncio.to_thread(read_file_sync, state.user_query)
-                if not csv_data_str:
-                    print(f"WARNING: File at '{state.user_query}' was empty.")
-            except Exception as e:
-                print(f"WARNING: Error reading file from state.user_query path '{state.user_query}': {e}. Will attempt to treat as raw content.")
-        
-        # 2b. state.user_query를 파일 경로로 읽지 못했거나, 경로가 아니었다면 원본 CSV 내용으로 간주
-        if csv_data_str is None: # 파일 읽기 실패 또는 경로가 아니었음
-            print("INFO: Treating state.user_query as raw CSV content.")
-            csv_data_str = state.user_query # pd.read_csv가 이후에 파싱 시도
-
-    # CSV 데이터를 어디에서도 찾지 못한 경우 오류 반환
-    if csv_data_str is None:
-        error_message_parts = ["❌ 오류: CSV 데이터를 찾을 수 없습니다."]
-        checked_sources = ["'Csv File Content' 필드"]
-        if hasattr(state, 'user_query'):
-            checked_sources.append("'User Query' / 채팅 메시지 (파일 경로 또는 CSV 내용 직접 입력)")
-        error_message_parts.append(f"확인한 입력 소스: {', '.join(checked_sources)}.")
-        error_message_parts.append("Csv File Content 필드에 직접 CSV 내용을 붙여넣거나, 채팅으로 CSV 파일의 전체 경로 또는 CSV 내용 자체를 입력해주세요.")
-        final_answer = "\n".join(error_message_parts)
-        current_messages = state.messages # Get current messages
-        updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
-        return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
-
-    print(f"INFO: CSV data obtained. Length: {len(csv_data_str)}. Preview (first 200 chars): {csv_data_str[:200]}...")
-
-    try:
-        # --- 모델과 전처리 객체 비동기 로드 ---
-        pipeline_final = await asyncio.to_thread(joblib.load, MODEL_PATH)
-        CATEGORICAL_COLS = await asyncio.to_thread(joblib.load, CATEGORICAL_COLS_PATH)
-        label_encoders = await asyncio.to_thread(joblib.load, LABEL_ENCODERS_PATH)
-
-        # --- CSV 문자열 → DataFrame 변환 ---
-        if not csv_data_str: # 이중 확인, csv_data_str이 None이나 빈 문자열이면 에러 발생 방지
-            final_answer = "❌ 오류: 내부 로직 오류 - CSV 데이터 문자열이 비어있습니다."
-            current_messages = state.messages # Get current messages
-            updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
-            return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
-        # --- BEGIN LLM-BASED CSV DATA PARSING ---
-        print("INFO: Attempting to parse CSV using OpenAI LLM.")
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            error_message = "❌ 오류: OPENAI_API_KEY 환경 변수가 설정되지 않았습니다. LLM을 사용한 CSV 파싱을 할 수 없습니다."
-            current_messages = state.messages
-            updated_messages = current_messages + [AIMessage(content=error_message)] if current_messages else [AIMessage(content=error_message)]
-            return {"messages": updated_messages, "final_answer": error_message, "error_message": error_message}
-        
-        client = OpenAI(api_key=api_key)
-        
-        system_prompt = """You are an expert data parsing assistant. Your primary function is to extract and clean CSV data from potentially messy text inputs.
-
-Input Details:
-- The input text may contain CSV data, which is often space-delimited but could also be comma-delimited or tab-delimited.
-- This CSV data can be surrounded by natural language, instructions, commands (e.g., "예측해줘", "분석해줘"), or have inconsistent formatting.
-
-Your Task:
-1.  Identify the main block of CSV data within the input text.
-2.  The first line of this identified CSV block should be treated as the header row.
-3.  Remove ALL surrounding non-CSV text. This includes any leading or trailing sentences, questions, commands, or conversational filler.
-4.  Reformat the extracted CSV data:
-    - Delimiter: Ensure the output CSV is strictly comma-separated (,).
-    - Newlines: Each row of the CSV data must be on a new line.
-    - Whitespace: Trim leading/trailing whitespace from each cell. Ensure no empty lines unless they were truly empty rows in the source data.
-5.  If, after your best effort, you cannot find or reliably extract valid CSV data, you MUST return the exact string "NO_CSV_FOUND".
-6.  Output ONLY the cleaned, comma-separated CSV data string, or "NO_CSV_FOUND". Do NOT include any additional explanations, apologies, or conversational text in your response.
-
-Example of desired output format if CSV is found:
-customerid,gender,seniorcitizen,partner,dependents,tenure,phoneservice,multiplelines,onlinesecurity,onlinebackup,deviceprotection,techsupport,streamingtv,streamingmovies,contract,paperlessbilling,paymentmethod,monthlycharges,totalcharges
-A123,Male,0,Yes,No,1,No,No phone service,No,Yes,No,No,No,No,Month-to-month,Yes,Electronic check,29.85,29.85
-B456,Female,1,No,No,2,Yes,No,No,No,Yes,No,No,No,One year,No,Mailed check,50.00,100.00
-
-If no CSV is found, output:
-NO_CSV_FOUND
-"""
-        
-        prompt_messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"Here is the text to parse:\n\n```text\n{csv_data_str}\n```"}
-        ]
-
-        def get_llm_parsed_csv_sync():
-            response = client.chat.completions.create(
-                model="gpt-4o", # Consider gpt-4o-mini or gpt-4o for higher accuracy if needed
-                messages=prompt_messages,
-                temperature=0.0, # For deterministic output
-            )
-            return response.choices[0].message.content.strip()
-
-        try:
-            llm_output_str = await asyncio.to_thread(get_llm_parsed_csv_sync)
-        except Exception as e:
-            error_message = f"❌ 오류: OpenAI API 호출 중 오류 발생: {str(e)}"
-            current_messages = state.messages
-            updated_messages = current_messages + [AIMessage(content=error_message)] if current_messages else [AIMessage(content=error_message)]
-            return {"messages": updated_messages, "final_answer": error_message, "error_message": error_message}
-
-        if not llm_output_str or llm_output_str == "NO_CSV_FOUND":
-            error_message = "❌ 오류: LLM이 CSV 데이터를 추출하지 못했습니다. 입력 형식을 확인하거나, CSV 데이터가 올바르게 포함되었는지 확인해주세요."
-            if llm_output_str == "NO_CSV_FOUND":
-                 print("INFO: LLM indicated NO_CSV_FOUND.")
-            else:
-                 print(f"INFO: LLM returned empty or unexpected output: '{llm_output_str[:200]}...' ")
-            current_messages = state.messages
-            updated_messages = current_messages + [AIMessage(content=error_message)] if current_messages else [AIMessage(content=error_message)]
-            return {"messages": updated_messages, "final_answer": error_message, "error_message": error_message}
-
-        print(f"INFO: LLM processed CSV output (first 200 chars): {llm_output_str[:200]}...", flush=True)
-        print(f"DEBUG: repr(llm_output_str) (first 500 chars): {repr(llm_output_str[:500])}", flush=True)
-
-        # Parse the LLM-generated CSV (now expected to be comma-separated)
-        # The original CSV might be space-separated, but we asked the LLM to convert it to comma-separated.
-        try:
-            input_df = await asyncio.to_thread(pd.read_csv, io.StringIO(llm_output_str), sep=',')
-        except pd.errors.EmptyDataError:
-            error_message = "❌ 오류: LLM이 반환한 CSV 데이터가 비어있거나 pandas가 파싱할 수 없는 형식입니다."
-            print(f"ERROR: pandas EmptyDataError parsing LLM output: {llm_output_str[:500]}")
-            current_messages = state.messages
-            updated_messages = current_messages + [AIMessage(content=error_message)] if current_messages else [AIMessage(content=error_message)]
-            return {"messages": updated_messages, "final_answer": error_message, "error_message": error_message}
-        except Exception as e:
-            error_message = f"❌ 오류: LLM이 반환한 CSV 데이터를 pandas로 파싱하는 중 오류 발생: {str(e)}"
-            print(f"ERROR: pandas parsing LLM output: {llm_output_str[:500]}")
-            current_messages = state.messages
-            updated_messages = current_messages + [AIMessage(content=error_message)] if current_messages else [AIMessage(content=error_message)]
-            return {"messages": updated_messages, "final_answer": error_message, "error_message": error_message}
-            
-        print(f"INFO: input_df.shape after LLM parsing and pd.read_csv: {input_df.shape}")
-        print(f"INFO: input_df.head(3) after LLM parsing and pd.read_csv:\n{input_df.head(3)}")
-        print(f"INFO: input_df.info() after LLM parsing and pd.read_csv:")
-        input_df.info()
-
-        if input_df.empty:
-            final_answer = "❌ 오류: LLM 기반 CSV 파싱 후 DataFrame이 비어있습니다 (0행 또는 0열). LLM이 CSV를 제대로 추출했는지 또는 원본 데이터에 문제가 있는지 확인해주세요."
-            current_messages = state.messages
-            updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
-            return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
-        # --- END LLM-BASED CSV DATA PARSING ---
-
-        if CUSTOMER_ID_COL not in input_df.columns:
-            final_answer = f"❌ 오류: '{CUSTOMER_ID_COL}' 컬럼이 CSV에 없습니다."
-            current_messages = state.messages # Get current messages
-            updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
-            return {"messages": updated_messages, "final_answer": final_answer, "error_message": final_answer}
-
-        customer_ids = input_df[CUSTOMER_ID_COL]
-        X_predict = input_df.drop(columns=[CUSTOMER_ID_COL], errors='ignore')
-
-        # --- 범주형 컬럼 인코딩 ---
-        for col in CATEGORICAL_COLS:
-            if col in X_predict.columns:
-                if col in label_encoders:
-                    le = label_encoders[col]
-                    X_predict[col] = X_predict[col].apply(
-                        lambda x: le.transform([x])[0] if x in le.classes_ else -1
-                    )
-                else:
-                    print(f"WARNING: Label encoder for column '{col}' not found. Skipping encoding.")
-            else:
-                print(f"WARNING: Categorical column '{col}' not found in input CSV. Skipping.")
-
-        # --- 누락된 컬럼 처리 (모델이 기대하는 모든 컬럼이 있는지 확인) ---
-        missing_cols = set(EXPECTED_FEATURE_ORDER) - set(X_predict.columns)
-        for col in missing_cols:
-            print(f"INFO: Adding missing column '{col}' with default value 0.")
-            X_predict[col] = 0 # 또는 np.nan 등 적절한 기본값
-
-        # --- 컬럼 순서 정렬 ---
-        X_predict = X_predict[EXPECTED_FEATURE_ORDER]
-
-        # --- 예측 수행 ---
-        predictions_proba = await asyncio.to_thread(pipeline_final.predict_proba, X_predict)
-        predictions = (predictions_proba[:, 1] >= PREDICTION_THRESHOLD).astype(int)
-
-        # --- 결과 생성 ---
-        results_df = pd.DataFrame({
-            CUSTOMER_ID_COL: customer_ids,
-            'Churn Probability': predictions_proba[:, 1],
-            'Churn Prediction (Threshold 0.312)': predictions
-        })
-        results_df['Churn Prediction (Threshold 0.312)'] = results_df['Churn Prediction (Threshold 0.312)'].map({1: 'Yes', 0: 'No'})
-
-        # --- LLM을 사용하여 결과 요약 ---
-        print("INFO: Generating final answer using ChatOpenAI.")
-        results_as_string = results_df.to_csv(index=False)
-
-        # LangChain's ChatOpenAI will automatically pick up the OPENAI_API_KEY environment variable.
-        llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
-
-        summary_prompt = f"""
-You are a helpful data analyst assistant. Your task is to present customer churn prediction results to a user in a clear, friendly, and insightful way.
-
-Here are the prediction results in CSV format:
-```csv
-{results_as_string}
-```
-
-Based on this data, please generate a summary for the user. Your summary should:
-1. Start with a clear heading like "📊 고객 이탈 예측 분석 결과".
-2. Briefly explain what the results mean (e.g., "아래는 각 고객의 이탈 확률 및 예측 결과입니다.").
-3. Present the key findings using a Markdown table to display the results clearly.
-4. If there are many customers, summarize the overall trend first (e.g., "총 {len(results_df)}명의 고객 중 {results_df[results_df['Churn Prediction (Threshold 0.312)'] == 'Yes'].shape[0]}명이 이탈할 것으로 예측됩니다.").
-5. Then display the results in a nicely formatted Markdown table with headers and aligned columns.
-6. If there are only a few customers (e.g., less than 10), include all of them in the table.
-7. If there are many customers, show the top 5-10 customers with highest churn probability in the table.
-8. Conclude with a friendly closing remark, suggesting actions that could be taken (e.g., "이탈 가능성이 높은 고객에게는 특별 프로모션을 제공하는 것을 고려해볼 수 있습니다.").
-9. The entire response MUST be in Korean.
-
-Please provide a comprehensive and easy-to-understand summary.
-"""
-        try:
-            # Using await with ainvoke for async call
-            response = await llm.ainvoke(summary_prompt)
-            final_answer = response.content
-        except Exception as e:
-            error_msg = f"❌ 오류: ChatOpenAI로 결과 요약 중 오류 발생: {e}"
-            print(f"ERROR: {error_msg}")
-            current_messages = state.messages # Get current messages
-            updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
-            return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
-
-
-        print(f"Prediction successful. LLM-generated result preview: {final_answer[:200]}...")
-        current_messages = state.messages # Get current messages
-        updated_messages = current_messages + [AIMessage(content=final_answer)] if current_messages else [AIMessage(content=final_answer)]
-        return {"messages": updated_messages, "final_answer": final_answer, "error_message": None}
-
-    except pd.errors.EmptyDataError:
-        error_msg = "❌ 오류: 입력된 CSV 데이터가 비어 있거나 잘못된 형식입니다. CSV 내용을 다시 확인해주세요."
-        print(f"ERROR: {error_msg}")
-        current_messages = state.messages # Get current messages
-        updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
-        return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
-    except FileNotFoundError as e:
-        error_msg = f"❌ 오류: 모델 또는 전처리 파일을 찾을 수 없습니다. 경로를 확인해주세요. ({e})"
-        print(f"ERROR: {error_msg}")
-        current_messages = state.messages # Get current messages
-        updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
-        return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
-    except KeyError as e:
-        error_msg = f"❌ 오류: CSV 데이터에 필요한 컬럼이 누락되었거나, 모델 학습 시 사용된 컬럼과 다릅니다. (오류 컬럼: {e}) CSV 파일을 확인해주세요."
-        print(f"ERROR: {error_msg}")
-        current_messages = state.messages # Get current messages
-        updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
-        return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
-    except ValueError as e: # Often from pandas if query is malformed for read_sql_query
-        error_msg = f"❌ 오류: 데이터 변환 중 값 오류가 발생했습니다. CSV 데이터 타입을 확인해주세요. (오류: {e})"
-        print(f"ERROR: {error_msg}")
-        current_messages = state.messages # Get current messages
-        updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
-        return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
-    except Exception as e:
-        error_msg = f"❌ 예측 중 알 수 없는 오류 발생: {e}"
-        print(f"ERROR: {error_msg}")
-        current_messages = state.messages # Get current messages
-        updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
-        return {"messages": updated_messages, "final_answer": error_msg, "error_message": error_msg}
 
 async def create_visualization_node(state: AgentState, config: Optional[RunnableConfig] = None):
     logger.info("--- Entered create_visualization_node ---")
@@ -896,13 +598,11 @@ def route_sql_output(state: AgentState) -> Literal["create_visualization_node", 
         print(f"Warning: sql_output_choice is '{choice}'. Defaulting to summarize_sql_result_node.")
         return "summarize_sql_result_node"
 
-def route_query(state: AgentState) -> Literal["generate_sql_node", "category_predict_node", "general_question_node"]:
+def route_query(state: AgentState) -> Literal["generate_sql_node", "general_question_node"]:
     query_type = state.query_type
     print(f"Routing based on query_type: {query_type}")
     if query_type == "db_query":
         return "generate_sql_node"
-    elif query_type == "category_predict_query":
-        return "category_predict_node"
     elif query_type == "general_query":
         return "general_question_node"
     else:
@@ -920,7 +620,7 @@ workflow.add_node("execute_sql_node", execute_sql_node)
 workflow.add_node("create_visualization_node", create_visualization_node)
 workflow.add_node("summarize_sql_result_node", summarize_sql_result_node)
 workflow.add_node("general_question_node", general_question_node)
-workflow.add_node("category_predict_node", category_predict_node)
+
 
 # Set entry point
 workflow.set_entry_point("supervisor")
@@ -931,7 +631,6 @@ workflow.add_conditional_edges(
     route_query,
     {
         "generate_sql_node": "generate_sql_node",
-        "category_predict_node": "category_predict_node",
         "general_question_node": "general_question_node"
     }
 )
@@ -951,7 +650,7 @@ workflow.add_edge("create_visualization_node", END)
 workflow.add_edge("summarize_sql_result_node", END)
 
 # Edges from placeholder nodes to the SQL generation flow
-workflow.add_edge("category_predict_node", END)
+
 
 # Edge for general question
 workflow.add_edge("general_question_node", END)

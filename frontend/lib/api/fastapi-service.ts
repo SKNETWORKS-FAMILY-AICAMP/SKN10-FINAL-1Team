@@ -4,7 +4,8 @@
  */
 
 import { toast } from "@/hooks/use-toast"
-import { v4 as uuidv4 } from 'uuid'
+import { v4 as uuidv4 } from 'uuid';
+import type { AgentType } from './chat-service';
 import { cleanStreamingToken, cleanFullMessageContent } from './token-cleaner'
 
 // Set the FastAPI server URL
@@ -69,6 +70,7 @@ export async function sendChatMessageToFastAPI(message: string, threadId?: strin
  * Returns an object with methods to send messages, close the connection, and the connection itself
  */
 export function createChatWebSocket(threadId: string = uuidv4(), 
+  agentType: AgentType | "auto", // Added agentType parameter
   onToken: (token: string) => void,
   onAgentChange: (agent: string) => void,
   onToolStart: (tool: any) => void,
@@ -76,8 +78,16 @@ export function createChatWebSocket(threadId: string = uuidv4(),
   onError: (error: string) => void,
   onDone: () => void) {
   
-  console.log(`Creating WebSocket connection for thread ${threadId}`);
-  console.log(`FastAPI WebSocket URL: ${FASTAPI_WS_URL}/api/chat/ws/${threadId}`);
+  let wsUrl = `${FASTAPI_WS_URL}/api/chat/ws/${threadId}`; // Default to supervisor
+  if (agentType === 'analytics') {
+    wsUrl = `${FASTAPI_WS_URL}/ws/analysis_agent/${threadId}`;
+  } else if (agentType === 'prediction') {
+    wsUrl = `${FASTAPI_WS_URL}/ws/prediction_agent/${threadId}`;
+  }
+  // For 'code', 'rag', or 'auto', it will use the default supervisor wsUrl.
+
+  console.log(`Creating WebSocket connection for thread ${threadId} with agentType ${agentType}`);
+  console.log(`Selected FastAPI WebSocket URL: ${wsUrl}`);
   
   try {
     // Close existing connection for this thread if any
@@ -90,7 +100,7 @@ export function createChatWebSocket(threadId: string = uuidv4(),
     }
     
     // Create a new WebSocket connection
-    const ws = new WebSocket(`${FASTAPI_WS_URL}/api/chat/ws/${threadId}`);
+    const ws = new WebSocket(wsUrl);
     
     // Store the connection
     activeConnections[threadId] = ws;

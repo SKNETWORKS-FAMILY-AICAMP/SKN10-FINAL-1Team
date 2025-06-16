@@ -17,11 +17,11 @@ supervisor_chat_prompt_agent3 = ChatPromptTemplate.from_messages([
     SystemMessage(content="""You are an expert routing assistant. Based on the entire conversation history,
 analyze the LATEST user's question to determine the query type.
 Respond with a JSON object. The JSON object MUST contain a 'query_type' field
-set to one of 'db_query', 'category_predict_query', or 'general_query'.
+set to one of 'db_query' or 'general_query'.
 Focus on the most recent user message for the specific question, but use the provided history for context if needed.
 Example: If the user asks '오늘 날씨 어때?', respond with {"query_type": "general_query"}.
 Example: If the user asks '지난 달 사용자 분석해줘', respond with {"query_type": "db_query"}.
-Example: If the user asks '이 고객은 어떤 상품을 살 것 같아?', respond with {"query_type": "category_predict_query"}.
+
 Respond in Korean."""),
     MessagesPlaceholder(variable_name="messages")
 ])

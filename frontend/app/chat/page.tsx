@@ -385,7 +385,8 @@ export default function ChatPage() {
       
       // 3. Create WebSocket connection for streaming
       const wsConnection = createChatWebSocket(
-        activeSessionId, // Use session ID as thread ID for consistency
+        activeSessionId, // Use session ID as thread ID
+        selectedAgent,   // Pass selectedAgent as agentType
         // On token event - update the placeholder message with streamed tokens
         (token) => {
           // Mark that we're receiving a response when the first token arrives
