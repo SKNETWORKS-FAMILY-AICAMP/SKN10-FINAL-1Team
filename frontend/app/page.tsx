@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
-import { BarChart3Icon, FileTextIcon, CodeIcon, LogInIcon } from "lucide-react"
+import { BarChart3Icon, FileTextIcon, CodeIcon, LogInIcon, Upload, Database } from "lucide-react"
 
 export default function Home() {
   return (
@@ -12,14 +12,14 @@ export default function Home() {
           <p className="text-xl text-slate-600 dark:text-slate-400 mb-8">
             Intelligent assistance for code analysis, document QA, and business insights
           </p>
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-2 flex-wrap">
             <Button asChild size="lg" className="gap-2">
               <Link href="/login">
                 <LogInIcon className="h-5 w-5" />
                 Company Login
               </Link>
             </Button>
-            <Button asChild variant="outline" size="lg">
+            <Button asChild variant="outline" size="lg" className="gap-2">
               <Link href="/demo">Try Demo</Link>
             </Button>
           </div>

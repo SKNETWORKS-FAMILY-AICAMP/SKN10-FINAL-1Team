@@ -328,6 +328,85 @@ class AgentService:
                 }
             })
 
+    async def process_prediction(self, data: 'pd.DataFrame', model_type: str = "churn") -> 'pd.DataFrame':
+        """
+        Process prediction on the given data using the specified model.
+        
+        The method handles data preprocessing and prediction using a machine learning model.
+        
+        Args:
+            data: DataFrame containing the data to predict on
+            model_type: Type of model to use for prediction (default: "churn")
+            
+        Returns:
+            DataFrame containing the original data with prediction results
+        """
+        try:
+            import pandas as pd
+            import os
+            import joblib
+            from sklearn.preprocessing import LabelEncoder
+            import numpy as np
+            
+            # Path to model files
+            models_dir = os.path.join(os.path.dirname(__file__), "models")
+            
+            # Load preprocessing pipeline and model based on model_type
+            if model_type == "churn":
+                # Load preprocessing components
+                pipeline_path = os.path.join(models_dir, "churn_predictor_pipeline.pkl")
+                categorical_cols_path = os.path.join(models_dir, "categorical_cols.pkl")
+                label_encoders_path = os.path.join(models_dir, "label_encoders.pkl")
+                
+                # Check if model files exist
+                if not all(os.path.exists(p) for p in [pipeline_path, categorical_cols_path, label_encoders_path]):
+                    raise FileNotFoundError("One or more model files not found.")
+                
+                # Load the model components
+                pipeline = joblib.load(pipeline_path)
+                categorical_cols = joblib.load(categorical_cols_path)
+                label_encoders = joblib.load(label_encoders_path)
+                
+                # Preprocess the data
+                data_copy = data.copy()
+                
+                # Handle missing values
+                for col in data_copy.columns:
+                    if data_copy[col].dtype == 'object':
+                        data_copy[col] = data_copy[col].fillna('Unknown')
+                    else:
+                        data_copy[col] = data_copy[col].fillna(0)
+                
+                # Apply label encoding to categorical columns
+                for col in categorical_cols:
+                    if col in data_copy.columns:
+                        if col in label_encoders:
+                            le = label_encoders[col]
+                            # Handle unseen categories
+                            unique_vals = data_copy[col].unique()
+                            for val in unique_vals:
+                                if val not in le.classes_:
+                                    new_classes = np.append(le.classes_, [val])
+                                    le.classes_ = new_classes
+                            data_copy[col] = le.transform(data_copy[col])
+                
+                # Make predictions using the pipeline
+                predictions = pipeline.predict(data_copy)
+                probabilities = pipeline.predict_proba(data_copy)[:, 1]  # Probability of positive class
+                
+                # Add predictions to the original data
+                result_df = data.copy()
+                result_df['prediction'] = predictions
+                result_df['prediction_probability'] = probabilities
+                
+                return result_df
+            else:
+                raise ValueError(f"Unsupported model type: {model_type}")
+                
+        except Exception as e:
+            logger.error(f"Error during prediction processing: {str(e)}", exc_info=True)
+            raise
+
 
 # Singleton pattern for AgentService
 _agent_service_instance = None

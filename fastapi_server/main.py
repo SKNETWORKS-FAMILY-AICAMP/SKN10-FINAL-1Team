@@ -1,6 +1,7 @@
 
-from fastapi import FastAPI, WebSocket, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, WebSocket, HTTPException, Depends, BackgroundTasks, UploadFile, File, Form, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
 import asyncio
@@ -12,6 +13,11 @@ import json
 import uuid
 from datetime import datetime
 import logging
+import pandas as pd
+import psycopg2
+from psycopg2 import sql
+from io import StringIO
+import tempfile
 
 # Add project root to sys.path to enable imports
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -74,6 +80,181 @@ async def shutdown_event():
 async def root():
     """Health check endpoint."""
     return {"status": "online", "message": "LangGraph Agent API is running"}
+
+
+# PostgreSQL 연결 설정
+def get_db_connection():
+    """Get PostgreSQL database connection using credentials from .env"""
+    # Load environment variables if not already loaded
+    load_dotenv(dotenv_path=dotenv_path)
+    
+    host = os.environ.get('DB_HOST')
+    port = os.environ.get('DB_PORT')
+    dbname = os.environ.get('DB_NAME')
+    user = os.environ.get('DB_USER')
+    password = os.environ.get('DB_PASSWORD')
+    
+    if not all([host, port, dbname, user, password]):
+        raise ValueError("Database configuration is incomplete. Check your .env file.")
+    
+    conn = psycopg2.connect(
+        host=host,
+        port=port,
+        dbname=dbname,
+        user=user,
+        password=password
+    )
+    return conn
+
+
+@app.get("/api/tables")
+async def get_tables():
+    """Get all available tables from the PostgreSQL database."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Execute query to get all tables in the database
+        cur.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public'
+        """)
+        
+        tables = [row[0] for row in cur.fetchall()]
+        cur.close()
+        conn.close()
+        
+        return {"tables": tables}
+    except Exception as e:
+        logger.error(f"Error fetching tables: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@app.post("/api/upload-csv")
+async def upload_csv(file: UploadFile = File(...), table_name: str = Form(...), create_table: bool = Form(False)):
+    """Upload a CSV file and save it to the specified PostgreSQL table.
+    
+    Args:
+        file: The CSV file to upload
+        table_name: The name of the table to save the data to
+        create_table: Whether to create a new table if it doesn't exist
+    """
+    try:
+        # Save the uploaded file to a temporary file
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            content = await file.read()
+            temp_file.write(content)
+            temp_path = temp_file.name
+        
+        # Read the CSV file with pandas
+        df = pd.read_csv(temp_path)
+        
+        # Remove the temporary file
+        os.unlink(temp_path)
+        
+        # Connect to the PostgreSQL database
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # If create_table is True, create the table if it doesn't exist
+        if create_table:
+            # Generate column definitions from dataframe
+            columns = []
+            for col_name, dtype in zip(df.columns, df.dtypes):
+                if pd.api.types.is_integer_dtype(dtype):
+                    col_type = "INTEGER"
+                elif pd.api.types.is_float_dtype(dtype):
+                    col_type = "FLOAT"
+                elif pd.api.types.is_bool_dtype(dtype):
+                    col_type = "BOOLEAN"
+                elif pd.api.types.is_datetime64_dtype(dtype):
+                    col_type = "TIMESTAMP"
+                else:
+                    col_type = "TEXT"
+                
+                # Sanitize column name - replace spaces and special chars with underscores
+                sanitized_col = ''.join(c if c.isalnum() else '_' for c in col_name)
+                columns.append(f"\"{sanitized_col}\" {col_type}")
+            
+            # Create the table
+            create_table_query = sql.SQL("CREATE TABLE IF NOT EXISTS {} ({})").format(
+                sql.Identifier(table_name),
+                sql.SQL(", ").join([sql.SQL(col) for col in columns])
+            )
+            
+            cur.execute(create_table_query)
+            conn.commit()
+        
+        # Create a buffer for the CSV data
+        buffer = StringIO()
+        df.to_csv(buffer, index=False, header=False)
+        buffer.seek(0)
+        
+        # Generate column names for the COPY command
+        columns = [f'"{col}"' for col in df.columns]
+        column_str = ", ".join(columns)
+        
+        # Use the COPY command to efficiently insert the data
+        copy_query = f"""COPY {table_name} ({column_str}) FROM STDIN WITH CSV"""
+        cur.copy_expert(copy_query, buffer)
+        
+        # Commit the transaction and close the connection
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED,
+            content={
+                "message": f"Successfully uploaded {len(df)} rows to table {table_name}",
+                "rows_uploaded": len(df)
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error uploading CSV: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Upload error: {str(e)}")
+
+
+from pydantic import BaseModel
+
+class PredictionRequest(BaseModel):
+    table_name: str
+    model_type: str = "churn"
+
+@app.post("/api/predict")
+async def predict(request: PredictionRequest):
+    """Run prediction on data from a specified table using the ML model.
+    
+    The model will handle the preprocessing of raw data before prediction.
+    
+    Args:
+        request: PredictionRequest object containing table_name and model_type
+    """
+    try:
+        # Connect to the database
+        conn = get_db_connection()
+        
+        # Read data from the specified table
+        df = pd.read_sql(f"SELECT * FROM {request.table_name}", conn)
+        conn.close()
+        
+        if df.empty:
+            raise HTTPException(status_code=404, detail=f"No data found in table {request.table_name}")
+        
+        # Get the agent service to process the prediction
+        agent_service = get_agent_service()
+        
+        # Process the prediction (the agent service will handle preprocessing and prediction)
+        prediction_results = await agent_service.process_prediction(df, request.model_type)
+        
+        return {"predictions": prediction_results.to_dict(orient="records")}
+        
+    except Exception as e:
+        logger.error(f"Error during prediction: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
+
 
 
 @app.post("/api/chat", response_model=ChatResponse)

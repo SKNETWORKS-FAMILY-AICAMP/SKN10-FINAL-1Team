@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef, FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { SendIcon } from "lucide-react"
+import { SendIcon, Upload, FileIcon } from "lucide-react"
 import { ChatMessage as ChatMessageComponent } from "@/components/chat-message"
 import { AgentSelector } from "@/components/agent-selector"
 import { ChatHeader } from "@/components/chat-header"
@@ -69,6 +70,15 @@ export default function ChatPage() {
   const [sessions, setSessions] = useState<any[]>([])
   const [activeSession, setActiveSession] = useState<any | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  
+  // CSV 업로드 관련 상태
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadTableName, setUploadTableName] = useState<string>("") 
+  const [createNewTable, setCreateNewTable] = useState(false)
+  const [availableTables, setAvailableTables] = useState<string[]>([])
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Check if user is logged in
   useEffect(() => {
@@ -497,6 +507,84 @@ export default function ChatPage() {
     router.push("/login")
   }
 
+  // 테이블 목록 가져오기
+  const fetchAvailableTables = async () => {
+    try {
+      const response = await fetch("/api/tables");
+      if (!response.ok) {
+        throw new Error("테이블 목록을 가져오는 데 실패했습니다.");
+      }
+      const data = await response.json();
+      setAvailableTables(data.tables || []);
+    } catch (error) {
+      console.error("테이블 목록 가져오기 오류:", error);
+      toast({
+        title: "오류",
+        description: "테이블 목록을 가져오는 데 실패했습니다.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // 파일 업로드 처리
+  const handleFileUpload = async () => {
+    if (!uploadFile || !uploadTableName) {
+      toast({
+        title: "오류",
+        description: "파일과 테이블 이름이 필요합니다.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      formData.append("table_name", uploadTableName);
+      formData.append("create_table", String(createNewTable));
+      
+      const response = await fetch("/api/upload-csv", {
+        method: "POST",
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "업로드 실패");
+      }
+      
+      const result = await response.json();
+      
+      // 성공 메시지 표시
+      toast({
+        title: "업로드 성공",
+        description: `${uploadTableName} 테이블에 ${result.rows_uploaded}개 행이 업로드되었습니다.`,
+      });
+      
+      // 모달 닫기 및 상태 초기화
+      setIsUploadModalOpen(false);
+      setUploadFile(null);
+      setUploadTableName("");
+      setCreateNewTable(false);
+      
+      // 파일 인풋 초기화
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (error) {
+      console.error("파일 업로드 오류:", error);
+      toast({
+        title: "업로드 실패",
+        description: error instanceof Error ? error.message : "파일 업로드 중 오류가 발생했습니다.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
   if (!user) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>
   }
@@ -603,6 +691,30 @@ export default function ChatPage() {
                     disabled={isLoading}
                     className="flex-1"
                   />
+                  {/* 파일 첨부 버튼 */}
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading}
+                  >
+                    <FileIcon className="h-5 w-5" />
+                    <span className="sr-only">Attach File</span>
+                  </Button>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef}
+                    accept=".csv"
+                    className="hidden" 
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setUploadFile(file);
+                        fetchAvailableTables(); // 테이블 목록 가져오기
+                        setIsUploadModalOpen(true);
+                      }
+                    }} 
+                  />
                   <Button type="submit" disabled={isLoading || !input.trim()}>
                     <SendIcon className="h-5 w-5" />
                     <span className="sr-only">Send</span>
@@ -610,6 +722,99 @@ export default function ChatPage() {
                 </form>
               </div>
             )}
+
+            {/* CSV 업로드 모달 */}
+            <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>CSV 파일 업로드</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  {uploadFile && (
+                    <div className="flex flex-col items-center p-4 border rounded-md bg-slate-50">
+                      <FileIcon className="h-10 w-10 text-blue-500 mb-2" />
+                      <p className="font-medium">{uploadFile.name}</p>
+                      <p className="text-sm text-gray-500">
+                        {(uploadFile.size / 1024).toFixed(2)} KB
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox" 
+                        id="createTable" 
+                        checked={createNewTable}
+                        onChange={(e) => {
+                          setCreateNewTable(e.target.checked);
+                          if (e.target.checked) {
+                            setUploadTableName("");
+                          }
+                        }}
+                        className="h-4 w-4"
+                      />
+                      <label htmlFor="createTable">
+                        새 테이블 생성
+                      </label>
+                    </div>
+                  </div>
+
+                  {createNewTable ? (
+                    <div className="space-y-2">
+                      <label htmlFor="tableName" className="text-sm font-medium">
+                        새 테이블 이름
+                      </label>
+                      <Input
+                        id="tableName"
+                        value={uploadTableName}
+                        onChange={(e) => setUploadTableName(e.target.value)}
+                        placeholder="테이블 이름을 입력하세요"
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <label htmlFor="tableSelect" className="text-sm font-medium">
+                        테이블 선택
+                      </label>
+                      <select 
+                        id="tableSelect"
+                        value={uploadTableName}
+                        onChange={(e) => setUploadTableName(e.target.value)}
+                        className="w-full rounded-md border border-input bg-transparent px-3 py-2"
+                      >
+                        <option value="">테이블을 선택하세요</option>
+                        {availableTables.map((table) => (
+                          <option key={table} value={table}>{table}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="flex justify-end space-x-2 pt-4">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setIsUploadModalOpen(false)}
+                    >
+                      취소
+                    </Button>
+                    <Button 
+                      onClick={handleFileUpload} 
+                      disabled={isUploading || !uploadTableName || !uploadFile}
+                    >
+                      {isUploading ? (
+                        <>
+                          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
+                          업로드 중...
+                        </>
+                      ) : (
+                        "업로드"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Canvas Area */}
