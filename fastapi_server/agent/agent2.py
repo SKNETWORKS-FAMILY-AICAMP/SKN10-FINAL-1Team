@@ -89,19 +89,34 @@ def build_context_from_matches(matches):
     return "\n---\n".join(contexts)
 
 # --------------------------------------------------
-# 4) 검색된 매칭 결과에서 문서 ID 추출
+# 4) fetch_res.vectors에서 metadata중에 text만 추출해서 join
+# --------------------------------------------------
+def combine_text(fetch_res, final_doc_ids) :
+    texts = []
+    for doc_id in final_doc_ids:
+        vec_info = fetch_res.vectors.get(doc_id)
+        text = vec_info["metadata"].get("text", "")
+        if text:
+            texts.append(text)
+
+    # 4) 최종 context 조립
+    context = "\n---\n".join(texts)
+    return context
+
+# --------------------------------------------------
+# 5) 검색된 매칭 결과에서 문서 ID 추출
 # --------------------------------------------------
 def get_document_id(matches) :
     ids = []
     for m in matches:
         ids.append(m.id)
-        print(m.score,end=" ") # 디버깅용 점수 출력
+        print(m.score,end=" ") # 디버깅용 점수 출력 (pinecone은 기본적으로 점수 내림차순으로 matches가 정렬됨)
     print() 
     return ids
 
 
 # --------------------------------------------------
-# 5) 유사 질문 생성 함수 (4개의 유사 질문 생성)
+# 6) 유사 질문 생성 함수 (4개의 유사 질문 생성)
 # --------------------------------------------------
 def create_similar_questions(message) :
     client = OpenAI()
@@ -195,35 +210,36 @@ def choose_one(state: State) -> str:
         return "product_document"  # Default fallback
 
 def execute_rag(state: State):
-    # print(f"\n📄 RAG 노드 실행: 문서 타입 = '{state.document_type}', 질문 = '{state.user_input}'")
+    # 1) openai_client와 index 초기화
     openai_client, pinecone_index = init_clients()
     namespace_to_search = state.document_type
     index_stats = pinecone_index.describe_index_stats()
+
+    # 2) RAG Fusion을 위한 dictionary 초기화
+    # question_to_doc : 질문번호와 해당 질문에 대한 문서 ID 매핑
+    # document_score : 문서 id와 해당 문서의 RRF 점수 매핑
     question_to_doc = dict.fromkeys([0,1,2,3,4])
     document_score = dict()
-    # print("   - 클라이언트 초기화 완료")
 
-    # 유사 질문 4개 생성
+    # 3) 질문을 유사 질문 4개로 확장하고, 원본 질문도 포함
+    # similar_questions : 유사 질문 4개 + 원본 질문 1개
     similar_questions = create_similar_questions(state.user_input)
-    similar_questions.append(state.user_input) # 원래 질문도 추가
+    similar_questions.append(state.user_input) 
     
+    # 4) RAG Fusion을 위한 질문-문서 매핑
+    # 각 질문마다 embedding 벡터를 생성하고 Pinecone에서 유사도 검색을 수행하여 최대 문서 4개를 찾는다.
+    # 각 질문에 대해 문서 ID를 매핑함.
     for i , question in enumerate(similar_questions) :
         query_vector = embed_query(openai_client, question.strip())
         if not namespace_to_search or namespace_to_search == "unknown":
             message = f"문서 타입이 '{namespace_to_search}'(으)로 분류되어 Pinecone 검색을 수행하지 않습니다."
-            # print(f"   - 정보: {message}")
-            # 'unknown'일 경우, unknown_handler_node에서 이미 메시지를 설정했을 수 있으므로, 여기서는 덮어쓰지 않거나
-            # 혹은 여기서 다른 메시지를 설정할 수 있습니다. 여기서는 검색 불가 메시지만 남깁니다.
-            # 실제로는 'unknown' 타입은 이 노드로 오지 않고 unknown_handler_node로 가야 합니다.
             # 이 코드는 execute_rag_node가 'unknown' 타입으로 호출될 경우를 대비한 방어 코드입니다.
             state.result = "적절한 문서 저장소를 찾을 수 없어 검색을 수행할 수 없습니다."
             return state.dict()
 
-        # print(f"   - Pinecone 네임스페이스 '{namespace_to_search}'에서 검색 시작...")
         if namespace_to_search not in index_stats.namespaces or \
             index_stats.namespaces[namespace_to_search].vector_count == 0:
             message = f"'{namespace_to_search}' 네임스페이스를 Pinecone에서 찾을 수 없거나, 해당 네임스페이스에 데이터가 없습니다. Pinecone 대시보드에서 네임스페이스 이름과 데이터 존재 여부를 확인해주세요."
-            # print(f"   - 경고: {message}")
             state.result = message
             return state.dict()
 
@@ -233,9 +249,9 @@ def execute_rag(state: State):
             top_k=4, # 검색할 문서 수
             include_metadata=True
         )
-        # print(f"   - 질문 임베딩 완료 (벡터 크기: {len(query_vector)})")
 
         matches = res.matches
+        print(f"질문 {i+1} : '{question}'")
         print(f"   - Pinecone 검색 완료: {len(matches)}개 결과 수신")
 
         if not matches:
@@ -243,21 +259,12 @@ def execute_rag(state: State):
             # print(f"   - 정보 없음: {message}")
             state.result = message
             return state.dict()
-
         question_to_doc[i] = get_document_id(matches)
-        context = build_context_from_matches(matches)
-
-        if not context:
-            message = "검색된 정보에서 답변을 생성할 컨텍스트를 추출하지 못했습니다."
-            print(f"   - 컨텍스트 구축 실패: {message}")
-            state.result = message
-            return state.dict()
-        print(f" 질문 : {question} (길이: {len(context)})") # 디버깅용 출력
-        print(f"컨텍스트 요약 50자 : {context[:50]}\n") # 디버깅용 출력
-        state.result = context
 
     print(question_to_doc) # 디버깅용 출력 (질문1~5에 대한 문서 id 매핑)
     print()
+
+    # 5) RRF 점수 계산
     for key in question_to_doc :
         for i, doc_id in enumerate(question_to_doc[key]) :
             if doc_id not in document_score :
@@ -265,7 +272,28 @@ def execute_rag(state: State):
             else : 
                 document_score[doc_id] += float(1/(60+1+i))
     print(f"문서 점수 : {document_score}") # 디버깅용 출력 (문서 id와 점수 매핑)
-    
+
+    # 6) RRF 점수가 높은 상위 2개 슬라이싱
+    top2 = sorted(
+        document_score.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:2]
+    final_doc_ids = [doc_id for doc_id, _ in top2]
+    print(final_doc_ids) # 디버깅용 출력 (최종 문서 ID 리스트)
+
+    # 7) 최종 문서 ID를 사용하여 Pinecone에서 fetch
+    fetch_res = pinecone_index.fetch(
+        ids=final_doc_ids,
+        namespace=namespace_to_search
+    )
+
+    # 8) 최종 context 조립
+    context = combine_text(fetch_res, final_doc_ids)
+
+    state.result = context
+    print(f"(길이: {len(context)})")  
+    print(f"컨텍스트 요약 50자 : {context}\n")
     return state.dict()
     
 
