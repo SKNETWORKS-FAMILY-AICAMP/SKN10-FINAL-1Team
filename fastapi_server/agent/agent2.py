@@ -88,10 +88,15 @@ def build_context_from_matches(matches):
 
     return "\n---\n".join(contexts)
 
+# --------------------------------------------------
+# 4) 검색된 매칭 결과에서 문서 ID 추출
+# --------------------------------------------------
 def get_document_id(matches) :
     ids = []
     for m in matches:
         ids.append(m.id)
+        print(m.score,end=" ") # 디버깅용 점수 출력
+    print() 
     return ids
 
 
@@ -195,6 +200,7 @@ def execute_rag(state: State):
     namespace_to_search = state.document_type
     index_stats = pinecone_index.describe_index_stats()
     question_to_doc = dict.fromkeys([0,1,2,3,4])
+    document_score = dict()
     # print("   - 클라이언트 초기화 완료")
 
     # 유사 질문 4개 생성
@@ -237,19 +243,29 @@ def execute_rag(state: State):
             # print(f"   - 정보 없음: {message}")
             state.result = message
             return state.dict()
-    
-        context = build_context_from_matches(matches)
+
         question_to_doc[i] = get_document_id(matches)
+        context = build_context_from_matches(matches)
 
         if not context:
             message = "검색된 정보에서 답변을 생성할 컨텍스트를 추출하지 못했습니다."
             print(f"   - 컨텍스트 구축 실패: {message}")
             state.result = message
             return state.dict()
-        print(f" 질문 : {question} (길이: {len(context)})")
-        print(f"컨텍스트 요약 50자 : {context[:50]}") # 디버깅용 출력
+        print(f" 질문 : {question} (길이: {len(context)})") # 디버깅용 출력
+        print(f"컨텍스트 요약 50자 : {context[:50]}\n") # 디버깅용 출력
         state.result = context
+
     print(question_to_doc) # 디버깅용 출력 (질문1~5에 대한 문서 id 매핑)
+    print()
+    for key in question_to_doc :
+        for i, doc_id in enumerate(question_to_doc[key]) :
+            if doc_id not in document_score :
+                document_score[doc_id] = float(1/(60+1+i))
+            else : 
+                document_score[doc_id] += float(1/(60+1+i))
+    print(f"문서 점수 : {document_score}") # 디버깅용 출력 (문서 id와 점수 매핑)
+    
     return state.dict()
     
 
