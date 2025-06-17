@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Separator } from "@/components/ui/separator"
-import { CodeIcon, FileTextIcon, BarChart3Icon, HomeIcon, LogOutIcon, XIcon, PlusIcon } from "lucide-react"
+import { CodeIcon, FileTextIcon, BarChart3Icon, HomeIcon, LogOutIcon, XIcon, PlusIcon, BrainCircuitIcon } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
 import { type ChatSession, type AgentType } from "@/lib/api/chat-service" 
@@ -102,6 +102,13 @@ export function ChatSidebar({
               >
                 <BarChart3Icon className="h-4 w-4 text-green-500" />
                 Business Analysis
+              </div>
+              <div
+                className="flex items-center gap-2 text-sm rounded-md px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                onClick={() => handleNewSession("prediction")}
+              >
+                <BrainCircuitIcon className="h-4 w-4 text-orange-500" />
+                Data Prediction
               </div>
             </div>
           </div>
@@ -223,6 +230,16 @@ export function ChatSidebar({
                   <BarChart3Icon className="h-4 w-4 text-green-500" />
                   Business Analysis
                 </div>
+                <div
+                  className="flex items-center gap-2 text-sm rounded-md px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                  onClick={() => {
+                    handleNewSession("prediction")
+                    onClose()
+                  }}
+                >
+                  <BrainCircuitIcon className="h-4 w-4 text-orange-500" />
+                  Data Prediction
+                </div>
               </div>
             </div>
 
@@ -250,6 +267,7 @@ export function ChatSidebar({
                       {session.agent_type === "code" && <CodeIcon className="h-4 w-4 text-blue-500" />}
                       {session.agent_type === "rag" && <FileTextIcon className="h-4 w-4 text-purple-500" />}
                       {session.agent_type === "analytics" && <BarChart3Icon className="h-4 w-4 text-green-500" />}
+                      {session.agent_type === "prediction" && <BrainCircuitIcon className="h-4 w-4 text-orange-500" />}
                       <div className="flex-1 min-w-0">
                         <div className="truncate">
                           {session.title ||
