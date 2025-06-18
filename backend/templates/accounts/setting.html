@@ -1,0 +1,241 @@
+<html><head>
+    <meta charset="utf-8"/>
+    <link crossorigin="" href="https://fonts.gstatic.com/" rel="preconnect"/>
+    <link as="style" href="https://fonts.googleapis.com/css2?display=swap&amp;family=Inter%3Awght%40400%3B500%3B600%3B700%3B900&amp;family=Noto+Sans%3Awght%40400%3B500%3B600%3B700%3B900" onload="this.rel='stylesheet'" rel="stylesheet"/>
+    <title>Stitch Design</title>
+    <link href="data:image/x-icon;base64," rel="icon" type="image/x-icon"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <style type="text/tailwindcss">
+        :root {
+          --primary-color: #0b80ee;
+          --secondary-color: #f0f2f5;
+          --text-primary: #111518;
+          --text-secondary: #60768a;
+          --border-color: #dbe1e6;
+        }
+        body {
+          font-family: Inter, "Noto Sans", sans-serif;
+        }
+      </style>
+    </head>
+    <body>
+    <div class="relative flex size-full min-h-screen flex-col bg-slate-50 group/design-root overflow-x-hidden">
+    <div id="header-placeholder"></div>
+    <div class="layout-container flex h-full grow flex-col">
+    <div class="flex flex-1">
+    <aside class="flex w-72 flex-col bg-white p-4 shadow-lg">
+    <div class="flex flex-col gap-6">
+    <h1 class="text-[var(--text-primary)] text-xl font-semibold leading-normal px-2 py-1">업무 보조 챗봇</h1>
+    <nav class="flex flex-col gap-2">
+    <a class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
+    <div class="text-[var(--text-primary)]" data-icon="House" data-size="24px" data-weight="regular">
+    <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
+    <path d="M218.83,103.77l-80-75.48a1.14,1.14,0,0,1-.11-.11,16,16,0,0,0-21.53,0l-.11.11L37.17,103.77A16,16,0,0,0,32,115.55V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V160h32v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V115.55A16,16,0,0,0,218.83,103.77ZM208,208H160V160a16,16,0,0,0-16-16H112a16,16,0,0,0-16,16v48H48V115.55l.11-.1L128,40l79.9,75.43.11.1Z"></path>
+    </svg>
+    </div>
+    <p class="text-sm font-medium leading-normal">홈</p>
+    </a>
+    <a class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-white bg-[var(--primary-color)] hover:bg-blue-600 transition-colors duration-150" href="#">
+    <div data-icon="Database" data-size="24px" data-weight="fill">
+    <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
+    <path d="M128,24C74.17,24,32,48.6,32,80v96c0,31.4,42.17,56,96,56s96-24.6,96-56V80C224,48.6,181.83,24,128,24Zm80,104c0,9.62-7.88,19.43-21.61,26.92C170.93,163.35,150.19,168,128,168s-42.93-4.65-58.39-13.08C55.88,147.43,48,137.62,48,128V111.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64Zm-21.61,74.92C170.93,211.35,150.19,216,128,216s-42.93-4.65-58.39-13.08C55.88,195.43,48,185.62,48,176V159.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64V176C208,185.62,200.12,195.43,186.39,202.92Z"></path>
+    </svg>
+    </div>
+    <p class="text-sm font-medium leading-normal">DB 관리</p>
+    </a>
+    <a class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
+    <div class="text-[var(--text-primary)]" data-icon="ChatCircleDots" data-size="24px" data-weight="regular">
+    <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
+    <path d="M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128ZM84,116a12,12,0,1,0,12,12A12,12,0,0,0,84,116Zm88,0a12,12,0,1,0,12,12A12,12,0,0,0,172,116Zm60,12A104,104,0,0,1,79.12,219.82L45.07,231.17a16,16,0,0,1-20.24-20.24l11.35-34.05A104,104,0,1,1,232,128Zm-16,0A88,88,0,1,0,51.81,172.06a8,8,0,0,1,.66,6.54L40,216,77.4,203.53a7.85,7.85,0,0,1,2.53-.42,8,8,0,0,1,4,1.08A88,88,0,0,0,216,128Z"></path>
+    </svg>
+    </div>
+    <p class="text-sm font-medium leading-normal">채팅 로그</p>
+    </a>
+    <a class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
+    <div class="text-[var(--text-primary)]" data-icon="Users" data-size="24px" data-weight="regular">
+    <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
+    <path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"></path>
+    </svg>
+    </div>
+    <p class="text-sm font-medium leading-normal">사용자 관리</p>
+    </a>
+    <a class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
+    <div class="text-[var(--text-primary)]" data-icon="Gear" data-size="24px" data-weight="regular">
+    <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
+    <path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.71,107.71,0,0,0-26.25-10.87,8,8,0,0,0-7.06,1.49L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06Zm-16.1-6.5a73.93,73.93,0,0,1,0,8.68,8,8,0,0,0,1.74,5.48l14.19,17.73a91.57,91.57,0,0,1-6.23,15L187,173.11a8,8,0,0,0-5.1,2.64,74.11,74.11,0,0,1-6.14,6.14,8,8,0,0,0-2.64,5.1l-2.51,22.58a91.32,91.32,0,0,1-15,6.23l-17.74-14.19a8,8,0,0,0-5-1.75h-.48a73.93,73.93,0,0,1-8.68,0,8,8,0,0,0-5.48,1.74L100.45,215.8a91.57,91.57,0,0,1-15-6.23L82.89,187a8,8,0,0,0-2.64-5.1,74.11,74.11,0,0,1-6.14-6.14,8,8,0,0,0-5.1-2.64L46.43,170.6a91.32,91.32,0,0,1-6.23-15l14.19-17.74a8,8,0,0,0,1.74-5.48,73.93,73.93,0,0,1,0-8.68,8,8,0,0,0-1.74-5.48L40.2,100.45a91.57,91.57,0,0,1,6.23-15L69,82.89a8,8,0,0,0,5.1-2.64,74.11,74.11,0,0,1,6.14-6.14A8,8,0,0,0,82.89,69L85.4,46.43a91.32,91.32,0,0,1,15-6.23l17.74,14.19a8,8,0,0,0,5.48,1.74,73.93,73.93,0,0,1,8.68,0,8,8,0,0,0,5.48-1.74L155.55,40.2a91.57,91.57,0,0,1,15,6.23L173.11,69a8,8,0,0,0,2.64,5.1,74.11,74.11,0,0,1,6.14,6.14,8,8,0,0,0,5.1,2.64l22.58,2.51a91.32,91.32,0,0,1,6.23,15l-14.19,17.74A8,8,0,0,0,199.87,123.66Z"></path>
+    </svg>
+    </div>
+    <p class="text-sm font-medium leading-normal">설정</p>
+    </a>
+    </nav>
+    </div>
+    </aside>
+    <main class="flex-1 overflow-y-auto bg-white">
+    <header class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3 shadow-sm">
+    <div class="flex items-center gap-3">
+    <button class="rounded-md p-1.5 text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 md:hidden">
+    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 6h16M4 12h16m-7 6h7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+    </svg>
+    </button>
+    <h2 class="text-lg font-semibold text-gray-800">DB 관리</h2>
+    </div>
+    <div class="flex items-center gap-4">
+    <button class="relative rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none">
+    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+    </svg>
+    <span class="absolute right-2 top-2 block h-2 w-2 rounded-full bg-red-500 ring-1 ring-white"></span>
+    </button>
+    <div class="relative">
+    <button class="flex items-center gap-2 rounded-full focus:outline-none">
+    <img alt="User avatar" class="h-8 w-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtnRoPXfPFeVWYv7txc2efmVJxlFNtMCPcGMD8l2CUiigkkqxkZAUMLM1gR_1CfWIPrMGg9fXNSmZ39ZK31IU_BkYWUxlnv7Wc5TnlNvxX7dZs3r5SCQkODkl1CpPFP6uaWD8ggQ5PfuKlF3-2vN97j1qc6tHugjohMpLEmxJ2gguAhDgcKkyclaJfEGbzK6ND5RiBa1zn3VJ-9OqKV0LlyQ3_6WZtcwnbRVS9EoOrj7mvjMhtZfwB40nkdQHbcET-cwaTOvac95AO"/>
+    </button>
+    </div>
+    </div>
+    </header>
+    <div class="p-8">
+    <div class="mx-auto max-w-4xl">
+    <section class="mb-10 rounded-lg bg-white p-6 shadow-md">
+    <h3 class="text-[var(--text-primary)] text-xl font-semibold leading-tight tracking-[-0.015em] mb-6">데이터베이스 정보</h3>
+    <div class="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2">
+    <div class="border-b border-[var(--border-color)] pb-4 md:border-none md:pb-0">
+    <p class="text-[var(--text-secondary)] text-sm font-medium leading-normal mb-1">데이터베이스 이름</p>
+    <p class="text-[var(--text-primary)] text-base font-normal leading-normal">chatbot_db</p>
+    </div>
+    <div class="border-b border-[var(--border-color)] pb-4 md:border-none md:pb-0">
+    <p class="text-[var(--text-secondary)] text-sm font-medium leading-normal mb-1">데이터베이스 유형</p>
+    <p class="text-[var(--text-primary)] text-base font-normal leading-normal">PostgreSQL</p>
+    </div>
+    <div class="border-b border-[var(--border-color)] pb-4 md:border-none md:pb-0">
+    <p class="text-[var(--text-secondary)] text-sm font-medium leading-normal mb-1">데이터베이스 크기</p>
+    <p class="text-[var(--text-primary)] text-base font-normal leading-normal">10GB</p>
+    </div>
+    <div>
+    <p class="text-[var(--text-secondary)] text-sm font-medium leading-normal mb-1">데이터베이스 상태</p>
+    <p class="text-[var(--text-primary)] text-base font-normal leading-normal">
+    <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800"> 온라인 </span>
+    </p>
+    </div>
+    </div>
+    </section>
+    <section class="mb-10 rounded-lg bg-white p-6 shadow-md">
+    <h3 class="text-[var(--text-primary)] text-xl font-semibold leading-tight tracking-[-0.015em] mb-6">데이터베이스 관리</h3>
+    <div class="flex gap-4">
+    <button class="flex min-w-[90px] items-center justify-center rounded-md h-10 px-4 bg-[var(--primary-color)] text-white text-sm font-semibold leading-normal tracking-[0.015em] hover:bg-blue-600 transition-colors duration-150">
+    <span class="truncate">백업</span>
+    </button>
+    <button class="flex min-w-[90px] items-center justify-center rounded-md h-10 px-4 bg-[var(--secondary-color)] text-[var(--text-primary)] text-sm font-semibold leading-normal tracking-[0.015em] hover:bg-slate-200 transition-colors duration-150">
+    <span class="truncate">복원</span>
+    </button>
+    </div>
+    </section>
+    <section class="rounded-lg bg-white p-6 shadow-md">
+    <h3 class="text-[var(--text-primary)] text-xl font-semibold leading-tight tracking-[-0.015em] mb-6">데이터베이스 스키마</h3>
+    <div class="@container">
+    <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
+    <table class="min-w-full divide-y divide-[var(--border-color)]">
+    <thead class="bg-slate-50">
+    <tr>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                                테이블 이름
+                              </th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                                열 수
+                              </th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                                행 수
+                              </th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                                생성 날짜
+                              </th>
+    </tr>
+    </thead>
+    <tbody class="divide-y divide-[var(--border-color)] bg-white">
+    <tr>
+    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">사용자</td>
+    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">5</td>
+    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">1,000</td>
+    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">2023-01-15</td>
+    </tr>
+    <tr>
+    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">채팅 로그</td>
+    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">7</td>
+    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">50,000</td>
+    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">2023-01-15</td>
+    </tr>
+    <tr>
+    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">
+                                지식 베이스
+                              </td>
+    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">4</td>
+    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">2,000</td>
+    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">2023-01-15</td>
+    </tr>
+    </tbody>
+    </table>
+    </div>
+    <style>
+                        @container(max-width:120px) {
+                          .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 {
+                            display: none;
+                          }
+                        }
+                        @container(max-width:240px) {
+                          .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 {
+                            display: none;
+                          }
+                        }
+                        @container(max-width:360px) {
+                          .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 {
+                            display: none;
+                          }
+                        }
+                        @container(max-width:480px) {
+                          .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 {
+                            display: none;
+                          }
+                        }
+                      </style>
+    </div>
+    </section>
+    </div>
+    </div>
+    </main>
+    </div>
+    </div>
+    </div>
+    <script>
+        function loadHeader() {
+            fetch('/_header.html')
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('header-placeholder').innerHTML = data;
+                    const mobileSidebarToggle = document.getElementById('open-sidebar-mobile');
+                    if (mobileSidebarToggle) {
+                      mobileSidebarToggle.style.display = 'none';
+                    }
+                    // Set active link
+                    const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
+                    // Use 'settings' as the data-navlink value for setting.html
+                    const navLink = document.querySelector(`nav a[data-navlink='settings']`); 
+                    if (navLink) {
+                        navLink.classList.add('text-[var(--text-primary)]', 'bg-[var(--secondary-color)]');
+                        navLink.classList.remove('text-[var(--text-secondary)]');
+                    }
+
+                    // Handle mobile sidebar toggle if specific JS exists for setting.html's sidebar
+                    const openSidebarMobileButton = document.getElementById('open-sidebar-mobile');
+                    if (openSidebarMobileButton) {
+                        // if (typeof openMobileSettingsSidebar === 'function') { // Example function name
+                        //    openSidebarMobileButton.addEventListener('click', openMobileSettingsSidebar);
+                        // } else {
+                           console.log('Mobile menu button present in header on setting.html, but no specific action is configured for its sidebar yet.');
+                        // }
+                    }
+                })
+                .catch(error => console.error('Error loading header:', error));
+        }
+        document.addEventListener('DOMContentLoaded', loadHeader);
+    </script>
+    </body></html>

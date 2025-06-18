@@ -775,7 +775,7 @@ workflow.add_node("generate_sql_node", generate_sql_node)
 workflow.add_node("execute_sql_node", execute_sql_node)
 workflow.add_node("create_visualization_node", create_visualization_node)
 workflow.add_node("summarize_sql_result_node", summarize_sql_result_node)
-workflow.add_node("general_question_node", general_question_node)
+
 workflow.add_node("category_predict_node", category_predict_node)
 
 # Set entry point
@@ -787,8 +787,7 @@ workflow.add_conditional_edges(
     route_query,
     {
         "generate_sql_node": "generate_sql_node",
-        "category_predict_node": "category_predict_node",
-        "general_question_node": "general_question_node"
+        "category_predict_node": "category_predict_node"
     }
 )
 
@@ -808,9 +807,6 @@ workflow.add_edge("summarize_sql_result_node", END)
 
 # Edges from placeholder nodes to the SQL generation flow
 workflow.add_edge("category_predict_node", END)
-
-# Edge for general question
-workflow.add_edge("general_question_node", END)
 
 # Compile the graph
 app = workflow.compile()

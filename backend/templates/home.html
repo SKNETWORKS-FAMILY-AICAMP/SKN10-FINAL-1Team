@@ -1,0 +1,136 @@
+<html><head>
+    <meta charset="utf-8"/>
+    <link crossorigin="" href="https://fonts.gstatic.com/" rel="preconnect"/>
+    <link as="style" href="https://fonts.googleapis.com/css2?display=swap&amp;family=Inter%3Awght%40400%3B500%3B600%3B700%3B900&amp;family=Noto+Sans%3Awght%40400%3B500%3B600%3B700%3B900" onload="this.rel='stylesheet'" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
+    <title>CrewAI Assistant</title>
+    <link href="data:image/x-icon;base64," rel="icon" type="image/x-icon"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <style type="text/tailwindcss">
+        :root {
+          --primary-color: #0c7ff2;
+          --secondary-color: #f0f7ff;
+          --text-primary: #111418;
+          --text-secondary: #60758a;
+          --border-color: #e5e7eb;
+        }
+        body {
+          font-family: 'Inter', "Noto Sans", sans-serif;
+        }
+        .hover-lift {
+          transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
+        }
+        .hover-lift:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+      </style>
+    </head>
+    <body class="bg-slate-50 text-[var(--text-primary)]">
+    <div class="relative flex size-full min-h-screen flex-col group/design-root overflow-x-hidden">
+    <div class="layout-container flex h-full grow flex-col">
+    <div id="header-placeholder"></div>
+    <main class="flex-1 px-4 sm:px-10 lg:px-20 py-8">
+    <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-12">
+    <h1 class="text-4xl sm:text-5xl font-bold tracking-tight text-[var(--text-primary)] mb-4">Welcome to CrewAI Assistant</h1>
+    <p class="text-lg text-[var(--text-secondary)]">Choose a Crew to get started with your tasks and streamline your workflow.</p>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden hover-lift">
+    <div class="h-48 w-full bg-center bg-no-repeat bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCXXQs91Ie_CGJ6h4xP5Ik06ZGFnPMOTfBAIpsL5F36yi3781qGZGOrYFneOtFKrgBvlxdlk5Sak6FPOiKCQQYuGADNJ5x_gYxiK1jfB72IE487OuMw6cJLff56l6-HFmUHtngKLBfw09CoLefbVLbvyr46xfWnwvmFoNKavDlfA2FkdbH3LM0yKrZJnjLHwKXG9lVQKqxNsltc5SD2gpdg_MYTA8r9lHU5qFM_6KPE_bqe1cUjHou3BUtwMD7DIp3lnbnOEJ7LOs7F");'></div>
+    <div class="p-6">
+    <h3 class="text-xl font-semibold text-[var(--text-primary)] mb-2">Coding Crew</h3>
+    <p class="text-sm text-[var(--text-secondary)] mb-4">
+                      Analyze your code repositories on platforms like Git, and get support with various coding tools. This crew can help you identify potential issues, suggest
+                      improvements, and even automate certain coding tasks.
+                    </p>
+    <a class="inline-flex items-center text-sm font-medium text-[var(--primary-color)] hover:underline" href="#">
+                      Engage Coding Crew
+                      <span class="material-icons-outlined text-base ml-1">arrow_forward</span>
+    </a>
+    </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden hover-lift">
+    <div class="h-48 w-full bg-center bg-no-repeat bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCCgDWB8xPagw-NUbZOT2vPkjKxCerDFaYf-kdfrymt6EQuqFM4RsIUmfXlPXiEzFN6VlcnQ3QiiQu2POvuXEGMfCXlkZDfdIAeUiisnRPPVybz_Y8bej2TpZreybde34ad5z49w7d9k30fG3stBwxVvx4Q3b3z4T0XS79rAEohgrqRcm7OMup38eL1KikqIV4b0086442LPKTNHB_7y7z6i75eJ32aXOkaGfxjWID0NtEhinu3Ka3j2K8n7tZ9bc_tcQijj0xk6pYe");'></div>
+    <div class="p-6">
+    <h3 class="text-xl font-semibold text-[var(--text-primary)] mb-2">Analysis Crew</h3>
+    <p class="text-sm text-[var(--text-secondary)] mb-4">
+                      Access and analyze internal database information through text-to-SQL queries or visualizations. This crew can help you extract insights from data, create
+                      reports, and make data-driven decisions.
+                    </p>
+    <a class="inline-flex items-center text-sm font-medium text-[var(--primary-color)] hover:underline" href="#">
+                      Engage Analysis Crew
+                      <span class="material-icons-outlined text-base ml-1">arrow_forward</span>
+    </a>
+    </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden hover-lift">
+    <div class="h-48 w-full bg-center bg-no-repeat bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDfqWIqgdRPiOHAW_NkS2UkKX3LXDdUAa10iF0q_mDNvEchy1U5a4lUEWNyI1jy_kWsSGHKyLVTNMGmEsGM1Wa1PkpcQcpEmjk8B7GOvbLRW_W9b-FyvRzChWSgy49X7ULTE66jdqs0LPSk9aTLzM1AbKi_dQbydRSkYNgJCCCEcfVMiuGleHDU-8izos3Klwe3pp3aTHlowz_FVuyxL3pvxN2oC5Sq-7Kx-zIwQ40mA7nBvBNZyb4ws04XTv8c-3XyTCAv_8Wf6Oao");'></div>
+    <div class="p-6">
+    <h3 class="text-xl font-semibold text-[var(--text-primary)] mb-2">Document Search Crew</h3>
+    <p class="text-sm text-[var(--text-secondary)] mb-4">
+                      Search internal documents using Retrieval-Augmented Generation (RAG) technology. This crew can help you quickly find relevant information within a large
+                      collection of documents, saving you time and effort.
+                    </p>
+    <a class="inline-flex items-center text-sm font-medium text-[var(--primary-color)] hover:underline" href="#">
+                      Engage Search Crew
+                      <span class="material-icons-outlined text-base ml-1">arrow_forward</span>
+    </a>
+    </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-lg overflow-hidden hover-lift">
+    <div class="h-48 w-full bg-center bg-no-repeat bg-cover" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuBM7wyvWmwXdWCyTK1CVM6qgnm4u8J7lzp4dM_k5pIMQKeqgXU_wOUGiG5n-kBxfllrH80ku3RcyD2THOO7_EBlrsAd0BwIUkj368bx_P2IYgcrkYYzvI4LKZNclK9N-ykUjvsnhx8mA04L_Xgrtazp8T4cMmU9H7oDx_Wc5VTT3PN048XrPquAdW6cgcFXYszVMIO-b6uoTPhXzZe8xTMf9wGNxKeD5MAIP7L-heMImDfKSP_VkmUr4mhRj1fcpLc74u56EEPc07rT");'></div>
+    <div class="p-6">
+    <h3 class="text-xl font-semibold text-[var(--text-primary)] mb-2">Prediction Crew</h3>
+    <p class="text-sm text-[var(--text-secondary)] mb-4">
+                      Predict customer churn using customer information. This crew can help you identify customers at risk of leaving, allowing you to take proactive measures to
+                      retain them.
+                    </p>
+    <a class="inline-flex items-center text-sm font-medium text-[var(--primary-color)] hover:underline" href="#">
+                      Engage Prediction Crew
+                      <span class="material-icons-outlined text-base ml-1">arrow_forward</span>
+    </a>
+    </div>
+    </div>
+    </div>
+    </div>
+    </main>
+    <footer class="border-t border-solid border-[var(--border-color)] py-8 text-center">
+    <p class="text-sm text-[var(--text-secondary)]">© 2024 CrewAI Assistant. All rights reserved.</p>
+    </footer>
+    </div>
+    </div>
+    <script>
+        function loadHeader() {
+            fetch('/_header.html')
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('header-placeholder').innerHTML = data;
+                    const mobileSidebarToggle = document.getElementById('open-sidebar-mobile');
+                    if (mobileSidebarToggle) {
+                      mobileSidebarToggle.style.display = 'none';
+                    }
+                    // Set active link
+                    const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
+                    const navLink = document.querySelector(`nav a[data-navlink='${currentPage || 'home'}']`);
+                    if (navLink) {
+                        navLink.classList.add('text-[var(--text-primary)]', 'bg-[var(--secondary-color)]');
+                        navLink.classList.remove('text-[var(--text-secondary)]');
+                    }
+
+                    // For home.html, there's no complex sidebar, so the generic mobile menu button from _header.html
+                    // might not have a specific target. If a simple mobile menu is needed later for home.html,
+                    // its specific JS would need to be added and hooked here.
+                    // For now, we assume the button might be present but non-functional or for future use.
+                    const openSidebarMobileButton = document.getElementById('open-sidebar-mobile');
+                    if (openSidebarMobileButton) {
+                        // Example: openSidebarMobileButton.addEventListener('click', someMobileMenuFunctionForHomePage);
+                        console.log('Mobile menu button present in header on home.html, but no specific action is configured yet.');
+                    }
+                })
+                .catch(error => console.error('Error loading header:', error));
+        }
+        document.addEventListener('DOMContentLoaded', loadHeader);
+    </script>
+    </body></html>

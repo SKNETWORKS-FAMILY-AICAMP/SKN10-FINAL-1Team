@@ -134,7 +134,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='embedchunk',
-            constraint=models.CheckConstraint(condition=models.Q(models.Q(('document__isnull', False), ('file__isnull', True)), models.Q(('document__isnull', True), ('file__isnull', False)), _connector='OR'), name='embed_chunks_one_fk'),
+            constraint=models.CheckConstraint(check=models.Q(models.Q(('document__isnull', False), ('file__isnull', True)), models.Q(('document__isnull', True), ('file__isnull', False)), _connector='OR'), name='embed_chunks_one_fk'),
         ),
         migrations.AddIndex(
             model_name='codefile',

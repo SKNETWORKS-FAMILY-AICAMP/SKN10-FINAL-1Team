@@ -6,6 +6,8 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 from .serializers import UserSerializer
+from django.shortcuts import render # Added for template rendering
+from django.contrib.auth.decorators import login_required # Added for view protection
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -90,3 +92,14 @@ def update_profile(request):
         return Response(serializer.data)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@login_required
+def profile_view(request):
+    """Renders the user profile page."""
+    return render(request, 'accounts/profile.html')
+
+@login_required
+def settings_view(request):
+    """Renders the user settings page."""
+    return render(request, 'accounts/setting.html')
