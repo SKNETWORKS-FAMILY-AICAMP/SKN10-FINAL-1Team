@@ -49,7 +49,8 @@ INSTALLED_APPS = [
 AUTH_USER_MODEL = 'accounts.User'
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # CORS 미들웨어는 가장 앞에 위치해야 함
+    # 'corsheaders.middleware.CorsMiddleware',  # CORS 미들웨어는 가장 앞에 위치해야 함 (주석 처리)
+
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -64,26 +65,26 @@ ROOT_URLCONF = 'config.urls'
 # URL configuration
 APPEND_SLASH = False  # Do not force appending slashes to URLs
 
-# CORS settings
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # Next.js 개발 서버
-]
-CORS_ALLOW_CREDENTIALS = True
-
-# Add CORS_ALLOWED_METHODS
-CORS_ALLOWED_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
+# CORS settings (주석 처리 - Django 템플릿 사용으로 전환)
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",  # Next.js 개발 서버
+# ]
+# CORS_ALLOW_CREDENTIALS = True
+#
+# # Add CORS_ALLOWED_METHODS
+# CORS_ALLOWED_METHODS = [
+#     'DELETE',
+#     'GET',
+#     'OPTIONS',
+#     'PATCH',
+#     'POST',
+#     'PUT',
+# ]
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -189,8 +190,8 @@ SIMPLE_JWT = {
     'TOKEN_TYPE_CLAIM': 'token_type',
 }
 
-# CORS settings
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',  # Next.js frontend
-]
-CORS_ALLOW_CREDENTIALS = True
+# CORS settings (주석 처리 - Django 템플릿 사용으로 전환)
+# CORS_ALLOWED_ORIGINS = [
+#     'http://localhost:3000',  # Next.js frontend
+# ]
+# CORS_ALLOW_CREDENTIALS = True

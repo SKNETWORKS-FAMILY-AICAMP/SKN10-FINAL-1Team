@@ -1,0 +1,25 @@
+<header class="sticky top-0 z-10 flex h-16 w-full items-center justify-between border-b border-[var(--border-color)] bg-white px-4 shadow-sm sm:px-6">
+    <div class="flex items-center gap-3">
+    <button class="p-1.5 rounded-md hover:bg-[var(--secondary-color)] text-[var(--text-primary)] md:hidden" id="open-sidebar-mobile">
+    <span class="material-icons-outlined text-2xl">menu</span>
+    </button>
+    <a class="flex items-center gap-2" href="{% url 'home' %}">
+    <img alt="Company Logo" class="h-7 w-7" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMCe_Fq50XGU0xHrzFtZkYMZj_-53r8nnsbrv5bDn-1DkQZIishzmWpWMpCuvf83IT9ygEI7eD1R4iK6izuZuHbOemN7VJKX0H_cNS9Xuwkg4vV2-T-Q4Wu3-zFKRTUsH_t9FDx7pD9aH0SEaTfLdeNsBOTAwliOOTtMRMISM2CwCqfo3JSCN3cqO5-xFmPiEh5VhdYJaotNwC2gN_6q9mg9eulfgb7oE747a8ZrvEqueG9uCwSscEQN27bkFw0TW0wBzpoIBq1k5-"/>
+    <span class="text-lg font-semibold text-[var(--text-primary)]">My Company</span>
+    </a>
+    </div>
+    <nav class="hidden items-center gap-1 md:flex">
+    <a class="rounded-md px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--secondary-color)]" href="{% url 'home' %}" data-navlink="home">Home</a>
+    <a class="rounded-md px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--secondary-color)]" href="{% url 'conversations:chatbot' %}" data-navlink="chatbot">Chatbot</a>
+    <a class="rounded-md px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--secondary-color)]" href="{% url 'knowledge:dashboard' %}" data-navlink="dashboard">Dashboard</a>
+    </nav>
+    <div class="flex items-center gap-3">
+    <button class="p-1.5 rounded-full hover:bg-[var(--secondary-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+    <span class="material-icons-outlined text-2xl">notifications</span>
+    </button>
+    <a href="{% url 'accounts:profile' %}" class="group relative">
+    <img alt="User Avatar" class="h-9 w-9 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCGDW97QSiZwxM9Me-8V5O61K83ngPtyq8TlNAGgTxBOaOHyWifGO7AU4goqbfftnDL4SedgJEQHzAAbFA_h_pgC5QhLfV_3xfR9fWi-eis9AJA5VtwpjVGCcV2SlRmRRQbZlFd5vFxpwaamrOvRXVWr8a9IDaZoaskCVYq9M5ZgEGR_m8e9BTD5COvBi9sfaipHxCb2BMmXWDJXhGI1VwSQpE5eZaGgncyaRDLkvyuX5x7zvD_NFDTA1AiK6ZkpcRBDjgs9O9GcEP"/>
+    <span class="absolute -bottom-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full border-2 border-white bg-green-500"></span>
+    </a>
+    </div>
+</header>

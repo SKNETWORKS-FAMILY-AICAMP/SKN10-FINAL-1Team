@@ -1,0 +1,112 @@
+<html><head>
+    <meta charset="utf-8"/>
+    <link crossorigin="" href="https://fonts.gstatic.com/" rel="preconnect"/>
+    <link as="style" href="https://fonts.googleapis.com/css2?display=swap&amp;family=Inter%3Awght%40400%3B500%3B700%3B900&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900" onload="this.rel='stylesheet'" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <title>Stitch Design</title>
+    <link href="data:image/x-icon;base64," rel="icon" type="image/x-icon"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <style type="text/tailwindcss">
+          :root {
+            --primary-color: #0b80ee;
+            --secondary-color: #f0f2f5;
+            --text-primary: #111518;
+            --text-secondary: #60768a;
+            --background-color: #ffffff;
+          }
+          body {
+            font-family: Inter, "Noto Sans", sans-serif;
+          }
+        </style>
+    </head>
+    <body class="bg-[var(--background-color)] text-[var(--text-primary)]">
+    <div class="relative flex size-full min-h-screen flex-col group/design-root overflow-x-hidden">
+    <div class="layout-container flex h-full grow flex-col">
+    <div id="header-placeholder"></div>
+    <main class="px-6 md:px-10 lg:px-40 flex flex-1 justify-center py-8">
+    <div class="layout-content-container flex flex-col max-w-[960px] flex-1">
+    <div class="flex flex-wrap justify-between gap-4 p-4">
+    <div class="flex flex-col gap-2">
+    <h2 class="text-[var(--text-primary)] tracking-tight text-3xl font-bold leading-tight">Profile</h2>
+    <p class="text-[var(--text-secondary)] text-base font-normal leading-normal">Manage your profile information and preferences.</p>
+    </div>
+    </div>
+    <section class="p-4 @container">
+    <div class="flex w-full flex-col gap-6 @[520px]:flex-row @[520px]:justify-between @[520px]:items-center border-b border-[var(--secondary-color)] pb-6 mb-6">
+    <div class="flex items-center gap-4">
+    <div class="relative bg-center bg-no-repeat aspect-square bg-cover rounded-full min-h-32 w-32 border-2 border-gray-200 group" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCNGSfTOpAE7zw6ZVAz0qQx2V3dCLRf2xqHRD_ArU2UecfaBnG79Ft7ks7_C9qaEvNv6jj4SxgkUsR-r45h2Emif6ozKCOsKy7PM3O-aq8L5hPKLh9hj6bVrSyYfOV7T9aOXW8JcSO9qwlsonqOlZvHDbUGXdfDuZYpG8F3JuJYl2sZ_GhUNJVqMzna9Iqy1gSMBsiC1reWysP4NOSqIz4WzmVxTIfBnnMd9vYnGsG_cLI8IbQW7u1ZvmomtXDbTJRVyQFIMLTmTZcv");'>
+    <button class="absolute bottom-1 right-1 bg-[var(--primary-color)] text-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] focus:ring-offset-2">
+    <span class="material-icons text-sm">edit</span>
+    </button>
+    </div>
+    <div class="flex flex-col justify-center">
+    <p class="text-[var(--text-primary)] text-2xl font-bold leading-tight tracking-[-0.015em]">Sophia Clark</p>
+    <p class="text-[var(--text-secondary)] text-base font-normal leading-normal">sophia.clark@email.com</p>
+    </div>
+    </div>
+    </div>
+    </section>
+    <form class="space-y-6 px-4">
+    <div>
+    <h3 class="text-[var(--text-primary)] text-xl font-semibold leading-tight tracking-[-0.015em] mb-4">Profile Information</h3>
+    <div class="grid grid-cols-1 gap-6">
+    <label class="flex flex-col">
+    <p class="text-[var(--text-primary)] text-sm font-medium leading-normal pb-2">Nickname</p>
+    <input class="form-input flex w-full max-w-md min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] border border-[#dbe1e6] bg-white focus:border-transparent h-12 placeholder:text-[var(--text-secondary)] p-3 text-base font-normal leading-normal transition-colors" placeholder="Enter your nickname" value=""/>
+    </label>
+    <label class="flex flex-col">
+    <p class="text-[var(--text-primary)] text-sm font-medium leading-normal pb-2">Profile Photo URL</p>
+    <div class="flex w-full max-w-md flex-1 items-stretch rounded-lg border border-[#dbe1e6] focus-within:ring-2 focus-within:ring-[var(--primary-color)] focus-within:border-transparent transition-all">
+    <input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden text-[var(--text-primary)] bg-white h-12 placeholder:text-[var(--text-secondary)] p-3 rounded-l-lg border-0 focus:ring-0 text-base font-normal leading-normal" placeholder="Enter image URL or upload" value=""/>
+    <button class="text-[var(--text-secondary)] hover:text-[var(--primary-color)] flex bg-gray-50 items-center justify-center px-4 rounded-r-lg border-l border-[#dbe1e6] transition-colors" type="button">
+    <span class="material-icons">upload_file</span>
+    </button>
+    </div>
+    </label>
+    </div>
+    </div>
+    <div class="flex pt-4 justify-end border-t border-[var(--secondary-color)]">
+    <button class="flex min-w-[120px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-full h-11 px-6 bg-[var(--primary-color)] text-white text-base font-semibold leading-normal tracking-[0.015em] hover:bg-opacity-90 transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] focus:ring-offset-2" type="submit">
+    <span class="truncate">Save Changes</span>
+    </button>
+    </div>
+    </form>
+    </div>
+    </main>
+    </div>
+    </div>
+    
+    <script>
+        function loadHeader() {
+            fetch('/_header.html')
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('header-placeholder').innerHTML = data;
+                    const mobileSidebarToggle = document.getElementById('open-sidebar-mobile');
+                    if (mobileSidebarToggle) {
+                      mobileSidebarToggle.style.display = 'none';
+                    }
+                    // Set active link
+                    const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
+                    // Use 'profile' as the data-navlink value for profile.html
+                    const navLink = document.querySelector(`nav a[data-navlink='profile']`); 
+                    if (navLink) {
+                        navLink.classList.add('text-[var(--text-primary)]', 'bg-[var(--secondary-color)]');
+                        navLink.classList.remove('text-[var(--text-secondary)]');
+                    }
+
+                    // Handle mobile sidebar toggle if specific JS exists for profile.html's sidebar
+                    const openSidebarMobileButton = document.getElementById('open-sidebar-mobile');
+                    if (openSidebarMobileButton) {
+                        // if (typeof openMobileProfileSidebar === 'function') { // Example function name
+                        //    openSidebarMobileButton.addEventListener('click', openMobileProfileSidebar);
+                        // } else {
+                           console.log('Mobile menu button present in header on profile.html, but no specific action is configured yet.');
+                        // }
+                    }
+                })
+                .catch(error => console.error('Error loading header:', error));
+        }
+        document.addEventListener('DOMContentLoaded', loadHeader);
+    </script>
+    </body></html>

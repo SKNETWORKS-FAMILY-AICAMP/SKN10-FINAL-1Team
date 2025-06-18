@@ -27,6 +27,87 @@
     *   배포: ![AWS EC2](https://img.shields.io/badge/AWS_EC2-FF9900?style=flat-square&logo=amazonec2&logoColor=white), ![Runpod](https://img.shields.io/badge/Runpod-6C47FF?style=flat-square&logo=runpod&logoColor=white) (VLLM 서빙).
     *   툴 호출 표준: ![MCP](https://img.shields.io/badge/MCP-007ACC?style=flat-square&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAqFBMVEX///8AAP8AgP8AgIAAgIBVVaoAYIBAgIBAYGBAYIBJbYBJbXFJbW1Nc21NbnZNbnFNbm1QcXFQcXZQcW1SdG1SdHFSdG1VVXFVVXZVVXFVVWpVVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1)
 
+## 설치 및 실행 방법
+
+### 1. 공통 설정: 가상환경 생성 및 활성화 (Python 프로젝트용)
+
+프로젝트 루트 디렉토리(`SKN10-FINAL-1Team`)에서 다음 명령어를 실행하여 Python 가상환경을 생성하고 활성화합니다.
+
+```bash
+# 가상환경 생성 (최초 1회)
+python -m venv .venv
+
+# 가상환경 활성화 (터미널 실행 시마다)
+# Windows
+.\.venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
+```
+**참고:** 이후 Python 기반 서버(Backend, FastAPI Server) 실행 전에는 항상 가상환경이 활성화되어 있어야 합니다.
+
+### 2. 백엔드 (Django) 실행
+
+1.  새 터미널을 열고 `backend` 디렉토리로 이동합니다.
+    ```bash
+    cd backend
+    ```
+2.  (가상환경이 활성화된 상태에서) Python 패키지를 설치합니다.
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  필요한 경우, `.env.example` 파일을 `.env`로 복사하고 내부의 환경 변수(데이터베이스 정보, API 키 등)를 설정합니다.
+4.  Django 데이터베이스 마이그레이션을 실행합니다.
+    ```bash
+    python manage.py migrate
+    ```
+5.  Django 개발 서버를 실행합니다. (기본 포트: 8000)
+    ```bash
+    python manage.py runserver
+    ```
+    백엔드 서버는 `http://localhost:8000` 에서 실행됩니다.
+
+### 3. 프론트엔드 (Next.js) 실행
+
+1.  새 터미널을 열고 `frontend` 디렉토리로 이동합니다.
+    ```bash
+    cd frontend
+    ```
+2.  Node.js 패키지를 설치합니다. (pnpm 사용 권장)
+    ```bash
+    pnpm install
+    ```
+    *   만약 pnpm이 설치되어 있지 않다면, 먼저 `npm install -g pnpm` 명령으로 pnpm을 설치하거나, `npm install` 또는 `yarn install`을 사용하세요.
+3.  필요한 경우, `.env.local.example` 또는 유사한 파일을 `.env.local`로 복사하고 내부의 환경 변수(API URL 등)를 설정합니다.
+4.  Next.js 개발 서버를 실행합니다. (기본 포트: 3000)
+    ```bash
+    pnpm dev
+    ```
+    *   또는 `npm run dev` / `yarn dev`
+    프론트엔드 개발 서버는 `http://localhost:3000` 에서 실행됩니다.
+
+### 4. FastAPI 서버 (AI Agent) 실행
+
+1.  새 터미널을 열고 `fastapi_server` 디렉토리로 이동합니다.
+    ```bash
+    cd fastapi_server
+    ```
+2.  (가상환경이 활성화된 상태에서) Python 패키지를 설치합니다.
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  필요한 경우, `.env.example` 파일을 `.env`로 복사하고 내부의 환경 변수(API 키, Pinecone 설정 등)를 설정합니다.
+4.  FastAPI 개발 서버를 실행합니다.
+    ```bash
+    python start_server.py
+    ```
+    *   또는 `uvicorn main:app --reload --port 8888` (만약 `main.py`에 `app` 객체가 정의되어 있고, `start_server.py`가 다른 방식으로 서버를 실행하지 않는 경우. 포트는 `start_server.py` 또는 `main.py` 내부 설정에 따라 다를 수 있습니다.)
+    FastAPI 서버는 일반적으로 `http://localhost:8888` 또는 `start_server.py`에 설정된 포트에서 실행됩니다.
+
+---
+**중요 사항:**
+- 각 서버(`backend`, `frontend`, `fastapi_server`)는 별도의 터미널에서 실행해야 합니다.
+- 각 프로젝트 디렉토리 내에 `.env.example` (또는 유사한 이름의 파일)이 있다면, 이를 복사하여 `.env` (또는 `frontend`의 경우 `.env.local`) 파일을 만들고, 프로젝트 실행에 필요한 환경 변수(API 키, 데이터베이스 접속 정보 등)를 실제 값으로 채워넣어야 합니다.
+
 ## 팀원 및 역할 (Roles and Responsibilities)
 | 이름 | 이미지 | 역할 |
 | ------ | ------ | ------ |
