@@ -9,10 +9,11 @@ from rest_framework import status
 
 # Create your views here.
 
-@login_required
 def dashboard_view(request):
-    """Renders the knowledge dashboard page."""
-    return render(request, 'knowledge/dashboard.html')
+    section = request.GET.get('section', 'home')
+    if section not in ['home', 'db', 'log', 'user', 'settings'] :
+        return JsonResponse({'error': 'Invalid section'}, status=400)
+    return render(request, 'knowledge/dashboard.html', {'section' : section})
 
 # Placeholder API views to match knowledge/urls.py
 # These should be properly implemented later.

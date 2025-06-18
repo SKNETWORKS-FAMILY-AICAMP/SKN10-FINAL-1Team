@@ -109,7 +109,6 @@ class ChatMessageView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@login_required
 def chatbot_view(request):
     """Renders the chatbot page."""
     return render(request, 'conversations/chatbot.html')
