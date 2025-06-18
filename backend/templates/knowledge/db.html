@@ -19,61 +19,36 @@
     </div>
     </div>
     </section>
-    
-    <section class="mb-10 rounded-lg bg-white p-6 shadow-md">
-    <h3 class="text-[var(--text-primary)] text-xl font-semibold leading-tight tracking-[-0.015em] mb-6">데이터베이스 관리</h3>
-    <div class="flex gap-4">
-    <button class="flex min-w-[90px] items-center justify-center rounded-md h-10 px-4 bg-[var(--primary-color)] text-white text-sm font-semibold leading-normal tracking-[0.015em] hover:bg-blue-600 transition-colors duration-150">
-    <span class="truncate">백업</span>
-    </button>
-    <button class="flex min-w-[90px] items-center justify-center rounded-md h-10 px-4 bg-[var(--secondary-color)] text-[var(--text-primary)] text-sm font-semibold leading-normal tracking-[0.015em] hover:bg-slate-200 transition-colors duration-150">
-    <span class="truncate">복원</span>
-    </button>
-    </div>
-    </section>
+
+
 
     <section class="rounded-lg bg-white p-6 shadow-md">
-    <h3 class="text-[var(--text-primary)] text-xl font-semibold leading-tight tracking-[-0.015em] mb-6">데이터베이스 스키마</h3>
+    <h3 class="text-[var(--text-primary)] text-xl font-semibold leading-tight tracking-[-0.015em] mb-6">Pinecone DB 정보</h3>
     <div class="@container">
     <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
     <table class="min-w-full divide-y divide-[var(--border-color)]">
     <thead class="bg-slate-50">
     <tr>
     <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                                테이블 이름
+                                인덱스명
                             </th>
     <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                                열 수
-                            </th>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                                행 수
+                                차원 수
                             </th>
     <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                                생성 날짜
+                                전체 레코드 수
                             </th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col"></th>
     </tr>
     </thead>
     <tbody class="divide-y divide-[var(--border-color)] bg-white">
-    <tr>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">사용자</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">5</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">1,000</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">2023-01-15</td>
+    {% for index in indexes %}
+        <tr>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">{{index.name}}</td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{index.dimension}}</td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{index.total_count}}</td>
     </tr>
-    <tr>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">채팅 로그</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">7</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">50,000</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">2023-01-15</td>
-    </tr>
-    <tr>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">
-                                지식 베이스
-                            </td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">4</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">2,000</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">2023-01-15</td>
-    </tr>
+    {% endfor %}
     </tbody>
     </table>
     </div>
