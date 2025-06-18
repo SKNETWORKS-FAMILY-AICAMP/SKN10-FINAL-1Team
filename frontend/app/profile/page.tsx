@@ -11,7 +11,8 @@ import { Switch } from "@/components/ui/switch"
 import { GithubIcon, ArrowLeftIcon, CheckIcon } from "lucide-react"
 import Link from "next/link"
 import { getCurrentUser, updateUserProfile, type User } from "@/lib/api/auth-service"
-import { addRepository } from "@/lib/api/code-service"
+import { addRepository, connectGithubWithToken } from "@/lib/api/code-service" // connectGithubWithToken 추가
+import GithubAuthModal from "@/components/github-auth-modal"; // GithubAuthModal 추가
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -22,6 +23,7 @@ export default function ProfilePage() {
   const [isSaved, setIsSaved] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [repoUrl, setRepoUrl] = useState("")
+  const [showGithubAuthModal, setShowGithubAuthModal] = useState(false); // 모달 상태 추가
 
   useEffect(() => {
     // Check if user is logged in
@@ -62,14 +64,45 @@ export default function ProfilePage() {
   const connectGithub = () => {
     // In a real implementation, this would redirect to GitHub OAuth
     // For demo purposes, we'll just set the state
-    setIsGithubConnected(true)
+    // setIsGithubConnected(true) // 기존 로직 주석 처리
+    setShowGithubAuthModal(true); // 모달을 열도록 변경
   }
 
   const disconnectGithub = () => {
     // In a real implementation, this would revoke GitHub access
     // For demo purposes, we'll just set the state
     setIsGithubConnected(false)
+    // TODO: 백엔드에 GitHub 연동 해제 API 호출 추가 필요
   }
+
+  const handleTokenSubmit = async (token: string) => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      // 백엔드 API를 호출하여 토큰을 저장하고 연동 상태를 업데이트합니다.
+      // 예시: await connectGithubWithToken(user.id, token);
+      // 아래는 임시로 상태만 변경합니다.
+      console.log('Submitting token:', token); // 실제 API 호출로 대체 필요
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      setIsGithubConnected(true);
+      setShowGithubAuthModal(false);
+      // 성공 알림 등을 추가할 수 있습니다.
+    } catch (error) {
+      console.error("Failed to connect GitHub with token:", error);
+      // 사용자에게 에러 메시지를 표시합니다.
+      throw error; // 모달에서 에러를 처리할 수 있도록 다시 throw
+    }
+    setIsLoading(false);
+  };
+
+  const handleOAuthStart = () => {
+    // TODO: 백엔드의 GitHub OAuth 시작 API를 호출하여 GitHub 인증 페이지로 리다이렉션합니다.
+    console.log('Starting GitHub OAuth flow...');
+    // 예시: window.location.href = '/api/github/oauth/login/';
+    // 현재는 모달만 닫습니다.
+    setShowGithubAuthModal(false);
+    alert('GitHub OAuth 기능은 현재 개발 중입니다.');
+  };
 
   const handleAddRepository = async () => {
     if (!repoUrl) return
@@ -182,6 +215,14 @@ export default function ProfilePage() {
                     <Button onClick={connectGithub}>Connect</Button>
                   </div>
                 )}
+
+                {/* GitHub 인증 모달 추가 */}
+                <GithubAuthModal
+                  isOpen={showGithubAuthModal}
+                  onClose={() => setShowGithubAuthModal(false)}
+                  onTokenSubmit={handleTokenSubmit}
+                  onOAuthStart={handleOAuthStart}
+                />
 
                 {isGithubConnected && (
                   <div className="mt-4">

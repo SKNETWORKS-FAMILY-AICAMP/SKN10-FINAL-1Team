@@ -181,6 +181,41 @@ export async function addRepository(repoUrl: string, defaultBranch = "main"): Pr
 }
 
 /**
+ * Connects GitHub account using a personal access token.
+ * (This is a mock implementation and should be replaced with actual API call)
+ */
+export async function connectGithubWithToken(token: string): Promise<void> {
+  console.log('Attempting to connect GitHub with token:', token);
+  // Simulate API call
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  // In a real scenario, you would make a POST request to your backend:
+  // const response = await fetch(`${API_BASE_URL}/github/connect-token`, { // API_BASE_URL 수정
+  //   method: 'POST',
+  //   headers: getAuthHeaders(), // 인증 헤더 사용
+  //   body: JSON.stringify({ token }),
+  // });
+
+  // if (!response.ok) {
+  //   const errorData = await response.json();
+  //   toast({ // toast 사용
+  //     title: "Error",
+  //     description: errorData.message || 'Failed to connect GitHub account',
+  //     variant: "destructive",
+  //   });
+  //   throw new Error(errorData.message || 'Failed to connect GitHub account');
+  // }
+
+  // For now, let's assume success
+  console.log('GitHub connection with token successful (mocked)');
+  toast({ // toast 사용
+    title: "Success",
+    description: "Successfully connected to GitHub (mocked).",
+  });
+  return Promise.resolve();
+}
+
+/**
  * Get files for a specific repository
  * Maps to Django CodeFile model filtered by repository
  */

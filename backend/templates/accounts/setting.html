@@ -26,50 +26,194 @@
   <div class="layout-container flex h-full grow flex-col">
   <main class="flex-1 py-8 md:py-12 px-4 md:px-8">
   <div class="mx-auto max-w-2xl">
+    {# Django Messages Block #}
+    {% if messages %}
+      <div class="mb-6 space-y-2">
+        {% for message in messages %}
+          <div class="p-4 rounded-md {% if message.tags == 'error' %}bg-red-100 border border-red-200 text-red-700{% elif message.tags == 'success' %}bg-green-100 border border-green-200 text-green-700{% elif message.tags == 'warning' %}bg-yellow-100 border border-yellow-200 text-yellow-700{% else %}bg-blue-100 border border-blue-200 text-blue-700{% endif %}" role="alert">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {# End Django Messages Block #}
   <div class="mb-8">
   <h1 class="text-slate-900 text-3xl md:text-4xl font-bold tracking-tight">Settings</h1>
   </div>
   <div class="space-y-10">
   <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-  <h2 class="text-slate-900 text-xl font-semibold mb-1">GitHub</h2>
-  <p class="text-slate-600 text-sm mb-6">Connect your GitHub account to manage repositories.</p>
-  <div class="flex items-center gap-4 p-4 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
-  <div class="text-slate-700 flex items-center justify-center rounded-lg bg-slate-100 shrink-0 size-10">
-  <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
-  <path d="M208.31,75.68A59.78,59.78,0,0,0,202.93,28,8,8,0,0,0,196,24a59.75,59.75,0,0,0-48,24H124A59.75,59.75,0,0,0,76,24a8,8,0,0,0-6.93,4,59.78,59.78,0,0,0-5.38,47.68A58.14,58.14,0,0,0,56,104v8a56.06,56.06,0,0,0,48.44,55.47A39.8,39.8,0,0,0,96,192v8H72a24,24,0,0,1-24-24A40,40,0,0,0,8,136a8,8,0,0,0,0,16,24,24,0,0,1,24,24,40,40,0,0,0,40,40H96v16a8,8,0,0,0,16,0V192a24,24,0,0,1,48,0v40a8,8,0,0,0,16,0V192a39.8,39.8,0,0,0-8.44-24.53A56.06,56.06,0,0,0,216,112v-8A58.14,58.14,0,0,0,208.31,75.68ZM200,112a40,40,0,0,1-40,40H112a40,40,0,0,1-40-40v-8a41.74,41.74,0,0,1,6.9-22.48A8,8,0,0,0,80,73.83a43.81,43.81,0,0,1,.79-33.58,43.88,43.88,0,0,1,32.32,20.06A8,8,0,0,0,119.82,64h32.35a8,8,0,0,0,6.74-3.69,43.87,43.87,0,0,1,32.32-20.06A43.81,43.81,0,0,1,192,73.83a8.09,8.09,0,0,0,1,7.65A41.72,41.72,0,0,1,200,104Z"></path>
-  </svg>
-  </div>
-  <div class="flex-grow">
-  <p class="text-slate-800 text-base font-medium leading-normal">Connect to GitHub</p>
-  <p class="text-slate-500 text-sm font-normal leading-normal">Sync your repositories by connecting your GitHub account.</p>
-  </div>
-  <button class="flex min-w-[90px] items-center justify-center rounded-md h-9 px-4 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500">
-  <span class="truncate">Connect</span>
-  </button>
-  </div>
+    <h2 class="text-slate-900 text-xl font-semibold mb-1">GitHub</h2>
+    <p class="text-slate-600 text-sm mb-6">Connect your GitHub account to manage repositories.</p>
+
+    {% if github_connected %}
+        <div class="flex items-center gap-4 p-4 rounded-lg border border-green-200 bg-green-50">
+            <div class="text-green-700 flex items-center justify-center rounded-lg bg-green-100 shrink-0 size-10">
+                <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg"><path d="M208.31,75.68A59.78,59.78,0,0,0,202.93,28,8,8,0,0,0,196,24a59.75,59.75,0,0,0-48,24H124A59.75,59.75,0,0,0,76,24a8,8,0,0,0-6.93,4,59.78,59.78,0,0,0-5.38,47.68A58.14,58.14,0,0,0,56,104v8a56.06,56.06,0,0,0,48.44,55.47A39.8,39.8,0,0,0,96,192v8H72a24,24,0,0,1-24-24A40,40,0,0,0,8,136a8,8,0,0,0,0,16,24,24,0,0,1,24,24,40,40,0,0,0,40,40H96v16a8,8,0,0,0,16,0V192a24,24,0,0,1,48,0v40a8,8,0,0,0,16,0V192a39.8,39.8,0,0,0-8.44-24.53A56.06,56.06,0,0,0,216,112v-8A58.14,58.14,0,0,0,208.31,75.68ZM200,112a40,40,0,0,1-40,40H112a40,40,0,0,1-40-40v-8a41.74,41.74,0,0,1,6.9-22.48A8,8,0,0,0,80,73.83a43.81,43.81,0,0,1,.79-33.58,43.88,43.88,0,0,1,32.32,20.06A8,8,0,0,0,119.82,64h32.35a8,8,0,0,0,6.74-3.69,43.87,43.87,0,0,1,32.32-20.06A43.81,43.81,0,0,1,192,73.83a8.09,8.09,0,0,0,1,7.65A41.72,41.72,0,0,1,200,104Z"></path></svg>
+            </div>
+            <div class="flex-grow">
+                <p class="text-slate-800 text-base font-medium leading-normal">Connected to GitHub</p>
+                {% if github_username %}
+                <p class="text-slate-500 text-sm font-normal leading-normal">Connected as: {{ github_username }}</p>
+                {% endif %}
+            </div>
+            <form method="post" action="{% url 'accounts:github_disconnect' %}">
+                {% csrf_token %}
+                <button type="submit" class="flex min-w-[110px] items-center justify-center rounded-md h-9 px-4 bg-red-600 hover:bg-red-500 text-white text-sm font-medium shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500">
+                    <span class="truncate">Disconnect</span>
+                </button>
+            </form>
+            <button type="button" id="scanRepositoriesBtn" class="flex min-w-[170px] items-center justify-center rounded-md h-9 px-4 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500">
+                <span class="material-symbols-outlined mr-1.5 text-base">sync</span>
+                <span class="truncate">Scan Repositories</span>
+            </button>
+        </div>
+    {% else %}
+        <div class="flex items-center gap-4 p-4 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors">
+            <div class="text-slate-700 flex items-center justify-center rounded-lg bg-slate-100 shrink-0 size-10">
+                <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg"><path d="M208.31,75.68A59.78,59.78,0,0,0,202.93,28,8,8,0,0,0,196,24a59.75,59.75,0,0,0-48,24H124A59.75,59.75,0,0,0,76,24a8,8,0,0,0-6.93,4,59.78,59.78,0,0,0-5.38,47.68A58.14,58.14,0,0,0,56,104v8a56.06,56.06,0,0,0,48.44,55.47A39.8,39.8,0,0,0,96,192v8H72a24,24,0,0,1-24-24A40,40,0,0,0,8,136a8,8,0,0,0,0,16,24,24,0,0,1,24,24,40,40,0,0,0,40,40H96v16a8,8,0,0,0,16,0V192a24,24,0,0,1,48,0v40a8,8,0,0,0,16,0V192a39.8,39.8,0,0,0-8.44-24.53A56.06,56.06,0,0,0,216,112v-8A58.14,58.14,0,0,0,208.31,75.68ZM200,112a40,40,0,0,1-40,40H112a40,40,0,0,1-40-40v-8a41.74,41.74,0,0,1,6.9-22.48A8,8,0,0,0,80,73.83a43.81,43.81,0,0,1,.79-33.58,43.88,43.88,0,0,1,32.32,20.06A8,8,0,0,0,119.82,64h32.35a8,8,0,0,0,6.74-3.69,43.87,43.87,0,0,1,32.32-20.06A43.81,43.81,0,0,1,192,73.83a8.09,8.09,0,0,0,1,7.65A41.72,41.72,0,0,1,200,104Z"></path></svg>
+            </div>
+            <div class="flex-grow">
+                <p class="text-slate-800 text-base font-medium leading-normal">Connect to GitHub</p>
+                <p class="text-slate-500 text-sm font-normal leading-normal">Sync your repositories by connecting your GitHub account.</p>
+            </div>
+            <button id="connectGitHubBtn" class="flex min-w-[90px] items-center justify-center rounded-md h-9 px-4 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500">
+                <span class="truncate">Connect</span>
+            </button>
+        </div>
+    {% endif %}
   </section>
+
+<!-- GitHub PAT Modal -->
+<div id="githubPatModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center" style="display: none; z-index: 50;">
+    <div class="relative p-8 bg-white w-full max-w-md m-auto flex-col flex rounded-lg shadow-lg">
+        <button id="closeModalBtn" class="absolute top-0 right-0 mt-4 mr-4 text-gray-400 hover:text-gray-600">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+        <h3 class="text-xl font-semibold text-slate-900 mb-6">Connect to GitHub with PAT</h3>
+        <form id="githubPatForm" method="post" action="{% url 'accounts:github_connect' %}">
+            {% csrf_token %}
+            <div class="mb-4">
+                <label for="github_pat" class="block text-sm font-medium text-slate-700 mb-1">GitHub Personal Access Token</label>
+                <input type="password" name="github_pat" id="github_pat" class="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Enter your PAT" required>
+                <p class="mt-2 text-xs text-slate-500">
+                    Ensure your PAT has the necessary scopes (e.g., 'repo'). 
+                    <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens" target="_blank" class="text-indigo-600 hover:text-indigo-800">Learn more about PATs</a>.
+                </p>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button type="button" id="cancelModalBtn" class="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md shadow-sm transition-colors">Cancel</button>
+                <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-slate-800 hover:bg-slate-700 rounded-md shadow-sm transition-colors">Connect with Token</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const connectGitHubBtn = document.getElementById('connectGitHubBtn');
+    const githubPatModal = document.getElementById('githubPatModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const cancelModalBtn = document.getElementById('cancelModalBtn');
+    const githubPatInput = document.getElementById('github_pat');
+
+    if (connectGitHubBtn) {
+        connectGitHubBtn.addEventListener('click', function () {
+            if (githubPatModal) githubPatModal.style.display = 'flex';
+        });
+    }
+
+    function closeModal() {
+        if (githubPatModal) githubPatModal.style.display = 'none';
+        if (githubPatInput) {
+            githubPatInput.value = ''; // Clear the input field
+        }
+    }
+
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', closeModal);
+    }
+    if (cancelModalBtn) {
+        cancelModalBtn.addEventListener('click', closeModal);
+    }
+
+    // Optional: Close modal if clicked outside of it
+    window.addEventListener('click', function (event) {
+        if (event.target === githubPatModal) {
+            closeModal();
+        }
+    });
+});
+</script>
+
+  {% if github_connected %}
   <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-  <h2 class="text-slate-900 text-xl font-semibold mb-1">Repositories</h2>
-  <p class="text-slate-600 text-sm mb-6">Manually add repositories by providing their URL.</p>
-  <div class="space-y-4">
-  <div>
-  <label class="block text-sm font-medium text-slate-700 mb-1.5" for="repo-url">Repository URL</label>
-  <input class="form-input block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm h-11 px-3 py-2 placeholder:text-slate-400" id="repo-url" placeholder="https://github.com/username/repository-name" type="url" value=""/>
-  </div>
-  <div class="flex justify-end">
-  <button class="flex min-w-[120px] items-center justify-center rounded-md h-10 px-4 bg-[var(--primary-color)] hover:bg-opacity-80 text-slate-800 text-sm font-semibold shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary-color)]">
-  <span class="material-symbols-outlined mr-1.5 text-base"> add </span>
-  <span class="truncate">Add Repository</span>
-  </button>
-  </div>
-  </div>
+    <h2 class="text-slate-900 text-xl font-semibold mb-1">Repositories</h2>
+    <p class="text-slate-600 text-sm mb-6">Manually add repositories by providing their URL.</p>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5" for="repo-url">Repository URL</label>
+        <input class="form-input block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm h-11 px-3 py-2 placeholder:text-slate-400" id="repo-url" placeholder="https://github.com/username/repository-name" type="url" value=""/>
+      </div>
+      <div class="flex justify-end">
+        <button class="flex min-w-[120px] items-center justify-center rounded-md h-10 px-4 bg-[var(--primary-color)] hover:bg-opacity-80 text-slate-800 text-sm font-semibold shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary-color)]">
+          <span class="material-symbols-outlined mr-1.5 text-base"> add </span>
+          <span class="truncate">Add Repository</span>
+        </button>
+      </div>
+    </div>
   </section>
+  {% else %}
+  <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 opacity-50 pointer-events-none">
+    <h2 class="text-slate-900 text-xl font-semibold mb-1">Repositories</h2>
+    <p class="text-slate-600 text-sm mb-4">Manually add repositories by providing their URL.</p>
+    <p class="text-sm text-orange-600 mb-6 font-medium"><span class="material-symbols-outlined align-middle text-base mr-1">warning</span>Please connect to GitHub first to add repositories.</p>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5" for="repo-url-disabled">Repository URL</label>
+        <input class="form-input block w-full rounded-md border-slate-300 shadow-sm bg-slate-100 text-slate-500 sm:text-sm h-11 px-3 py-2 placeholder:text-slate-400 cursor-not-allowed" id="repo-url-disabled" placeholder="https://github.com/username/repository-name" type="url" value="" disabled/>
+      </div>
+      <div class="flex justify-end">
+        <button class="flex min-w-[120px] items-center justify-center rounded-md h-10 px-4 bg-slate-300 text-slate-500 text-sm font-semibold shadow-sm cursor-not-allowed" disabled>
+          <span class="material-symbols-outlined mr-1.5 text-base"> add </span>
+          <span class="truncate">Add Repository</span>
+        </button>
+      </div>
+    </div>
+  </section>
+  {% endif %}
   </div>
   </div>
   </main>
   </div>
   </div>
   
+  <!-- GitHub Token Modal -->
+  <div id="github-token-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center" style="display: none;">
+    <div class="relative p-8 bg-white w-full max-w-md m-auto flex-col flex rounded-lg shadow-lg">
+      <button id="close-modal-btn" class="absolute top-0 right-0 mt-4 mr-4 text-gray-400 hover:text-gray-600">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+      <h2 class="text-xl font-semibold mb-4">Connect to GitHub with Token</h2>
+      <form id="github-token-form" method="post" action="{% url 'accounts:github_connect' %}">
+        {% csrf_token %}
+        <div class="mb-4">
+          <label for="github_token" class="block text-sm font-medium text-slate-700 mb-1.5">GitHub Personal Access Token</label>
+          <input type="password" name="github_token" id="github_token" required
+                 class="form-input block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm h-11 px-3 py-2 placeholder:text-slate-400"
+                 placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+          <p class="text-xs text-slate-500 mt-1">
+            Create a token with <code class="bg-slate-100 px-1 rounded">repo</code> scope from 
+            <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">GitHub settings</a>.
+          </p>
+        </div>
+        <div class="flex justify-end space-x-2">
+          <button type="button" id="cancel-modal-btn" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md">Cancel</button>
+          <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-slate-800 hover:bg-slate-700 rounded-md">Connect with Token</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     function loadHeader() {
         fetch('/_header.html') // Path to the shared header
@@ -98,5 +242,247 @@
             .catch(error => console.error('Error loading header:', error));
     }
     document.addEventListener('DOMContentLoaded', loadHeader);
+
+    const connectButton = document.getElementById('connect-github-btn');
+    const modal = document.getElementById('github-token-modal');
+    const closeModalButton = document.getElementById('close-modal-btn');
+    const cancelModalButton = document.getElementById('cancel-modal-btn');
+    // const tokenForm = document.getElementById('github-token-form'); // 폼 제출은 기본 동작으로 처리
+
+    if (connectButton && modal) {
+      connectButton.addEventListener('click', () => {
+        modal.style.display = 'flex';
+      });
+    }
+
+    if (closeModalButton && modal) {
+      closeModalButton.addEventListener('click', () => {
+        modal.style.display = 'none';
+      });
+    }
+
+    if (cancelModalButton && modal) {
+      cancelModalButton.addEventListener('click', () => {
+        modal.style.display = 'none';
+      });
+    }
+
+    // Close modal if clicked outside of it
+    if (modal) {
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+    }
+
   </script>
+
+<!-- Scan Repositories Modal -->
+<div id="scanRepositoriesModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center" style="display: none; z-index: 60;">
+    <div class="relative p-8 bg-white w-full max-w-2xl m-auto flex-col flex rounded-lg shadow-lg">
+        <button id="closeScanModalBtn" class="absolute top-0 right-0 mt-4 mr-4 text-gray-400 hover:text-gray-600">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+        <h3 class="text-xl font-semibold text-slate-900 mb-6">Scan Your GitHub Repositories</h3>
+        
+        <div id="repositoryListContainer" class="mb-6 h-64 overflow-y-auto border border-slate-300 rounded-md p-4">
+            <!-- Repository list will be loaded here by JavaScript -->
+            <p class="text-slate-500">Loading repositories...</p> 
+        </div>
+
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <label for="selectAllReposCheckbox" class="flex items-center text-sm text-slate-700">
+                    <input type="checkbox" id="selectAllReposCheckbox" class="form-checkbox h-4 w-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 mr-2">
+                    Select All Repositories
+                </label>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3">
+            <button type="button" id="cancelScanModalBtn" class="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md shadow-sm transition-colors">Cancel</button>
+            <button type="button" id="startScanSelectedBtn" class="px-4 py-2 text-sm font-medium text-white bg-slate-800 hover:bg-slate-700 rounded-md shadow-sm transition-colors">Scan Selected (<span id="selectedRepoCount">0</span>)</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Existing PAT Modal JS
+    const connectGitHubBtn = document.getElementById('connectGitHubBtn');
+    const githubPatModal = document.getElementById('githubPatModal');
+    const closeModalBtn = document.getElementById('closeModalBtn'); // For PAT modal
+    const cancelModalBtn = document.getElementById('cancelModalBtn'); // For PAT modal
+    const githubPatInput = document.getElementById('github_pat');
+
+    if (connectGitHubBtn) {
+        connectGitHubBtn.addEventListener('click', function () {
+            if (githubPatModal) githubPatModal.style.display = 'flex';
+        });
+    }
+
+    function closePatModal() {
+        if (githubPatModal) githubPatModal.style.display = 'none';
+        if (githubPatInput) {
+            githubPatInput.value = '';
+        }
+    }
+
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', closePatModal);
+    }
+    if (cancelModalBtn) {
+        cancelModalBtn.addEventListener('click', closePatModal);
+    }
+    window.addEventListener('click', function (event) {
+        if (event.target === githubPatModal) {
+            closePatModal();
+        }
+    });
+
+    // New Scan Repositories Modal JS
+    const scanRepositoriesBtn = document.getElementById('scanRepositoriesBtn');
+    const scanRepositoriesModal = document.getElementById('scanRepositoriesModal');
+    const closeScanModalBtn = document.getElementById('closeScanModalBtn');
+    const cancelScanModalBtnElem = document.getElementById('cancelScanModalBtn'); // Renamed to avoid conflict
+    const repositoryListContainer = document.getElementById('repositoryListContainer');
+    const selectAllReposCheckbox = document.getElementById('selectAllReposCheckbox');
+    const startScanSelectedBtn = document.getElementById('startScanSelectedBtn');
+    const selectedRepoCountSpan = document.getElementById('selectedRepoCount');
+
+    if (scanRepositoriesBtn) {
+        scanRepositoriesBtn.addEventListener('click', function() {
+            if (scanRepositoriesModal) {
+                scanRepositoriesModal.style.display = 'flex';
+                // TODO: Add logic here to fetch and display repositories
+                // For now, just a placeholder
+                repositoryListContainer.innerHTML = '<p class="text-slate-500">Fetching your repositories...</p>'; 
+                repositoryListContainer.innerHTML = '<p class="text-slate-500 animate-pulse">Fetching your repositories...</p>';
+                fetch("{% url 'accounts:list_github_repositories' %}")
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(err => { 
+                                let errorMsg = 'Failed to fetch repositories.';
+                                if (err && err.error) errorMsg = err.error;
+                                if (err && err.details) console.error('Error details:', err.details);
+                                throw new Error(errorMsg);
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.repositories && data.repositories.length > 0) {
+                            let reposHTML = '<ul class="space-y-1">';
+                            data.repositories.forEach(repo => {
+                                reposHTML += `<li class="p-2 hover:bg-slate-100 rounded-md transition-colors duration-150">
+                                                <label class="flex items-center text-sm text-slate-700 cursor-pointer">
+                                                    <input type="checkbox" 
+                                                           class="form-checkbox h-4 w-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 mr-3 repo-checkbox" 
+                                                           value="${repo.html_url}" 
+                                                           data-repo-id="${repo.id}" 
+                                                           data-repo-fullname="${repo.full_name}">
+                                                    <span class="font-medium">${repo.full_name}</span>
+                                                    ${repo.private ? '<span class="ml-2 text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full font-semibold">Private</span>' : '<span class="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-semibold">Public</span>'}
+                                                </label>
+                                              </li>`;
+                            });
+                            reposHTML += '</ul>';
+                            repositoryListContainer.innerHTML = reposHTML;
+                        } else if (data.repositories && data.repositories.length === 0) {
+                            repositoryListContainer.innerHTML = '<p class="text-slate-500">No repositories found. Your token might not have access to any repositories, or you may not have any repositories on GitHub.</p>';
+                        } else if (data.error) {
+                             repositoryListContainer.innerHTML = `<p class="text-red-600 font-medium">Error: ${data.error}</p><p class="text-sm text-slate-600">Please ensure your GitHub token has the 'repo' scope and is correctly entered. If the issue persists, try reconnecting your GitHub account.</p>`;
+                        }
+                        updateSelectedCount();
+                    })
+                    .catch(error => {
+                        console.error('Error fetching repositories:', error);
+                        repositoryListContainer.innerHTML = `<p class="text-red-600 font-medium">An error occurred: ${error.message}</p><p class="text-sm text-slate-600">Check the browser console for more details. You might need to reconnect your GitHub account or check its permissions.</p>`;
+                        updateSelectedCount();
+                    });
+            }
+        });
+    }
+
+    function closeScanModal() {
+        if (scanRepositoriesModal) scanRepositoriesModal.style.display = 'none';
+        if (selectAllReposCheckbox) selectAllReposCheckbox.checked = false;
+        // Clear previously loaded list or reset state if needed
+        repositoryListContainer.innerHTML = '<p class="text-slate-500">Loading repositories...</p>'; 
+        updateSelectedCount();
+    }
+
+    if (closeScanModalBtn) {
+        closeScanModalBtn.addEventListener('click', closeScanModal);
+    }
+    if (cancelScanModalBtnElem) {
+        cancelScanModalBtnElem.addEventListener('click', closeScanModal);
+    }
+    window.addEventListener('click', function (event) {
+        if (event.target === scanRepositoriesModal) {
+            closeScanModal();
+        }
+    });
+
+    // Logic for select all and counting selected repositories
+    if (selectAllReposCheckbox) {
+        selectAllReposCheckbox.addEventListener('change', function() {
+            const checkboxes = repositoryListContainer.querySelectorAll('.repo-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAllReposCheckbox.checked;
+            });
+            updateSelectedCount();
+        });
+    }
+
+    // Update count when individual checkboxes change
+    // Need to use event delegation as checkboxes are loaded dynamically
+    if (repositoryListContainer) {
+        repositoryListContainer.addEventListener('change', function(event) {
+            if (event.target.classList.contains('repo-checkbox')) {
+                updateSelectedCount();
+                // Uncheck "Select All" if any individual checkbox is unchecked
+                if (!event.target.checked) {
+                    selectAllReposCheckbox.checked = false;
+                }
+            }
+        });
+    }
+
+    function updateSelectedCount() {
+        if (!repositoryListContainer || !selectedRepoCountSpan) return;
+        const selectedCheckboxes = repositoryListContainer.querySelectorAll('.repo-checkbox:checked');
+        selectedRepoCountSpan.textContent = selectedCheckboxes.length;
+    }
+
+    if (startScanSelectedBtn) {
+        startScanSelectedBtn.addEventListener('click', function() {
+            const selectedCheckboxes = repositoryListContainer.querySelectorAll('.repo-checkbox:checked');
+            const selectedRepos = Array.from(selectedCheckboxes)
+                                       .map(cb => ({
+                                           id: cb.dataset.repoId,
+                                           fullName: cb.dataset.repoFullname,
+                                           url: cb.value // This is repo.html_url
+                                       }));
+            
+            if (selectedRepos.length > 0) {
+                console.log('Selected repositories for scan:', selectedRepos);
+                // TODO: Implement the actual scan initiation.
+                // This will likely involve another fetch POST request to a new Django endpoint
+                // that triggers a background task (e.g., Celery) for each selected repository.
+                // For now, we'll just show an alert.
+                alert(`Initiating scan for ${selectedRepos.length} repository(s):\n${selectedRepos.map(r => r.fullName).join('\n')}\n\n(Actual scan process to be implemented)`);
+                
+                // You might want to provide feedback to the user that the scan has started.
+                // For example, disable the button, show a spinner, etc.
+                closeScanModal(); // Close modal after initiating scan
+            } else {
+                alert('Please select at least one repository to scan.');
+            }
+        });
+    }
+
+});
+</script>
   </body></html>
