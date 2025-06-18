@@ -102,26 +102,25 @@
     </ul>
     </div>
     </div>
-    <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
-    <span class="material-icons-outlined text-blue-500">code</span>
-    <p class="text-sm font-medium">코딩 세션</p>
-    </a>
-    <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] active bg-[var(--secondary-color)] transition-colors duration-150" href="#">
-    <span class="material-icons-outlined text-green-500">analytics</span>
-    <p class="text-sm font-medium">분석 세션</p>
-    </a>
-    <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
-    <span class="material-icons-outlined text-purple-500">description</span>
-    <p class="text-sm font-medium">문서 세션</p>
-    </a>
-    <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
-    <span class="material-icons-outlined text-orange-500">model_training</span>
-    <p class="text-sm font-medium">예측 세션</p>
-    </a>
-    <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
-    <span class="material-icons-outlined text-gray-500">smart_toy</span>
-    <p class="text-sm font-medium">Auto 세션</p>
-    </a>
+    <div class="flex flex-col gap-1 px-2">
+        {% for session in sessions %}
+        <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] {% if session.id == active_session_id %}active bg-[var(--secondary-color)]{% else %}hover:bg-[var(--secondary-color)]{% endif %} transition-colors duration-150" href="javascript:void(0);" data-session-id="{{ session.id }}">
+            {% if session.agent_type == 'CODING' %}
+            <span class="material-icons-outlined text-blue-500">code</span>
+            {% elif session.agent_type == 'DATA_ANALYSIS' %}
+            <span class="material-icons-outlined text-green-500">analytics</span>
+            {% elif session.agent_type == 'DOC_ANALYSIS' %}
+            <span class="material-icons-outlined text-purple-500">description</span>
+            {% elif session.agent_type == 'PREDICTION' %}
+            <span class="material-icons-outlined text-orange-500">model_training</span>
+            {% else %}
+            <span class="material-icons-outlined text-gray-500">smart_toy</span>
+            {% endif %}
+            <p class="text-sm font-medium">{{ session.title|default:"New Chat" }}</p>
+        </a>
+        {% empty %}
+        <p class="px-3 py-2 text-sm text-gray-500">No recent chats.</p>
+        {% endfor %}
     </div>
     <div class="p-4 border-t border-[var(--border-color)]">
     <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
@@ -135,29 +134,46 @@
     </div>
     </aside>
     <main class="flex flex-1 flex-col bg-white max-h-[calc(100vh-4rem)]">
-    <div class="flex-grow flex flex-col items-center p-6 pb-0 overflow-y-auto">
-    <div class="flex-grow flex flex-col items-center px-6 overflow-y-auto w-full">
-    <div class="w-full max-w-3xl flex flex-col justify-end flex-grow">
-    <div class="flex mb-2">
-    <div class="bg-[var(--secondary-color)] p-3 rounded-lg max-w-[70%]">
-    <p class="text-[var(--text-primary)] text-sm">안녕하세요! 무엇을 도와드릴까요?</p>
-    </div>
-    </div>
-    <div class="flex items-center gap-2 self-start mb-4">
-    <button class="p-1.5 rounded-md hover:bg-gray-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-    <span class="material-icons-outlined text-sm">content_copy</span>
-    </button>
-    <button class="p-1.5 rounded-md hover:bg-gray-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-    <span class="material-icons-outlined text-sm">thumb_up</span>
-    </button>
-    <button class="p-1.5 rounded-md hover:bg-gray-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-    <span class="material-icons-outlined text-sm">thumb_down</span>
-    </button>
-    </div>
-    <div class="flex justify-end mb-4">
-    <div class="bg-[var(--primary-color)] text-white p-3 rounded-lg max-w-[70%]">
-    <p class="text-sm">오늘 날씨 어때?</p>
-    </div>
+    <div class="flex-grow flex flex-col items-center p-6 pb-0">
+    <div class="flex-grow flex flex-col items-center w-full">
+    <div id="message-list" class="w-full max-w-3xl flex flex-col justify-end flex-grow">
+        {% for message in initial_messages %}
+            <div class="flex flex-col mb-4 {% if message.role == 'user' %}items-end{% else %}items-start{% endif %}">
+                <div class="p-3 rounded-lg max-w-xl break-words {% if message.role == 'user' %}bg-blue-500 text-white{% else %}bg-gray-200 text-gray-800{% endif %}">
+                    {{ message.content|escape|linebreaksbr }}
+                </div>
+                {% if message.role == 'assistant' %}
+                <div class="flex items-center gap-2 self-start mt-2">
+                    <button class="p-1.5 rounded-md hover:bg-gray-300 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                        <span class="material-icons-outlined text-sm">content_copy</span>
+                    </button>
+                    <button class="p-1.5 rounded-md hover:bg-gray-300 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                        <span class="material-icons-outlined text-sm">thumb_up</span>
+                    </button>
+                    <button class="p-1.5 rounded-md hover:bg-gray-300 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                        <span class="material-icons-outlined text-sm">thumb_down</span>
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        {% empty %}
+            <div class="flex flex-col items-start mb-4">
+                <div class="bg-gray-200 text-gray-800 p-3 rounded-lg max-w-xl break-words">
+                    안녕하세요! 무엇을 도와드릴까요?
+                </div>
+                <div class="flex items-center gap-2 self-start mt-2">
+                    <button class="p-1.5 rounded-md hover:bg-gray-300 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                        <span class="material-icons-outlined text-sm">content_copy</span>
+                    </button>
+                    <button class="p-1.5 rounded-md hover:bg-gray-300 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                        <span class="material-icons-outlined text-sm">thumb_up</span>
+                    </button>
+                    <button class="p-1.5 rounded-md hover:bg-gray-300 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
+                        <span class="material-icons-outlined text-sm">thumb_down</span>
+                    </button>
+                </div>
+            </div>
+        {% endfor %}
     </div>
     <div class="text-center mb-12 mt-auto pt-12">
     <span class="material-icons text-6xl text-[var(--primary-color)] mb-4">smart_toy</span>
@@ -181,12 +197,12 @@
     <li><a class="rounded-b-lg hover:bg-[var(--secondary-color)] py-2 px-4 block whitespace-no-wrap flex items-center gap-2 text-sm" href="#"><span class="material-icons-outlined text-gray-500">smart_toy</span> Auto 세션</a></li>
     </ul>
     </div>
-    <textarea class="form-input flex-1 resize-none overflow-hidden rounded-xl text-[var(--text-primary)] focus:outline-0 focus:ring-2 focus:ring-[var(--primary-color)] border border-[var(--border-color)] bg-white focus:border-[var(--primary-color)] min-h-12 max-h-48 placeholder:text-[var(--text-secondary)] p-3 pr-20 text-sm font-normal leading-normal" placeholder="Type your message here..." rows="1" style="padding-right: 5.5rem;"></textarea>
+    <textarea id="chat-message-input" class="form-input flex-1 resize-none overflow-hidden rounded-xl text-[var(--text-primary)] focus:outline-0 focus:ring-2 focus:ring-[var(--primary-color)] border border-[var(--border-color)] bg-white focus:border-[var(--primary-color)] min-h-12 max-h-48 placeholder:text-[var(--text-secondary)] p-3 pr-20 text-sm font-normal leading-normal" placeholder="Type your message here..." rows="1" style="padding-right: 5.5rem;"></textarea>
     <div class="absolute right-2 bottom-2 flex items-center gap-2">
     <button aria-label="Attach file" class="flex items-center justify-center size-9 rounded-lg hover:bg-[var(--secondary-color)] text-[var(--text-secondary)] hover:text-[var(--primary-color)] transition-colors duration-150">
     <span class="material-icons-outlined text-xl">attach_file</span>
     </button>
-    <button aria-label="Send message" class="flex items-center justify-center size-9 rounded-lg bg-[var(--primary-color)] text-white hover:bg-opacity-90 transition-colors duration-150">
+    <button id="send-message-button" aria-label="Send message" class="flex items-center justify-center size-9 rounded-lg bg-[var(--primary-color)] text-white hover:bg-opacity-90 transition-colors duration-150">
     <span class="material-icons text-xl">send</span>
     </button>
     </div>
@@ -324,6 +340,206 @@
                 });
             });
         }
+    </script>
+    <script>
+        function escapeHTML(str) {
+            return str.replace(/[&<>"']/g, function (match) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                }[match];
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const messageList = document.getElementById('message-list');
+            const sessionLinks = document.querySelectorAll('.sidebar-item[data-session-id]');
+            const mainContent = document.querySelector('main');
+
+            function scrollToBottom() {
+                mainContent.scrollTop = mainContent.scrollHeight;
+            }
+
+            function renderMessages(messages, append = false) {
+                if (!append) {
+                    while (messageList.firstChild) {
+                        messageList.removeChild(messageList.firstChild);
+                    }
+                }
+
+                if (!append && messages.length === 0) {
+                    messageList.innerHTML = `
+                        <div class="flex-grow flex items-center justify-center">
+                            <div class="text-center">
+                                <div class="text-4xl text-gray-300 mb-2">🤖</div>
+                                <p class="text-[var(--text-primary)] text-sm">메시지가 없습니다. 새로운 대화를 시작해보세요.</p>
+                            </div>
+                        </div>`;
+                    return;
+                }
+
+                const placeholder = messageList.querySelector('.placeholder-message');
+                if (append && placeholder) {
+                    placeholder.remove();
+                }
+
+                messages.forEach(message => {
+                    const messageWrapper = document.createElement('div');
+                    messageWrapper.classList.add('flex', 'flex-col', 'mb-4');
+
+                    const messageBubble = document.createElement('div');
+                    messageBubble.classList.add('p-3', 'rounded-lg', 'max-w-xl', 'break-words');
+                    messageBubble.innerHTML = escapeHTML(message.content).replace(/\n/g, '<br>');
+
+                    if (message.role === 'user') {
+                        messageWrapper.classList.add('items-end');
+                        messageBubble.classList.add('bg-blue-500', 'text-white');
+                    } else { // assistant or system
+                        messageWrapper.classList.add('items-start');
+                        messageBubble.classList.add('bg-gray-200', 'text-gray-800');
+                    }
+
+                    messageWrapper.appendChild(messageBubble);
+
+                    if (message.role === 'assistant') {
+                        const actionsWrapper = document.createElement('div');
+                        actionsWrapper.className = "flex items-center gap-2 self-start mt-2";
+                        
+                        const icons = ['content_copy', 'thumb_up', 'thumb_down'];
+                        icons.forEach(iconName => {
+                            const button = document.createElement('button');
+                            button.className = "p-1.5 rounded-md hover:bg-gray-300 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors";
+                            
+                            const span = document.createElement('span');
+                            span.className = "material-icons-outlined text-sm";
+                            span.textContent = iconName;
+                            
+                            button.appendChild(span);
+                            actionsWrapper.appendChild(button);
+                        });
+                        
+                        messageWrapper.appendChild(actionsWrapper);
+                    }
+
+                    messageList.appendChild(messageWrapper);
+                });
+                scrollToBottom();
+            }
+
+            async function fetchAndRenderMessages(sessionId) {
+                if (!sessionId) return;
+                try {
+                    const response = await fetch(`/conversations/api/sessions/${sessionId}/messages/`, { credentials: 'include' });
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    const messages = await response.json();
+                    renderMessages(messages);
+                } catch (error) {
+                    console.error('Error fetching messages:', error);
+                    messageList.innerHTML = `<div class="text-red-500 text-center p-4">메시지를 불러오는데 실패했습니다.</div>`;
+                }
+            }
+
+            sessionLinks.forEach(link => {
+                link.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    const sessionId = this.dataset.sessionId;
+
+                    // Update active state in sidebar
+                    sessionLinks.forEach(l => {
+                        l.classList.remove('active', 'bg-[var(--secondary-color)]');
+                        if (!l.classList.contains('hover:bg-[var(--secondary-color)]')) {
+                           l.classList.add('hover:bg-[var(--secondary-color)]');
+                        }
+                    });
+                    this.classList.add('active', 'bg-[var(--secondary-color)]');
+                    this.classList.remove('hover:bg-[var(--secondary-color)]');
+
+                    // Fetch and render messages for the new session
+                    fetchAndRenderMessages(sessionId);
+                });
+            });
+            // Initial scroll to bottom
+            scrollToBottom();
+
+            const messageInput = document.getElementById('chat-message-input');
+            const sendButton = document.getElementById('send-message-button');
+
+            function getActiveSessionId() {
+                const activeSession = document.querySelector('.sidebar-item.active');
+                return activeSession ? activeSession.dataset.sessionId : null;
+            }
+
+            async function sendMessage() {
+                const content = messageInput.value.trim();
+                if (!content) return;
+
+                const sessionId = getActiveSessionId();
+                if (!sessionId) {
+                    console.error('No active session selected.');
+                    // Optionally, create a new session here or alert the user
+                    return;
+                }
+
+                // Temporarily render user message for responsiveness
+                const tempUserMessage = { role: 'user', content: content };
+                renderMessages([tempUserMessage], true);
+                messageInput.value = '';
+                messageInput.style.height = 'auto';
+
+                try {
+                    const response = await fetch(`/conversations/api/sessions/${sessionId}/messages/`, { 
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({ content: content }),
+                        credentials: 'include'
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+
+                    const newMessages = await response.json();
+
+                    // Remove the temporary user message before rendering the final ones
+                    const lastMessage = messageList.lastChild;
+                    if(lastMessage) lastMessage.remove();
+
+                    renderMessages(newMessages, true); // Append new messages from server
+
+                } catch (error) {
+                    console.error('Error sending message:', error);
+                    // Optionally, show an error message in the UI
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'text-red-500 text-sm text-center my-2';
+                    errorDiv.textContent = 'Failed to send message. Please try again.';
+                    messageList.appendChild(errorDiv);
+                    scrollToBottom();
+                }
+            }
+
+            sendButton.addEventListener('click', sendMessage);
+
+            messageInput.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            // Auto-resize textarea
+            messageInput.addEventListener('input', function () {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+        });
     </script>
     <script>
         function loadHeader() {
