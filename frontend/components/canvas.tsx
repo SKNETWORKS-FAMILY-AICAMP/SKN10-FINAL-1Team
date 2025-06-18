@@ -9,7 +9,19 @@ import { DocumentSummary } from "@/components/document-summary"
 import { BusinessChart } from "@/components/business-chart"
 import { XIcon, DownloadIcon, CopyIcon, CheckIcon } from "lucide-react"
 
-export function Canvas({ content, onClose }) {
+interface CanvasProps {
+  content: {
+    type: "code" | "document" | "chart" | "csv"
+    title?: string
+    content?: string
+    language?: string
+    data?: any
+    answer?: string
+  }
+  onClose: () => void
+}
+
+export function Canvas({ content, onClose }: CanvasProps) {
   const [activeTab, setActiveTab] = useState("preview")
   const [copied, setCopied] = useState(false)
 

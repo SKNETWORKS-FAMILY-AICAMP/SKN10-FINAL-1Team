@@ -354,18 +354,16 @@ class AgentService:
             # Load preprocessing pipeline and model based on model_type
             if model_type == "churn":
                 # Load preprocessing components
-                pipeline_path = os.path.join(models_dir, "churn_predictor_pipeline.pkl")
-                categorical_cols_path = os.path.join(models_dir, "categorical_cols.pkl")
-                label_encoders_path = os.path.join(models_dir, "label_encoders.pkl")
+                pipeline_path = os.path.join(models_dir, "churn_pipeline_full.pkl")
+                
                 
                 # Check if model files exist
-                if not all(os.path.exists(p) for p in [pipeline_path, categorical_cols_path, label_encoders_path]):
+                if not all(os.path.exists(p) for p in [pipeline_path]):
                     raise FileNotFoundError("One or more model files not found.")
                 
                 # Load the model components
                 pipeline = joblib.load(pipeline_path)
-                categorical_cols = joblib.load(categorical_cols_path)
-                label_encoders = joblib.load(label_encoders_path)
+            
                 
                 # Preprocess the data
                 data_copy = data.copy()

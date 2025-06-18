@@ -54,13 +54,14 @@ class AgentState(BaseModel):
     messages: Annotated[List[BaseMessage], operator.add] = Field(default_factory=list)
     user_query: Optional[str] = None
     csv_file_content: Optional[str] = None
-    query_type: Optional[Literal["db_query", "general_query"]] = None
-    sql_query: Optional[str] = None
-    sql_result: Optional[Any] = None
+    db_table_name_for_prediction: Optional[str] = None
     final_answer: Optional[str] = None
     error_message: Optional[str] = None
+    query_type: Optional[Literal["db_query", "category_predict_query"]] = None
+    sql_query: Optional[str] = None
+    sql_result: Optional[Any] = None
     visualization_output: Optional[str] = None
-    sql_output_choice: Optional[Literal["summarize", "visualize"]] = None # Decision for SQL output processing
+    sql_output_choice: Optional[Literal["summarize", "visualize"]] = None
 
     class Config:
         arbitrary_types_allowed = True # For Annotated and operator.add with BaseMessage
@@ -73,9 +74,9 @@ class AgentState(BaseModel):
             if user_messages:
                 self.user_query = user_messages[-1].content
     
-    def dict(self):
+    def dict(self, *args, **kwargs):
         """Return dict representation to ensure compatibility with supervisor state"""
-        result = super().dict()
+        result = super().model_dump(*args, **kwargs)
         # When returning to supervisor, ensure final answer is properly formatted as a new message
         if self.final_answer and self.messages is not None:
             result["messages"] = self.messages + [AIMessage(content=self.final_answer)]
@@ -378,31 +379,6 @@ async def summarize_sql_result_node(state: AgentState, config: Optional[Runnable
         state.final_answer = f"죄송합니다, SQL 결과를 요약하는 중 오류가 발생했습니다: {e}"
     logger.info("--- Exiting summarize_sql_result_node ---")
     return state
-
-async def general_question_node(state: AgentState, config: Optional[RunnableConfig] = None):
-    logger.info("--- Entering general_question_node ---")
-    if not state.messages:
-        logger.error("general_question_node: No messages in state. Cannot generate answer.")
-        state.error_message = "No input message found for general question."
-        state.final_answer = "질문에 답변하기 위한 입력 메시지가 없습니다."
-        return state
-
-    logger.debug(f"Answering general question from user query (from state): {state.user_query}")
-    logger.info(f"Invoking general_chat_prompt_agent3 with messages: {state.messages}")
-    chain = general_chat_prompt_agent3 | llm
-    try:
-        # Pass the full message history to the chain
-        response = await chain.ainvoke({"messages": state.messages}, config=config)
-        state.final_answer = response.content
-        logger.info(f"Generated general answer: {state.final_answer}")
-        state.error_message = None # Clear previous errors
-    except Exception as e:
-        logger.error(f"Error answering general question: {e}", exc_info=True)
-        state.error_message = f"Error answering general question: {e}"
-        state.final_answer = f"죄송합니다, 일반 질문에 답변하는 중 오류가 발생했습니다: {e}"
-    logger.info("--- Exiting general_question_node ---")
-    return state
-
 
 
 async def create_visualization_node(state: AgentState, config: Optional[RunnableConfig] = None):

@@ -36,13 +36,14 @@ class AgentState(BaseModel):
     messages: Annotated[List[BaseMessage], operator.add] = Field(default_factory=list)
     user_query: Optional[str] = None
     csv_file_content: Optional[str] = None
-    query_type: Optional[Literal["db_query", "category_predict_query", "general_query"]] = None
-    sql_query: Optional[str] = None
-    sql_result: Optional[Any] = None
+    db_table_name_for_prediction: Optional[str] = None
     final_answer: Optional[str] = None
     error_message: Optional[str] = None
+    query_type: Optional[Literal["db_query", "category_predict_query"]] = None
+    sql_query: Optional[str] = None
+    sql_result: Optional[Any] = None
     visualization_output: Optional[str] = None
-    sql_output_choice: Optional[Literal["summarize", "visualize"]] = None # Decision for SQL output processing
+    sql_output_choice: Optional[Literal["summarize", "visualize"]] = None
 
     class Config:
         arbitrary_types_allowed = True # For Annotated and operator.add with BaseMessage
@@ -55,9 +56,9 @@ class AgentState(BaseModel):
             if user_messages:
                 self.user_query = user_messages[-1].content
     
-    def dict(self):
+    def dict(self,*args,**kwargs):
         """Return dict representation to ensure compatibility with supervisor state"""
-        result = super().dict()
+        result = super().model_dump(*args,**kwargs)
         # When returning to supervisor, ensure final answer is properly formatted as a new message
         if self.final_answer and self.messages is not None:
             result["messages"] = self.messages + [AIMessage(content=self.final_answer)]
@@ -477,47 +478,15 @@ async def summarize_sql_result_node(state: AgentState, config: Optional[Runnable
     updated_messages = current_messages + [AIMessage(content=final_answer)]
     
     return {"messages": updated_messages, "final_answer": final_answer}
-
-async def general_question_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
-    print("--- GENERAL QUESTION NODE ---")
-    current_messages = state.messages # Get current messages
     
-    # Ensure there's a user query to process from the last HumanMessage
-    user_query_to_process: Optional[str] = None
-    if state.user_query: # Prefer user_query if set by supervisor
-        user_query_to_process = state.user_query
-    elif current_messages and isinstance(current_messages[-1], HumanMessage):
-        user_query_to_process = current_messages[-1].content
-    
-    if not user_query_to_process:
-        error_msg = "No user query found for general question."
-        print(f"General Question Node - Error: {error_msg}")
-        updated_messages = current_messages + [AIMessage(content=error_msg)] if current_messages else [AIMessage(content=error_msg)]
-        return {"messages": updated_messages, "error_message": error_msg, "final_answer": ""}
-
-    print(f"General Question Node - Processing query: '{user_query_to_process}'")
-    general_answer_chain = general_answer_prompt | llm
-    try:
-        response = await general_answer_chain.ainvoke({"user_query": user_query_to_process}, config=config)
-        final_answer = response.content.strip()
-        print(f"General Answer: {final_answer}")
-        
-        updated_messages = current_messages + [AIMessage(content=final_answer)]
-        return {"messages": updated_messages, "final_answer": final_answer, "error_message": None}
-    except Exception as e:
-        error_msg = f"Error in general_question_node: {e}"
-        print(f"General Question Node - Error: {error_msg}")
-        updated_messages = current_messages + [AIMessage(content=f"Sorry, I encountered an error trying to answer: {error_msg}")]
-        return {"messages": updated_messages, "error_message": error_msg, "final_answer": ""}
 
 async def category_predict_node(state: AgentState, config: Optional[RunnableConfig] = None) -> Dict[str, Any]:
     print("--- CATEGORY PREDICT NODE (Telecom Churn Prediction with Csv File Content) ---")
 
     # --- 경로 설정 ---
     base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-    MODEL_PATH = os.path.join(base_path, 'churn_predictor_pipeline.pkl')
-    CATEGORICAL_COLS_PATH = os.path.join(base_path, 'categorical_cols.pkl')
-    LABEL_ENCODERS_PATH = os.path.join(base_path, 'label_encoders.pkl')
+    MODEL_PATH = os.path.join(base_path, 'churn_pipeline_full.pkl')
+    
 
     EXPECTED_FEATURE_ORDER = [
         'seniorcitizen', 'partner', 'dependents', 'tenure', 'phoneservice',
@@ -528,7 +497,7 @@ async def category_predict_node(state: AgentState, config: Optional[RunnableConf
         'expected_contract_months', 'contract_gap'
     ]
     CUSTOMER_ID_COL = 'customerid'
-    PREDICTION_THRESHOLD = 0.312
+    
 
     csv_data_str: Optional[str] = None
 
@@ -575,8 +544,6 @@ async def category_predict_node(state: AgentState, config: Optional[RunnableConf
     try:
         # --- 모델과 전처리 객체 비동기 로드 ---
         pipeline_final = await asyncio.to_thread(joblib.load, MODEL_PATH)
-        CATEGORICAL_COLS = await asyncio.to_thread(joblib.load, CATEGORICAL_COLS_PATH)
-        label_encoders = await asyncio.to_thread(joblib.load, LABEL_ENCODERS_PATH)
 
         # --- CSV 문자열 → DataFrame 변환 ---
         if not csv_data_str: # 이중 확인, csv_data_str이 None이나 빈 문자열이면 에러 발생 방지
