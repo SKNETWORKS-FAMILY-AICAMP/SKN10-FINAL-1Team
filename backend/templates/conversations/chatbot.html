@@ -32,11 +32,14 @@
         }
         /* Styles for closed sidebar */
         .sidebar-closed {
-            width: 0 !important;
+            width: 60px !important; /* Width to accommodate the button */
             padding-left: 0 !important;
             padding-right: 0 !important;
-            border-right-width: 0 !important;
-            overflow: hidden !important; /* Ensure overflow is hidden */
+            border-right-width: 1px !important; /* Optional: keep border consistent */
+            /* overflow: hidden !important; */ /* Commented out to allow button visibility */
+            display: flex; /* Use flex to manage the layout of the top panel */
+            flex-direction: column;
+            align-items: center; /* Center the top panel (and thus the button) */
         }
         /* Hide direct children of .sidebar-closed, EXCEPT for #sidebar-top-panel */
         .sidebar-closed > *:not(#sidebar-top-panel) {
@@ -46,6 +49,7 @@
         .sidebar-closed > #sidebar-top-panel {
             padding: 0.25rem !important; /* Minimal padding around the button */
             border-bottom-width: 0 !important; /* Hide border if any */
+            width: 100%; /* Ensure the top panel takes the full width of the collapsed sidebar */
         }
         /* Hide the H1 title within the top panel when sidebar is closed */
         .sidebar-closed > #sidebar-top-panel h1 {
@@ -56,7 +60,7 @@
             display: flex !important; 
             justify-content: center;
             align-items: center;
-            margin: 0 !important; /* Remove any margins */ 
+            margin: 0 auto !important; /* Center the button horizontally within the top panel */ 
             padding: 0.25rem !important; /* Consistent padding */
             width: auto; /* Allow button to size to its icon */
         }

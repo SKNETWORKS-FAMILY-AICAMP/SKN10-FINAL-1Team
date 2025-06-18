@@ -1,0 +1,163 @@
+<html><head>
+    <meta charset="utf-8"/>
+    <link crossorigin="" href="https://fonts.gstatic.com/" rel="preconnect"/>
+    <link as="style" href="https://fonts.googleapis.com/css2?display=swap&amp;family=Inter%3Awght%40400%3B500%3B700%3B900&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900" onload="this.rel='stylesheet'" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Icons" rel="stylesheet"/>
+    <title>Login - Acme Co</title>
+    <link href="data:image/x-icon;base64," rel="icon" type="image/x-icon"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <style type="text/tailwindcss">
+          :root {
+            --primary-color: #dce8f3;
+            --secondary-color: #121416;
+            --accent-color: #3B82F6;--background-color: #ffffff;
+            --text-color: #1f2937;--muted-text-color: #6b7280;--input-bg-color: #f3f4f6;--border-color: #e5e7eb;}
+          body {
+            font-family: 'Inter', 'Noto Sans', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+          }
+          .form-input {
+            background-color: var(--input-bg-color);
+            border: 1px solid var(--border-color);
+            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+          }
+          .form-input:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);outline: none;
+          }
+          .primary-button {
+            background-color: var(--accent-color);
+            color: white;
+            font-weight: 700;
+            transition: background-color 0.2s ease-in-out;
+          }
+          .primary-button:hover {
+            background-color: #2563EB;}
+          .link-text {
+            color: var(--accent-color);
+            text-decoration: none;
+            transition: color 0.2s ease-in-out;
+          }
+          .link-text:hover {
+            color: #2563EB;text-decoration: underline;
+          }
+        </style>
+    </head>
+    <body>
+    <div class="relative flex size-full min-h-screen flex-col group/design-root overflow-x-hidden">
+    <div id="header-placeholder"></div>
+    <div class="flex h-full grow flex-col">
+    <main class="flex flex-1 items-center justify-center py-10 px-4 sm:px-6 lg:px-8">
+    <div class="w-full max-w-md space-y-8 p-8 bg-white rounded-xl shadow-xl">
+    <div>
+    <h2 class="mt-6 text-center text-3xl font-extrabold text-[var(--text-color)]">
+                    Welcome Back
+                  </h2>
+    <p class="mt-2 text-center text-sm text-[var(--muted-text-color)]">
+                    Sign in to access your internal assistant.
+                  </p>
+    </div>
+    <div id="error-message" class="text-red-500 text-sm mt-2 mb-4 text-center"></div>
+    <form id="login-form" action="{% url 'accounts:login_page' %}" class="mt-8 space-y-6" method="POST">
+        {% csrf_token %}
+    <input name="remember" type="hidden" value="true"/>
+    <div class="rounded-md shadow-sm -space-y-px">
+    <div>
+    <label class="sr-only" for="email-address">Email address</label>
+    <div class="relative">
+    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+    <span class="material-icons text-[var(--muted-text-color)]">email</span>
+    </div>
+    <input autocomplete="email" class="form-input relative block w-full appearance-none rounded-t-md border px-3 py-3 pl-10 placeholder-[var(--muted-text-color)] focus:z-10 text-base" id="email-address" name="email" placeholder="Email address" required="" type="email"/>
+    </div>
+    </div>
+    <div>
+    <label class="sr-only" for="password">Password</label>
+    <div class="relative">
+    <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+    <span class="material-icons text-[var(--muted-text-color)]">lock</span>
+    </div>
+    <input autocomplete="current-password" class="form-input relative block w-full appearance-none rounded-b-md border px-3 py-3 pl-10 placeholder-[var(--muted-text-color)] focus:z-10 text-base" id="password" name="password" placeholder="Password" required="" type="password"/>
+    </div>
+    </div>
+    </div>
+    <div class="flex items-center justify-end">
+    <div class="text-sm">
+    <a class="link-text font-medium" href="#">
+                        Forgot your password?
+                      </a>
+    </div>
+    </div>
+    <div>
+    <button class="primary-button group relative flex w-full justify-center rounded-md border border-transparent py-3 px-4 text-base" type="submit">
+                      Sign in
+                    </button>
+    </div>
+    </form>
+    <p class="mt-6 text-center text-sm text-[var(--muted-text-color)]">
+                  Don't have an account?
+                  <a class="link-text font-medium" href="#">
+                    Sign up
+                  </a>
+    </p>
+    </div>
+    </main>
+    </div>
+    </div>
+    
+    <script>
+        function loadHeader() {
+            fetch('/_header.html') // Path to the shared header
+                .then(response => response.text())
+                .then(data => {
+                    const headerPlaceholder = document.getElementById('header-placeholder');
+                    if (headerPlaceholder) {
+                        headerPlaceholder.innerHTML = data;
+                    }
+                    
+                    const mobileSidebarToggle = document.getElementById('open-sidebar-mobile');
+                    if (mobileSidebarToggle) {
+                      mobileSidebarToggle.style.display = 'none';
+                    }
+                })
+                .catch(error => console.error('Error loading header:', error));
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadHeader();
+
+            const loginForm = document.getElementById('login-form');
+            const errorMessageDiv = document.getElementById('error-message');
+
+            if (loginForm) {
+                loginForm.addEventListener('submit', function(event) {
+                    event.preventDefault();
+                    errorMessageDiv.textContent = ''; // Clear previous errors
+
+                    const formData = new FormData(loginForm);
+                    
+                    fetch(loginForm.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            window.location.href = data.redirect_url || '/'; // Redirect to home or specified URL
+                        } else {
+                            errorMessageDiv.textContent = data.error || 'Login failed. Please check your credentials.';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Login error:', error);
+                        errorMessageDiv.textContent = 'An unexpected error occurred. Please try again.';
+                    });
+                });
+            }
+        });
+    </script>
+    </body></html>
