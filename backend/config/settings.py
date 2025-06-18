@@ -195,3 +195,8 @@ SIMPLE_JWT = {
 #     'http://localhost:3000',  # Next.js frontend
 # ]
 # CORS_ALLOW_CREDENTIALS = True
+
+# Login and Logout URLs for session-based authentication
+LOGIN_URL = 'accounts:login_page'
+LOGOUT_REDIRECT_URL = 'home'
+

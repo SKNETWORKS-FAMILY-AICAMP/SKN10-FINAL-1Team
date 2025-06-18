@@ -6,9 +6,12 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 from .serializers import UserSerializer
-from django.shortcuts import render # Added for template rendering
+from django.shortcuts import render, redirect # Added for template rendering and redirect
 from django.contrib.auth.decorators import login_required # Added for view protection
+from django.contrib.auth import login as auth_login, logout as auth_logout # For session auth
+from django.http import JsonResponse # For AJAX responses
 
+# API Login view (SimpleJWT)
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_view(request):
@@ -73,7 +76,7 @@ def login_view(request):
 @permission_classes([AllowAny])
 def logout_view(request):
     # JWT doesn't really need server-side logout, but we keep the endpoint for API consistency
-    return Response({"detail": "Successfully logged out."})
+    return Response({"detail": "API Logout successful"})
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -103,3 +106,27 @@ def profile_view(request):
 def settings_view(request):
     """Renders the user settings page."""
     return render(request, 'accounts/setting.html')
+
+# User-facing Login Page View (Session-based)
+def login_page_view(request):
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        user = authenticate(request, username=email, password=password) # Use email as username
+        if user is not None:
+            auth_login(request, user)
+            # Determine redirect URL after successful login
+            redirect_url = request.GET.get('next', '/') # Redirect to 'next' if present, else to home
+            if not redirect_url or redirect_url.startswith('/accounts/login_page'): # Avoid redirecting back to login
+                redirect_url = '/' # Default to home if next is login page or empty
+            return JsonResponse({'success': True, 'redirect_url': redirect_url})
+        else:
+            return JsonResponse({'success': False, 'error': 'Invalid credentials. Please try again.'}, status=400)
+    # For GET request, just render the login page
+    return render(request, 'accounts/login.html')
+
+# User-facing Logout Page View (Session-based)
+@login_required
+def logout_page_view(request):
+    auth_logout(request)
+    return redirect('home') # Redirect to home page after logout
