@@ -6,14 +6,25 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-
+from .utils import get_index_lists,get_sessions, get_users
 # Create your views here.
 
 def dashboard_view(request):
     section = request.GET.get('section', 'home')
-    if section not in ['home', 'db', 'log', 'user', 'settings'] :
+    context = {"section" : section}
+    if section == "home" :
+        pass
+    elif section == "db" :
+        context['indexes'] = get_index_lists()
+    elif section == "log" :
+        context['sessions'] = get_sessions() 
+    elif section == "user" :
+        context['users'] = get_users()
+    elif section == "settings" :
+        pass
+    else : 
         return JsonResponse({'error': 'Invalid section'}, status=400)
-    return render(request, 'knowledge/dashboard.html', {'section' : section})
+    return render(request, 'knowledge/dashboard.html', context)
 
 # Placeholder API views to match knowledge/urls.py
 # These should be properly implemented later.
