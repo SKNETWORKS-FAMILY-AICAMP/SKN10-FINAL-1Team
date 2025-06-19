@@ -488,6 +488,8 @@ def scan_selected_repositories_view(request):
                         })
             
             return JsonResponse({'status': 'completed', 'results': scan_results})
+        else:
+            return JsonResponse({'error': f"Invalid scan_type: '{scan_type}'. Expected 'public_branches' or 'user_repos'."}, status=400)
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON in request body.'}, status=400)

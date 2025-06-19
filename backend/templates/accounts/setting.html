@@ -474,7 +474,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': csrfToken
                     },
-                    body: JSON.stringify({ repo_urls: repoUrlsToScan })
+                    body: JSON.stringify({ scan_type: 'user_repos', repo_urls: repoUrlsToScan })
                 });
 
                 const result = await response.json();
