@@ -30,7 +30,7 @@ if not os.getenv("OPENAI_API_KEY"):
 # --- Agent Imports ---
 from fastapi_server.agent.agent3 import app as analysis_app
 from fastapi_server.agent.agent4 import app as prediction_app
-from .app.ml_models import run_customer_ml_model
+from fastapi_server.app.ml_models import run_customer_ml_model
 
 # --- Pydantic Models for API Requests ---
 class AnalysisRequest(BaseModel):
