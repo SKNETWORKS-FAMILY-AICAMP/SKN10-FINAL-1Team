@@ -188,24 +188,32 @@ export function createChatWebSocket(threadId: string = uuidv4(),
     
     // Return methods for interacting with the WebSocket
     return {
-      sendMessage: (message: string) => {
-        // 연결 상태 확인 및 재연결 시도
+      sendMessage: (data: any) => {
+        const send = () => {
+          try {
+            const payload = JSON.stringify(data);
+            console.log(`Sending message over WebSocket: ${payload.substring(0, 100)}...`);
+            ws.send(payload);
+          } catch (e) {
+            console.error("Failed to stringify payload:", e);
+            onError("Internal error: Failed to prepare message for sending.");
+          }
+        };
+
         if (ws.readyState === WebSocket.OPEN) {
-          console.log(`Sending message over WebSocket: ${message.substring(0, 30)}...`);
-          ws.send(JSON.stringify({ message }));
+          send();
           return true;
         } else if (ws.readyState === WebSocket.CONNECTING) {
-          console.log("WebSocket is still connecting, waiting...");
-          // 연결 대기 후 재시도
+          console.log("WebSocket is still connecting, waiting to send...");
           setTimeout(() => {
             if (ws.readyState === WebSocket.OPEN) {
               console.log(`Retry sending message over WebSocket after connecting`);
-              ws.send(JSON.stringify({ message }));
+              send();
             } else {
               console.error("WebSocket failed to connect in time");
               onError("Failed to establish connection with the AI assistant. Please try again.");
             }
-          }, 1000); // 1초 대기
+          }, 1000);
           return true;
         } else {
           console.error(`WebSocket is not open (readyState: ${ws.readyState})`);

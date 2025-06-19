@@ -28,6 +28,11 @@ const agentTypeMap = {
     name: "Data Prediction Agent",
     description: "Performs machine learning predictions (e.g., customer churn) using CSV data.",
   },
+  customer_ml_agent: {
+    icon: <BrainIcon className="h-4 w-4 text-teal-500" />, // Using BrainIcon with a different color for now
+    name: "Customer CSV Agent",
+    description: "Answers questions about uploaded customer CSV data using a dedicated ML model.",
+  },
   auto: {
     icon: <BotIcon className="h-4 w-4 text-slate-500" />,
     name: "Auto-detect Agent",
@@ -110,6 +115,18 @@ export function AgentSelector({ selectedAgent, onAgentChange }: AgentSelectorPro
                   <div>
                     <div>{agentTypeMap.prediction.name}</div>
                     <div className="text-xs text-slate-500">{agentTypeMap.prediction.description}</div>
+                  </div>
+                </Label>
+              </div>
+
+              {/* New Customer ML Agent Option */}
+              <div className="flex items-center space-x-2 border rounded-md p-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900">
+                <RadioGroupItem value="customer_ml_agent" id="customer_ml_agent" />
+                <Label htmlFor="customer_ml_agent" className="flex items-center gap-2 cursor-pointer">
+                  {agentTypeMap.customer_ml_agent.icon}
+                  <div>
+                    <div>{agentTypeMap.customer_ml_agent.name}</div>
+                    <div className="text-xs text-slate-500">{agentTypeMap.customer_ml_agent.description}</div>
                   </div>
                 </Label>
               </div>

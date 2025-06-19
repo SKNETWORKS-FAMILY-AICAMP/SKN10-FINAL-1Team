@@ -30,6 +30,7 @@ if not os.getenv("OPENAI_API_KEY"):
 # --- Agent Imports ---
 from fastapi_server.agent.agent3 import app as analysis_app
 from fastapi_server.agent.agent4 import app as prediction_app
+from .app.ml_models import run_customer_ml_model
 
 # --- Pydantic Models for API Requests ---
 class AnalysisRequest(BaseModel):
@@ -162,56 +163,89 @@ async def websocket_prediction_agent(websocket: WebSocket):
             logging.debug(f"Received data on WebSocket: {data}")
             
             try:
-                request_data = json.loads(data)
-                user_query = request_data.get("user_query")
+                payload = json.loads(data)
+                user_query = payload.get("user_query")
+                csv_file_content = payload.get("csv_file_content")
+                agent_type_from_payload = payload.get("agent_type", "prediction") # Default to "prediction"
 
-                if user_query is None:
-                    logging.warning("user_query not found in WebSocket message.")
-                    await websocket.send_text(json.dumps({"type": "error", "content": "user_query not found in message"}))
+                if not user_query and not csv_file_content:
+                    logging.warning("WebSocket received empty query and no file.")
+                    # await websocket.send_text(json.dumps({"type": "error", "content": "Empty query and no file received."}))
+                    # await websocket.send_text(json.dumps({"type": "stream_end"}))
                     continue
 
-                # Construct input for agent4, using HumanMessage as seen in agent4.py's test_agent
-                input_for_agent = {"messages": [HumanMessage(content=user_query)]}
-                logging.info(f"Invoking prediction_app with input: {input_for_agent}")
-
-                async for event in prediction_app.astream_events(input_for_agent, version="v2"):
-                    event_type = event["event"]
-                    event_name = event.get("name")
-                    event_data = event.get("data", {})
+                if agent_type_from_payload == "customer_ml_agent":
+                    if not csv_file_content:
+                        logging.warning("customer_ml_agent: CSV file content is required.")
+                        await websocket.send_text(json.dumps({"type": "error", "content": "CSV file content is required for this agent."}))
+                        await websocket.send_text(json.dumps({"type": "stream_end"}))
+                        continue
+                    if not user_query:
+                        logging.warning("customer_ml_agent: User query is required.")
+                        await websocket.send_text(json.dumps({"type": "error", "content": "User query is required for this agent."}))
+                        await websocket.send_text(json.dumps({"type": "stream_end"}))
+                        continue
                     
-                    logging.debug(f"Agent event: type='{event_type}', name='{event_name}', data='{event_data}'")
+                    logging.info(f"Invoking customer_ml_agent with query: '{user_query}' and CSV data (size: {len(csv_file_content)}).")
+                    try:
+                        ml_response = run_customer_ml_model(csv_file_content, user_query)
+                        await websocket.send_text(json.dumps({"type": "final_answer", "content": ml_response}))
+                    except Exception as ml_e:
+                        logging.error(f"Error in customer_ml_agent: {ml_e}", exc_info=True)
+                        await websocket.send_text(json.dumps({"type": "error", "content": f"Error processing CSV with ML model: {str(ml_e)}"}))
+                    await websocket.send_text(json.dumps({"type": "stream_end"}))
+                
+                elif agent_type_from_payload == "prediction": # Or other LangGraph agents
+                    messages_for_agent: List[BaseMessage] = []
+                    if user_query:
+                        messages_for_agent.append(HumanMessage(content=user_query))
 
-                    if event_type == "on_chat_model_stream":
-                        chunk = event_data.get("chunk")
-                        if hasattr(chunk, 'content') and chunk.content:
-                            await websocket.send_text(json.dumps({"type": "stream", "content": chunk.content}))
+                    input_data_for_agent = {"messages": messages_for_agent}
+                    if csv_file_content: # prediction_app might also use csv_file_content
+                        input_data_for_agent["csv_file_content"] = csv_file_content
                     
-                    elif event_type == "on_chain_end" and event_name == "LangGraph": # Assuming 'LangGraph' is the name for the top-level graph events
-                        output_state = event_data.get("output", {})
-                        if isinstance(output_state, dict):
-                            final_answer = output_state.get("final_answer")
-                            error_message = output_state.get("error_message")
-
-                            if error_message:
-                                logging.error(f"Agent error in final state: {error_message}")
-                                await websocket.send_text(json.dumps({"type": "error", "content": error_message}))
-                            elif final_answer:
-                                logging.info(f"Sending final_answer from LangGraph end: {final_answer}")
-                                await websocket.send_text(json.dumps({"type": "final_answer", "content": final_answer}))
-                            else:
-                                logging.info("LangGraph finished, no specific final_answer or error_message in output state.")
-                                await websocket.send_text(json.dumps({"type": "info", "content": "Processing complete."}))
-                        else:
-                            logging.warning(f"Unexpected output format at LangGraph end: {output_state}")
-                            await websocket.send_text(json.dumps({"type": "info", "content": "Processing complete with unexpected output format."}))
+                    logging.info(f"Invoking prediction_app (LangGraph) with query: '{user_query}' and file size: {len(csv_file_content) if csv_file_content else 0}")
+                    async for event in prediction_app.astream(
+                        input_data_for_agent,
+                        config={"configurable": {"thread_id": "prediction-thread"}}
+                    ):
+                        event_type = event["event"]
+                        event_name = event.get("name")
+                        event_data = event.get("data", {})
                         
-                        await websocket.send_text(json.dumps({"type": "stream_end"})) # Signal end of messages for this request
+                        logging.debug(f"Agent event: type='{event_type}', name='{event_name}', data='{event_data}'")
 
-                    elif event_type.endswith("_error"): # Catch specific error events like on_chain_error, on_tool_error etc.
-                        error_detail = str(event_data.get("error", event_data)) # data could be the error itself or a dict containing it
-                        logging.error(f"Agent error event ({event_type}): {error_detail}")
-                        await websocket.send_text(json.dumps({"type": "error", "content": f"Agent error ({event_type}): {error_detail}"}))
-                        await websocket.send_text(json.dumps({"type": "stream_end"})) # End stream on error
+                        if event_type == "on_chat_model_stream":
+                            chunk = event_data.get("chunk")
+                            if hasattr(chunk, 'content') and chunk.content:
+                                await websocket.send_text(json.dumps({"type": "stream", "content": chunk.content}))
+                        
+                        elif event_type == "on_chain_end" and event_name == "LangGraph": # Assuming 'LangGraph' is the name for the top-level graph events
+                            output_state = event_data.get("output", {})
+                            if isinstance(output_state, dict):
+                                final_answer = output_state.get("final_answer")
+                                error_message = output_state.get("error_message")
+
+                                if error_message:
+                                    logging.error(f"Agent error in final state: {error_message}")
+                                    await websocket.send_text(json.dumps({"type": "error", "content": error_message}))
+                                elif final_answer:
+                                    logging.info(f"Sending final_answer from LangGraph end: {final_answer}")
+                                    await websocket.send_text(json.dumps({"type": "final_answer", "content": final_answer}))
+                                else:
+                                    logging.info("LangGraph finished, no specific final_answer or error_message in output state.")
+                                    await websocket.send_text(json.dumps({"type": "info", "content": "Processing complete."}))
+                            else:
+                                logging.warning(f"Unexpected output format at LangGraph end: {output_state}")
+                                await websocket.send_text(json.dumps({"type": "info", "content": "Processing complete with unexpected output format."}))
+                            
+                            await websocket.send_text(json.dumps({"type": "stream_end"})) # Signal end of messages for this request
+
+                        elif event_type.endswith("_error"): # Catch specific error events like on_chain_error, on_tool_error etc.
+                            error_detail = str(event_data.get("error", event_data)) # data could be the error itself or a dict containing it
+                            logging.error(f"Agent error event ({event_type}): {error_detail}")
+                            await websocket.send_text(json.dumps({"type": "error", "content": f"Agent error ({event_type}): {error_detail}"}))
+                            await websocket.send_text(json.dumps({"type": "stream_end"})) # End stream on error
 
             except json.JSONDecodeError:
                 logging.warning("Invalid JSON received on WebSocket.")

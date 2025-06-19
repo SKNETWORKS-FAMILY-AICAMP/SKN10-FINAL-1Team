@@ -9,3 +9,7 @@ openai
 async-timeout
 websockets
 httpx
+pandas
+langchain-experimental
+tabulate
+scikit-learn

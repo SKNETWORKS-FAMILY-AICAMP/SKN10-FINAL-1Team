@@ -31,7 +31,7 @@ from fastapi_server.agent.prompt import (
     supervisor_chat_prompt_agent3,
     sql_generation_chat_prompt_agent3,
     sql_result_summary_chat_prompt_agent3,
-    general_chat_prompt_agent3
+
 )
 
 # Setup logger for agent3
@@ -101,7 +101,7 @@ def _lc_messages_to_openai_format(lc_messages: List[BaseMessage]) -> List[Dict[s
 
 # --- Pydantic Models for Structured Output ---
 class SupervisorDecision(BaseModel):
-    query_type: str = Field(description="The type of the user's question (db_query or general_query)")
+    query_type: str = Field(description="The type of the user's question. Should be 'db_query'.")
 
 class SQLGenerationOutput(BaseModel):
     sql_query: str = Field(description="The generated SQL query. This field MUST contain ONLY the SQL query string, without any surrounding text, explanations, or markdown formatting like ```sql.")
@@ -114,7 +114,7 @@ async def supervisor_node(state: AgentState, config: Optional[RunnableConfig] = 
     if not state.messages:
         logger.warning("Supervisor_node: No messages in state. Cannot determine query type.")
         # Potentially set a default or error state
-        state.query_type = "general_query" # Fallback, or handle error appropriately
+        state.query_type = "db_query" # Fallback, all queries are treated as DB queries
         state.error_message = "No input message found."
         return state
         
@@ -129,7 +129,7 @@ async def supervisor_node(state: AgentState, config: Optional[RunnableConfig] = 
         else:
             logger.warning("Supervisor_node: No HumanMessage found to extract user_query.")
             # Fallback if no human message, though MessagesPlaceholder handles history
-            state.query_type = "general_query"
+            state.query_type = "db_query"
             state.error_message = "No human message found in history."
             return state
 
@@ -164,7 +164,7 @@ async def supervisor_node(state: AgentState, config: Optional[RunnableConfig] = 
         state.error_message = None # Clear previous errors
     except Exception as e:
         logger.error(f"Supervisor_node: Error invoking LLM or parsing output: {e}", exc_info=True)
-        state.query_type = "general_query"  # Fallback on error
+        state.query_type = "db_query"  # Fallback on error
         state.final_answer = f"죄송합니다, 요청을 이해하는 중 오류가 발생했습니다: {e}"
         state.error_message = str(e)
     
@@ -555,36 +555,28 @@ Mermaid 다이어그램과 설명:
     logger.info(f"create_visualization_node state after processing: visualization_output length: {len(state.visualization_output or '')}, final_answer length: {len(state.final_answer or '')}")
     return state
 
+
+
+def route_query(state: AgentState) -> Literal["generate_sql_node"]:
+    """Routes queries to the appropriate node. All queries are routed to the SQL generation node."""
+    logger.info(f"Routing query with type: {state.query_type}. All queries are routed to generate_sql_node.")
+    return "generate_sql_node"
+
 def route_sql_output(state: AgentState) -> Literal["create_visualization_node", "summarize_sql_result_node"]:
+    """Routes the SQL output to be either summarized or visualized."""
     choice = state.sql_output_choice
-    # If execute_sql_node itself resulted in an error (indicated by error_message and no sql_result)
-    # both visualization and summarization nodes have internal logic to handle this.
-    # The choice made by the supervisor should still be respected if possible.
+    logger.info(f"Routing SQL output based on choice: {choice}")
+
     if state.error_message and not state.sql_result:
-        print(f"Error detected before routing SQL output: {state.error_message}. Proceeding with choice: {choice}")
+        logger.warning(f"Error detected before routing SQL output: {state.error_message}. Proceeding with choice: {choice}")
 
     if choice == "visualize":
-        print("Routing to create_visualization_node based on sql_output_choice.")
+        logger.info("Routing to create_visualization_node.")
         return "create_visualization_node"
-    elif choice == "summarize":
-        print("Routing to summarize_sql_result_node based on sql_output_choice.")
-        return "summarize_sql_result_node"
-    else:
-        # Fallback if sql_output_choice is somehow not set for a db_query path
-        print(f"Warning: sql_output_choice is '{choice}'. Defaulting to summarize_sql_result_node.")
-        return "summarize_sql_result_node"
-
-def route_query(state: AgentState) -> Literal["generate_sql_node", "general_question_node"]:
-    query_type = state.query_type
-    print(f"Routing based on query_type: {query_type}")
-    if query_type == "db_query":
-        return "generate_sql_node"
-    elif query_type == "general_query":
-        return "general_question_node"
-    else:
-        # This case should ideally not be reached if supervisor is strict
-        print(f"Warning: Unknown query_type '{query_type}', defaulting to general_question_node.")
-        return "general_question_node"
+    
+    # Default to summarize if choice is not 'visualize' or is None
+    logger.info(f"Routing to summarize_sql_result_node (choice was '{choice}').")
+    return "summarize_sql_result_node"
 
 # --- Graph Definition ---
 workflow = StateGraph(AgentState)
@@ -595,7 +587,7 @@ workflow.add_node("generate_sql_node", generate_sql_node)
 workflow.add_node("execute_sql_node", execute_sql_node)
 workflow.add_node("create_visualization_node", create_visualization_node)
 workflow.add_node("summarize_sql_result_node", summarize_sql_result_node)
-workflow.add_node("general_question_node", general_question_node)
+
 
 
 # Set entry point
@@ -607,7 +599,7 @@ workflow.add_conditional_edges(
     route_query,
     {
         "generate_sql_node": "generate_sql_node",
-        "general_question_node": "general_question_node"
+
     }
 )
 
@@ -628,8 +620,7 @@ workflow.add_edge("summarize_sql_result_node", END)
 # Edges from placeholder nodes to the SQL generation flow
 
 
-# Edge for general question
-workflow.add_edge("general_question_node", END)
+
 
 # Compile the graph
 app = workflow.compile()

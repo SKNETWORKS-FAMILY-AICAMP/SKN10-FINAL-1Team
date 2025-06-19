@@ -5,7 +5,7 @@ import { toast } from "@/hooks/use-toast"
 import { isPreviewEnvironment, mockChatSessions, mockMessages, generateMockResponse } from "./mock-data"
 
 // Types that match Django models
-export type AgentType = "code" | "rag" | "analytics" | "prediction" // Matches AgentType enum in schema
+export type AgentType = "code" | "rag" | "analytics" | "prediction" | "customer_ml_agent" // Matches AgentType enum in schema
 
 export interface ChatSession {
   id: string
