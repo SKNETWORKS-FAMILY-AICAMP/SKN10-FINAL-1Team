@@ -28,6 +28,7 @@ urlpatterns = [
     path('github/disconnect/', views.github_disconnect_view, name='github_disconnect'),
     path('github/add_by_url/', views.add_repository_by_url, name='add_repository_by_url'),
     path('github/scan_repositories/', views.scan_selected_repositories_view, name='scan_selected_repositories'),
+    path('github/list_branches/', views.ajax_list_repository_branches, name='ajax_list_repository_branches'),
 
     # Include API routes under 'api/' prefix
     path('api/', include(api_urlpatterns)),

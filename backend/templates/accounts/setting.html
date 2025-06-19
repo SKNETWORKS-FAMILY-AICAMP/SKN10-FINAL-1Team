@@ -347,21 +347,86 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            let repoHtml = '<ul class="space-y-2">';
-            repos.forEach(repo => {
-                repoHtml += `
-                    <li class="flex items-center p-1 hover:bg-slate-50 rounded-md">
-                        <input type="checkbox" id="repo-scan-${repo.id}" name="selected_repo_scan" 
-                               value="${repo.id}" data-repo-url="${repo.html_url}" 
-                               class="form-checkbox h-4 w-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 mr-3 repo-checkbox">
-                        <label for="repo-scan-${repo.id}" class="text-sm text-slate-800 hover:text-indigo-600 cursor-pointer flex-grow">
-                            ${repo.full_name}
-                            ${repo.private ? '<span class="ml-2 text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full">Private</span>' : ''}
-                        </label>
-                    </li>`;
-            });
-            repoHtml += '</ul>';
-            repositoryListContainer.innerHTML = repoHtml;
+            async function loadBranchesForRepo(selectElement, owner, repoName, defaultBranch) {
+                selectElement.disabled = true;
+                selectElement.innerHTML = `<option value="">Loading...</option>`;
+                try {
+                    const response = await fetch(`/accounts/github/list_branches/?owner=${encodeURIComponent(owner)}&repo_name=${encodeURIComponent(repoName)}`);
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    selectElement.innerHTML = ''; // Clear loading/previous options
+                    if (data.branches && data.branches.length > 0) {
+                        data.branches.forEach(branchName => {
+                            const option = document.createElement('option');
+                            option.value = branchName;
+                            option.textContent = branchName;
+                            if (branchName === defaultBranch) {
+                                option.selected = true;
+                            }
+                            selectElement.appendChild(option);
+                        });
+                    } else {
+                        selectElement.innerHTML = `<option value="${defaultBranch}">${defaultBranch} (No other branches found)</option>`;
+                    }
+                } catch (error) {
+                    console.error(`Error loading branches for ${owner}/${repoName}:`, error);
+                    selectElement.innerHTML = `<option value="${defaultBranch}">${defaultBranch} (Error loading)</option>`;
+                } finally {
+                    selectElement.disabled = false;
+                }
+            }
+
+            function displayRepositories(repositories) {
+                const container = document.getElementById('repositoryListContainer');
+                if (!repositories || repositories.length === 0) {
+                    container.innerHTML = '<p class="text-slate-500">No repositories found or an error occurred.</p>';
+                    return;
+                }
+
+                let repoHtml = '<ul class="space-y-3">';
+                repositories.forEach(repo => {
+                    const isPrivate = repo.private ? '<span class="ml-2 px-2 py-0.5 text-xs font-medium text-purple-700 bg-purple-100 rounded-full">Private</span>' : '';
+                    const defaultBranch = repo.default_branch || 'main';
+                    // Extract owner and repo_name from full_name for the API call
+                    // Assumes full_name is in 'owner/repo_name' format
+                    const [owner, repoName] = repo.full_name.split('/');
+
+                    repoHtml += `
+                        <li class="p-3 bg-slate-50 hover:bg-slate-100 rounded-md border border-slate-200 transition-colors">
+                            <div class="flex items-center justify-between">
+                                <label for="repo-${repo.id}" class="flex items-center text-sm text-slate-800 font-medium cursor-pointer flex-grow">
+                                    <input type="checkbox" id="repo-${repo.id}" name="selected_repos" value="${repo.html_url}" data-repo-id="${repo.id}" class="form-checkbox h-4 w-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 mr-3 repo-checkbox">
+                                    <span class="truncate" title="${repo.full_name}">${repo.full_name}</span>
+                                    ${isPrivate}
+                                </label>
+                                <div class="ml-2 flex items-center" style="min-width: 180px;">
+                                    <span class="text-xs text-slate-500 mr-1">Branch:</span>
+                                    <select id="branch-select-${repo.id}" data-repo-url="${repo.html_url}" data-repo-owner="${owner}" data-repo-name="${repoName}" data-default-branch="${defaultBranch}" class="repo-branch-select form-select h-7 text-xs p-1 border-slate-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 w-full">
+                                        <option value="${defaultBranch}">${defaultBranch} (Loading...)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </li>`;
+                });
+                repoHtml += '</ul>';
+                container.innerHTML = repoHtml;
+
+                // After rendering, load branches for each select dropdown
+                repositories.forEach(repo => {
+                    const selectElement = document.getElementById(`branch-select-${repo.id}`);
+                    if (selectElement) {
+                        const owner = selectElement.dataset.repoOwner;
+                        const repoName = selectElement.dataset.repoName;
+                        const defaultBranch = selectElement.dataset.defaultBranch;
+                        loadBranchesForRepo(selectElement, owner, repoName, defaultBranch);
+                    }
+                });
+            }
+
+            displayRepositories(repos);
         } catch (error) {
             console.error('Error fetching repositories:', error);
             repositoryListContainer.innerHTML = `<p class="text-red-500">Failed to load repositories. ${error.message}</p>`;
@@ -370,7 +435,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (selectAllReposCheckbox && repositoryListContainer) {
         selectAllReposCheckbox.addEventListener('change', (event) => {
-            const checkboxes = repositoryListContainer.querySelectorAll('input[name="selected_repo_scan"]');
+            const checkboxes = repositoryListContainer.querySelectorAll('input[name="selected_repos"]');
             checkboxes.forEach(checkbox => {
                 checkbox.checked = event.target.checked;
             });
@@ -379,11 +444,11 @@ document.addEventListener('DOMContentLoaded', function () {
     
     if (repositoryListContainer && selectAllReposCheckbox) {
         repositoryListContainer.addEventListener('change', function(event) {
-            if (event.target.matches('input[name="selected_repo_scan"].repo-checkbox')) {
+            if (event.target.matches('input[name="selected_repos"].repo-checkbox')) {
                 if (!event.target.checked) {
                     selectAllReposCheckbox.checked = false;
                 } else {
-                    const allCheckboxes = repositoryListContainer.querySelectorAll('input[name="selected_repo_scan"]');
+                    const allCheckboxes = repositoryListContainer.querySelectorAll('input[name="selected_repos"]');
                     const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
                     if (allChecked) {
                         selectAllReposCheckbox.checked = true;
@@ -399,17 +464,31 @@ document.addEventListener('DOMContentLoaded', function () {
                 scanFeedback.innerHTML = '<p class="text-red-500 text-sm">Critical error: CSRF token not available. Cannot proceed.</p>';
                 return;
             }
-            const selectedRepoCheckboxes = repositoryListContainer.querySelectorAll('input[name="selected_repo_scan"]:checked');
-            const repoUrlsToScan = Array.from(selectedRepoCheckboxes).map(cb => cb.dataset.repoUrl);
+            const selectedRepoCheckboxes = document.querySelectorAll('.repo-checkbox:checked');
+            const repoUrlsToScan = [];
+
+            selectedRepoCheckboxes.forEach(checkbox => {
+                const repoBaseUrl = checkbox.value; // This is repo.html_url
+                const repoId = checkbox.dataset.repoId;
+                const branchSelect = document.getElementById(`branch-select-${repoId}`);
+                let branchName = 'main'; // Default branch if select not found or no value
+                if (branchSelect && branchSelect.value) {
+                    branchName = branchSelect.value;
+                }
+                
+                // Construct the URL for scanning: https://github.com/owner/repo/tree/branch_name
+                const fullUrlToScan = `${repoBaseUrl}/tree/${branchName}`;
+                repoUrlsToScan.push(fullUrlToScan);
+            });
 
             if (repoUrlsToScan.length === 0) {
                 scanFeedback.innerHTML = '<p class="text-orange-500 text-sm">Please select at least one repository to scan.</p>';
+                startScanSelectedBtn.disabled = false;
+                startScanSelectedBtn.classList.remove('opacity-50', 'cursor-not-allowed');
                 return;
             }
 
-            scanFeedback.innerHTML = '<p class="text-blue-500 text-sm animate-pulse">Starting scan... Please wait.</p>';
-            startScanSelectedBtn.disabled = true;
-            startScanSelectedBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            scanFeedback.innerHTML = '<p class="text-blue-600 text-sm">Initiating scan for selected repositories...</p>';
 
             try {
                 const response = await fetch("{% url 'accounts:scan_selected_repositories' %}", {

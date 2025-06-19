@@ -12,6 +12,7 @@ from django.contrib.auth import login as auth_login, logout as auth_logout # For
 from django.http import JsonResponse # For AJAX responses
 from django.views.decorators.http import require_POST # For restricting to POST requests
 from django.views.decorators.csrf import csrf_exempt # For exempting CSRF protection
+from django.views.decorators.http import require_GET # For restricting to GET requests
 import requests
 import re # For parsing GitHub URL
 from urllib.parse import urlparse # For parsing URLs
@@ -158,9 +159,11 @@ def list_github_repositories(request):
                     'id': repo['id'],
                     'name': repo['name'],
                     'full_name': repo['full_name'],
-                    'html_url': repo['html_url'],
+                    'html_url': repo['html_url'],  # This is the general URL, not branch specific
+                    'url': repo['url'],  # API URL for this repo, often used as a base for other API calls
                     'private': repo['private'],
-                    'owner_login': repo['owner']['login']
+                    'owner_login': repo['owner']['login'],
+                    'default_branch': repo['default_branch']  # Add default branch information
                 })
             
             if 'next' in response.links:
@@ -180,6 +183,59 @@ def list_github_repositories(request):
         return JsonResponse({'error': f'An unexpected error occurred: {str(e)}'}, status=500)
 
     return JsonResponse({'repositories': repositories})
+
+
+@login_required
+@require_GET # This view only handles GET requests
+def ajax_list_repository_branches(request):
+    owner = request.GET.get('owner')
+    repo_name = request.GET.get('repo_name')
+    user = request.user
+
+    if not owner or not repo_name:
+        return JsonResponse({'error': 'Owner and repository name are required.'}, status=400)
+
+    if not hasattr(user, 'github_access_token') or not user.github_access_token:
+        return JsonResponse({'error': 'GitHub token not found or not connected.'}, status=400)
+
+    token = user.github_access_token
+    api_url = f'https://api.github.com/repos/{owner}/{repo_name}/branches'
+    headers = {
+        'Authorization': f'token {token}',
+        'Accept': 'application/vnd.github.v3+json',
+        'X-GitHub-Api-Version': '2022-11-28'
+    }
+
+    branches = []
+    try:
+        page = 1
+        while True:
+            response = requests.get(api_url, headers=headers, params={'per_page': 100, 'page': page})
+            response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
+            data = response.json()
+            if not data: # No more data, break the loop
+                break
+            for branch_info in data:
+                branches.append(branch_info['name'])
+            
+            if len(data) < 100: # Last page if less than per_page items returned
+                break
+            page += 1
+
+    except requests.exceptions.HTTPError as e:
+        error_detail = e.response.text if e.response else 'No response body'
+        print(f"GitHub API HTTPError in ajax_list_repository_branches for {owner}/{repo_name}: {e.response.status_code} - {error_detail}")
+        if e.response.status_code == 404:
+            return JsonResponse({'error': f'Repository {owner}/{repo_name} not found or access denied.'}, status=404)
+        return JsonResponse({'error': f'Failed to fetch branches from GitHub: {str(e)}'}, status=e.response.status_code if e.response else 500)
+    except requests.exceptions.RequestException as e:
+        print(f"GitHub API RequestException in ajax_list_repository_branches for {owner}/{repo_name}: {str(e)}")
+        return JsonResponse({'error': f'Network error while fetching branches: {str(e)}'}, status=500)
+    except Exception as e:
+        print(f"Unexpected error in ajax_list_repository_branches for {owner}/{repo_name}: {str(e)}")
+        return JsonResponse({'error': 'An unexpected error occurred while fetching branches.'}, status=500)
+
+    return JsonResponse({'branches': branches})
 
 @login_required
 def delete_github_token(request):
