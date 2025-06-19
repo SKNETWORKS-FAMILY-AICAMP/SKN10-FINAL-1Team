@@ -225,6 +225,8 @@ document.addEventListener('DOMContentLoaded', function () {
         console.warn('CSRF token not found. Some operations may not work.');
     }
 
+    const scanSelectedRepositoriesUrl = "{% url 'accounts:scan_selected_repositories' %}";
+
     // --- GitHub PAT Modal Elements & Logic ---
     const connectButton = document.getElementById('connect-github-btn'); 
     const githubTokenModal = document.getElementById('github-token-modal'); 
@@ -736,43 +738,7 @@ document.addEventListener('DOMContentLoaded', function () {
     </div>
 </div>
 
-  {% if github_connected %}
-  <section id="addRepositorySection" class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-    <h2 class="text-slate-900 text-xl font-semibold mb-1">Repositories</h2>
-    <p class="text-slate-600 text-sm mb-6">Manually add repositories by providing their URL.</p>
-    <div class="space-y-4">
-        <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1.5" for="repository_url_input">Repository URL</label>
-            <input name="repository_url" id="repository_url_input" class="form-input block w-full rounded-md border-slate-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm h-11 px-3 py-2 placeholder:text-slate-400" placeholder="https://github.com/username/repository-name" type="url" value=""/>
-            <p id="addRepoError" class="text-red-500 text-sm mt-1" style="display: none;"></p>
-        </div>
-        <div class="flex justify-end">
-            <button type="button" id="addRepositoryBtn" class="flex min-w-[150px] items-center justify-center rounded-md h-10 px-4 bg-slate-800 hover:bg-slate-700 text-white text-sm font-semibold shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-500">
-                <span class="material-symbols-outlined mr-1.5 text-base">add</span>
-                <span class="truncate">Add Repository</span>
-            </button>
-        </div>
-    </div>
-  </section>
-  {% else %}
-  <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 opacity-50 pointer-events-none">
-    <h2 class="text-slate-900 text-xl font-semibold mb-1">Repositories</h2>
-    <p class="text-slate-600 text-sm mb-4">Manually add repositories by providing their URL.</p>
-    <p class="text-sm text-orange-600 mb-6 font-medium"><span class="material-symbols-outlined align-middle text-base mr-1">warning</span>Please connect to GitHub first to add repositories.</p>
-    <div class="space-y-4">
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1.5" for="repo-url-disabled">Repository URL</label>
-        <input class="form-input block w-full rounded-md border-slate-300 shadow-sm bg-slate-100 text-slate-500 sm:text-sm h-11 px-3 py-2 placeholder:text-slate-400 cursor-not-allowed" id="repo-url-disabled" placeholder="https://github.com/username/repository-name" type="url" value="" disabled/>
-      </div>
-      <div class="flex justify-end">
-        <button class="flex min-w-[120px] items-center justify-center rounded-md h-10 px-4 bg-slate-300 text-slate-500 text-sm font-semibold shadow-sm cursor-not-allowed" disabled>
-          <span class="material-symbols-outlined mr-1.5 text-base"> add </span>
-          <span class="truncate">Add Repository</span>
-        </button>
-      </div>
-    </div>
-  </section>
-  {% endif %}
+ 
   </div>
   </div>
   </main>
