@@ -17,6 +17,56 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langgraph.graph.message import add_messages
 from conversations.models import ChatSession, ChatMessage, LlmCall
 from accounts.models import User
+from django.conf import settings
+from django.db import connection
+
+def get_postgre_db() : 
+    """PostgreSQL 데이터베이스 연결 정보 가져오는 함수"""
+    db = settings.DATABASES['default']
+    print("----------------------------------------------------------------")
+    print(db['ENGINE'], db['NAME'])
+    result = {
+        "engine": db['ENGINE'],
+        "name": db['NAME'],
+        "host": db['HOST'],
+        "port": db['PORT'],
+    }
+    return result
+
+
+def get_all_table():
+    """PostgreSQL 데이터베이스 모든 테이블의 정보를 가져오는 함수"""
+    result = []
+    all_table = set(connection.introspection.table_names()) 
+    default_table = {'auth_group','auth_permission','auth_group_permissions','users_groups', 'users_user_permissions'
+                    ,'django_content_type','django_session','django_admin_log','django_migrations'}
+    tables = all_table.difference(default_table)
+    print(tables)
+
+    with connection.cursor() as cursor:
+        for table in tables :
+            # 테이블 레코드 수 가져오기
+            cursor.execute(f'SELECT COUNT(*) FROM "{table}"')
+            count = cursor.fetchone()[0]
+
+            # 테이블 크기 가져오기
+            sql = f"""
+                SELECT COUNT(*) AS cnt, pg_size_pretty(
+                    pg_total_relation_size('public.{table}')
+                  )                           AS size
+                FROM "{table}";
+            """
+            cursor.execute(sql)
+            _, size = cursor.fetchone()  # (12345, '890 MB') 이런 튜플이 돌아옴
+            result.append ({
+                "name" :table,
+                "count" : count,
+                "size" : size
+            })
+    return result
+
+
+
 
 def get_index_lists() :
     """Pinecone 인덱스 목록을 가져오는 함수"""
@@ -54,7 +104,6 @@ def get_index_lists() :
         "total_count":  total_count
         })
 
-    # 1-3) 인덱스 목록 가져오기
     return results
 
 def get_sessions() :

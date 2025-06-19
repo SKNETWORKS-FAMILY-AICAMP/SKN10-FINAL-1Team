@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from .utils import get_index_lists,get_sessions, get_users
+from .utils import get_index_lists,get_sessions, get_users, get_postgre_db, get_all_table
 # Create your views here.
 
 def dashboard_view(request):
@@ -15,7 +15,15 @@ def dashboard_view(request):
     if section == "home" :
         pass
     elif section == "db" :
-        context['indexes'] = get_index_lists()
+        db = request.GET.get('db', 'postgre')
+        context['db'] = db
+
+        if db == "postgre" :
+            context['postgre_db'] = get_postgre_db()
+            context['tables'] = get_all_table()
+        elif db == "pinecone" :
+            context['indexes'] = get_index_lists()
+
     elif section == "log" :
         context['sessions'] = get_sessions() 
     elif section == "user" :
