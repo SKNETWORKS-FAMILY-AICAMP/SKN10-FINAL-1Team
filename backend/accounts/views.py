@@ -10,9 +10,26 @@ from django.shortcuts import render, redirect # Added for template rendering and
 from django.contrib.auth.decorators import login_required # Added for view protection
 from django.contrib.auth import login as auth_login, logout as auth_logout # For session auth
 from django.http import JsonResponse # For AJAX responses
+from django.views.decorators.http import require_POST # For restricting to POST requests
+from django.views.decorators.csrf import csrf_exempt # For exempting CSRF protection
 import requests
 import re # For parsing GitHub URL
+from urllib.parse import urlparse # For parsing URLs
+import tempfile # For creating temporary files and directories
 from django.contrib import messages
+import json # For JSON parsing
+
+# Adjust sys.path to include project root for main/flow imports
+import sys
+import os
+# Assuming views.py is in backend/accounts/, project_root is two levels up.
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
+
+# Imports from project root for scanning logic
+from main import DEFAULT_INCLUDE_PATTERNS, DEFAULT_EXCLUDE_PATTERNS
+from flow import create_tutorial_flow
 
 # API Login view (SimpleJWT)
 @api_view(['POST'])
@@ -200,6 +217,104 @@ def settings_view(request):
         'github_username': github_username,
     }
     return render(request, 'accounts/setting.html', context)
+
+
+@login_required
+@require_POST
+@csrf_exempt # 개발 중 편의를 위해 임시 사용. 실제 배포 시에는 적절한 CSRF 처리 필요.
+def scan_selected_repositories_view(request):
+    try:
+        data = json.loads(request.body)
+        repo_urls = data.get('repo_urls', [])
+        
+        if not repo_urls:
+            return JsonResponse({'status': 'error', 'message': 'No repository URLs provided.'}, status=400)
+
+        user = request.user
+        if not hasattr(user, 'github_access_token') or not user.github_access_token:
+            return JsonResponse({'status': 'error', 'message': 'GitHub token not found for user. Please connect your GitHub account in settings.'}, status=400)
+        
+        user_github_token = user.github_access_token
+
+        scan_results = []
+
+        # TODO: 이 부분은 시간이 매우 오래 걸릴 수 있으므로 Celery와 같은 비동기 태스크 큐로 처리해야 합니다.
+        for repo_url in repo_urls:
+            project_name_parts = urlparse(repo_url).path.strip('/').split('/')
+            if len(project_name_parts) >= 2:
+                # 일반적으로 URL은 github.com/owner/repo 형식이므로 마지막 두 부분을 사용
+                project_name = f"{project_name_parts[-2]}_{project_name_parts[-1]}"
+            else:
+                project_name = project_name_parts[-1] if project_name_parts else "default_project"
+            
+            if project_name.endswith('.git'):
+                project_name = project_name[:-4]
+
+            output_base_dir = tempfile.mkdtemp(prefix=f"scan_{project_name}_")
+            
+            shared = {
+                "repo_url": repo_url,
+                "project_name": project_name,
+                "github_token": user_github_token,
+                "output_dir": output_base_dir,
+                "include_patterns": DEFAULT_INCLUDE_PATTERNS,
+                "exclude_patterns": DEFAULT_EXCLUDE_PATTERNS,
+                "max_file_size": 100000,
+                "language": "english",
+                "use_cache": True,
+                "max_abstraction_num": 10,
+                "files": [],
+                "abstractions": [],
+                "relationships": {},
+                "chapter_order": [],
+                "chapters": [],
+                "final_output_dir": None
+            }
+            
+            try:
+                print(f"Starting scan for: {repo_url} into {output_base_dir}")
+                tutorial_flow = create_tutorial_flow()
+                tutorial_flow.run(shared)
+                
+                final_output_path = shared.get("final_output_dir", "Not specified")
+                # 'abstractions' now holds the file_listing_for_prompt string
+                file_list_string = shared.get('abstractions', 'No file list generated.')
+                # Format the file list for better readability if it's a multi-line string
+                # by replacing newlines with <br> for HTML display, or just present as is.
+                # For now, let's ensure it's a string and not too long for a message.
+                if isinstance(file_list_string, str) and len(file_list_string) > 500: # Truncate if too long
+                    file_list_message = file_list_string[:500] + "... (list truncated)"
+                elif isinstance(file_list_string, str):
+                    file_list_message = file_list_string.replace('\n', '<br>') # For HTML display in modal
+                else:
+                    file_list_message = "File list not available or not a string."
+
+                scan_results.append({
+                    'repo_url': repo_url,
+                    'status': 'success',
+                    'message': f'Files found:<br>{file_list_message}', # Display file list
+                    'output_path': final_output_path 
+                })
+                print(f"Scan finished for: {repo_url}. Output: {final_output_path}")
+
+            except Exception as e:
+                scan_results.append({
+                    'repo_url': repo_url,
+                    'status': 'error',
+                    'message': f'Error scanning repository: {str(e)}'
+                })
+                print(f"Error scanning {repo_url}: {str(e)}")
+            # finally:
+                # tempfile.mkdtemp로 생성된 디렉토리는 수동으로 정리해야 할 수 있음
+                # import shutil; shutil.rmtree(output_base_dir) # 단, 결과물이 여기에 있다면 삭제하면 안됨
+
+        return JsonResponse({'status': 'completed', 'results': scan_results})
+
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON in request body.'}, status=400)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f'An unexpected error occurred: {str(e)}'}, status=500)
+
 
 @login_required
 def github_connect_view(request):

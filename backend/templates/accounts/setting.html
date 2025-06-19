@@ -217,6 +217,8 @@ document.addEventListener('DOMContentLoaded', function () {
   </div>
 
   <script>
+document.addEventListener('DOMContentLoaded', function () {
+    // --- Header Loading ---
     function loadHeader() {
         fetch('/_header.html') // Path to the shared header
             .then(response => response.text())
@@ -226,15 +228,11 @@ document.addEventListener('DOMContentLoaded', function () {
                     headerPlaceholder.innerHTML = data;
                 }
                 
-                // Hide mobile sidebar toggle from the loaded header, as it's not for the settings page
                 const mobileSidebarToggle = document.getElementById('open-sidebar-mobile');
                 if (mobileSidebarToggle) {
                   mobileSidebarToggle.style.display = 'none';
                 }
 
-                // Set active link: _header.html doesn't have a 'Settings' link.
-                // The avatar links to profile. Chatbot page has a settings button.
-                // This part might not highlight anything unless _header.html is changed or a different logic is used.
                 const navLink = document.querySelector(`nav a[data-navlink='settings']`); 
                 if (navLink) {
                     navLink.classList.add('text-[var(--text-primary)]', 'bg-[var(--secondary-color)]');
@@ -243,40 +241,212 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .catch(error => console.error('Error loading header:', error));
     }
-    document.addEventListener('DOMContentLoaded', loadHeader);
+    loadHeader();
 
-    const connectButton = document.getElementById('connect-github-btn');
-    const modal = document.getElementById('github-token-modal');
-    const closeModalButton = document.getElementById('close-modal-btn');
-    const cancelModalButton = document.getElementById('cancel-modal-btn');
-    // const tokenForm = document.getElementById('github-token-form'); // 폼 제출은 기본 동작으로 처리
+    // --- CSRF Token ---
+    const csrfTokenInput = document.querySelector('input[name="csrfmiddlewaretoken"]');
+    const csrfToken = csrfTokenInput ? csrfTokenInput.value : null;
+    if (!csrfToken) {
+        console.warn('CSRF token not found. Some operations may not work.');
+    }
 
-    if (connectButton && modal) {
+    // --- GitHub PAT Modal Elements & Logic ---
+    const connectButton = document.getElementById('connect-github-btn'); 
+    const githubTokenModal = document.getElementById('github-token-modal'); 
+    const closeModalButton = document.getElementById('close-modal-btn'); 
+    const cancelModalButton = document.getElementById('cancel-modal-btn'); 
+
+    if (connectButton && githubTokenModal) {
       connectButton.addEventListener('click', () => {
-        modal.style.display = 'flex';
+        githubTokenModal.style.display = 'flex';
       });
     }
 
-    if (closeModalButton && modal) {
-      closeModalButton.addEventListener('click', () => {
-        modal.style.display = 'none';
-      });
+    function closePatModal() {
+        if (githubTokenModal) githubTokenModal.style.display = 'none';
+        // Optionally clear token input if one exists and is part of this modal
     }
 
-    if (cancelModalButton && modal) {
-      cancelModalButton.addEventListener('click', () => {
-        modal.style.display = 'none';
-      });
+    if (closeModalButton && githubTokenModal) {
+      closeModalButton.addEventListener('click', closePatModal);
     }
 
-    // Close modal if clicked outside of it
-    if (modal) {
-        modal.addEventListener('click', (event) => {
-            if (event.target === modal) {
-                modal.style.display = 'none';
+    if (cancelModalButton && githubTokenModal) {
+      cancelModalButton.addEventListener('click', closePatModal);
+    }
+    
+    if (githubTokenModal) { // Click outside for PAT modal
+        githubTokenModal.addEventListener('click', (event) => {
+            if (event.target === githubTokenModal) {
+                closePatModal();
             }
         });
     }
+
+    // --- Scan Repositories Modal Elements & Logic ---
+    const scanRepositoriesBtn = document.getElementById('scanRepositoriesBtn');
+    const scanRepositoriesModal = document.getElementById('scanRepositoriesModal');
+    const closeScanModalBtn = document.getElementById('closeScanModalBtn');
+    const cancelScanSelectedBtn = document.getElementById('cancelScanSelectedBtn');
+    const startScanSelectedBtn = document.getElementById('startScanSelectedBtn');
+    const repositoryListContainer = document.getElementById('repositoryListContainer');
+    const selectAllReposCheckbox = document.getElementById('selectAllReposCheckbox');
+    const scanFeedback = document.getElementById('scanFeedback');
+
+    if (scanRepositoriesBtn) {
+        scanRepositoriesBtn.addEventListener('click', () => {
+            if (scanRepositoriesModal) {
+                scanRepositoriesModal.style.display = 'flex';
+                fetchUserRepositories();
+            }
+        });
+    }
+
+    function closeTheScanModal() {
+        if (scanRepositoriesModal) scanRepositoriesModal.style.display = 'none';
+        if (repositoryListContainer) repositoryListContainer.innerHTML = '<p class="text-slate-500">Loading repositories...</p>';
+        if (selectAllReposCheckbox) selectAllReposCheckbox.checked = false;
+        if (scanFeedback) scanFeedback.innerHTML = '';
+    }
+
+    if (closeScanModalBtn) {
+        closeScanModalBtn.addEventListener('click', closeTheScanModal);
+    }
+    if (cancelScanSelectedBtn) {
+        cancelScanSelectedBtn.addEventListener('click', closeTheScanModal);
+    }
+    if (scanRepositoriesModal) { // Click outside for Scan modal
+        scanRepositoriesModal.addEventListener('click', (event) => {
+            if (event.target === scanRepositoriesModal) {
+                closeTheScanModal();
+            }
+        });
+    }
+
+    async function fetchUserRepositories() {
+        if (!repositoryListContainer) return;
+        repositoryListContainer.innerHTML = '<p class="text-slate-500 animate-pulse">Loading repositories...</p>';
+        try {
+            const response = await fetch("{% url 'accounts:list_github_repositories' %}");
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json(); // Get the whole object
+            
+            if (!data || !Array.isArray(data.repositories)) { // Check if data.repositories is an array
+                 repositoryListContainer.innerHTML = `<p class="text-red-500">Error: Unexpected response format from server or no repositories array.</p>`;
+                 console.error('Expected an object with a repositories array, got:', data);
+                 return;
+            }
+
+            const repos = data.repositories; // Access the array
+
+            if (repos.length === 0) {
+                repositoryListContainer.innerHTML = '<p class="text-slate-500">No repositories found. Your token might not have access to any repositories, or you may not have any repositories on GitHub.</p>';
+                return;
+            }
+
+            let repoHtml = '<ul class="space-y-2">';
+            repos.forEach(repo => {
+                repoHtml += `
+                    <li class="flex items-center p-1 hover:bg-slate-50 rounded-md">
+                        <input type="checkbox" id="repo-scan-${repo.id}" name="selected_repo_scan" 
+                               value="${repo.id}" data-repo-url="${repo.html_url}" 
+                               class="form-checkbox h-4 w-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 mr-3 repo-checkbox">
+                        <label for="repo-scan-${repo.id}" class="text-sm text-slate-800 hover:text-indigo-600 cursor-pointer flex-grow">
+                            ${repo.full_name}
+                            ${repo.private ? '<span class="ml-2 text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full">Private</span>' : ''}
+                        </label>
+                    </li>`;
+            });
+            repoHtml += '</ul>';
+            repositoryListContainer.innerHTML = repoHtml;
+        } catch (error) {
+            console.error('Error fetching repositories:', error);
+            repositoryListContainer.innerHTML = `<p class="text-red-500">Failed to load repositories. ${error.message}</p>`;
+        }
+    }
+
+    if (selectAllReposCheckbox && repositoryListContainer) {
+        selectAllReposCheckbox.addEventListener('change', (event) => {
+            const checkboxes = repositoryListContainer.querySelectorAll('input[name="selected_repo_scan"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = event.target.checked;
+            });
+        });
+    }
+    
+    if (repositoryListContainer && selectAllReposCheckbox) {
+        repositoryListContainer.addEventListener('change', function(event) {
+            if (event.target.matches('input[name="selected_repo_scan"].repo-checkbox')) {
+                if (!event.target.checked) {
+                    selectAllReposCheckbox.checked = false;
+                } else {
+                    const allCheckboxes = repositoryListContainer.querySelectorAll('input[name="selected_repo_scan"]');
+                    const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+                    if (allChecked) {
+                        selectAllReposCheckbox.checked = true;
+                    }
+                }
+            }
+        });
+    }
+
+    if (startScanSelectedBtn && repositoryListContainer && scanFeedback) {
+        startScanSelectedBtn.addEventListener('click', async () => {
+            if (!csrfToken) {
+                scanFeedback.innerHTML = '<p class="text-red-500 text-sm">Critical error: CSRF token not available. Cannot proceed.</p>';
+                return;
+            }
+            const selectedRepoCheckboxes = repositoryListContainer.querySelectorAll('input[name="selected_repo_scan"]:checked');
+            const repoUrlsToScan = Array.from(selectedRepoCheckboxes).map(cb => cb.dataset.repoUrl);
+
+            if (repoUrlsToScan.length === 0) {
+                scanFeedback.innerHTML = '<p class="text-orange-500 text-sm">Please select at least one repository to scan.</p>';
+                return;
+            }
+
+            scanFeedback.innerHTML = '<p class="text-blue-500 text-sm animate-pulse">Starting scan... Please wait.</p>';
+            startScanSelectedBtn.disabled = true;
+            startScanSelectedBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            try {
+                const response = await fetch("{% url 'accounts:scan_selected_repositories' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    },
+                    body: JSON.stringify({ repo_urls: repoUrlsToScan })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.status === 'completed') {
+                    let resultHtml = '<p class="text-green-600 text-sm mb-2">Scan process results:</p><ul class="list-disc list-inside text-sm space-y-1">';
+                    if (result.results && Array.isArray(result.results)){
+                        result.results.forEach(res => {
+                            resultHtml += `<li class="${res.status === 'success' ? 'text-green-700' : 'text-red-700'} break-all"><strong>${res.repo_url}</strong>: ${res.message}</li>`;
+                        });
+                    } else {
+                        resultHtml += '<li class="text-orange-500">No detailed results returned.</li>';
+                    }
+                    resultHtml += '</ul>';
+                    scanFeedback.innerHTML = resultHtml;
+                } else {
+                    scanFeedback.innerHTML = `<p class="text-red-500 text-sm">Error: ${result.message || result.error || 'Scan failed or did not complete as expected.'}</p>`;
+                }
+            } catch (error) {
+                console.error('Error starting scan:', error);
+                scanFeedback.innerHTML = `<p class="text-red-500 text-sm">An error occurred: ${error.message}</p>`;
+            } finally {
+                startScanSelectedBtn.disabled = false;
+                startScanSelectedBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        });
+    }
+});
 
   </script>
 
@@ -302,189 +472,17 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
         </div>
 
+        <div id="scanFeedback" class="my-3"></div> <!-- Feedback area -->
+
         <div class="flex justify-end gap-3">
-            <button type="button" id="cancelScanModalBtn" class="px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md shadow-sm transition-colors">Cancel</button>
-            <button type="button" id="startScanSelectedBtn" class="px-4 py-2 text-sm font-medium text-white bg-slate-800 hover:bg-slate-700 rounded-md shadow-sm transition-colors">Scan Selected (<span id="selectedRepoCount">0</span>)</button>
+            <button type="button" id="cancelScanSelectedBtn" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md shadow-sm transition-colors">Cancel</button>
+            <button type="button" id="startScanSelectedBtn" class="px-4 py-2 text-sm font-medium text-white bg-slate-800 hover:bg-slate-700 rounded-md flex items-center justify-center">
+                <span class="material-symbols-outlined mr-1.5 text-base" style="font-size: 1.125rem; vertical-align: text-bottom;">search_check</span>
+                Scan Selected
+            </button>
         </div>
     </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    // Existing PAT Modal JS
-    const connectGitHubBtn = document.getElementById('connectGitHubBtn');
-    const githubPatModal = document.getElementById('githubPatModal');
-    const closeModalBtn = document.getElementById('closeModalBtn'); // For PAT modal
-    const cancelModalBtn = document.getElementById('cancelModalBtn'); // For PAT modal
-    const githubPatInput = document.getElementById('github_pat');
 
-    if (connectGitHubBtn) {
-        connectGitHubBtn.addEventListener('click', function () {
-            if (githubPatModal) githubPatModal.style.display = 'flex';
-        });
-    }
-
-    function closePatModal() {
-        if (githubPatModal) githubPatModal.style.display = 'none';
-        if (githubPatInput) {
-            githubPatInput.value = '';
-        }
-    }
-
-    if (closeModalBtn) {
-        closeModalBtn.addEventListener('click', closePatModal);
-    }
-    if (cancelModalBtn) {
-        cancelModalBtn.addEventListener('click', closePatModal);
-    }
-    window.addEventListener('click', function (event) {
-        if (event.target === githubPatModal) {
-            closePatModal();
-        }
-    });
-
-    // New Scan Repositories Modal JS
-    const scanRepositoriesBtn = document.getElementById('scanRepositoriesBtn');
-    const scanRepositoriesModal = document.getElementById('scanRepositoriesModal');
-    const closeScanModalBtn = document.getElementById('closeScanModalBtn');
-    const cancelScanModalBtnElem = document.getElementById('cancelScanModalBtn'); // Renamed to avoid conflict
-    const repositoryListContainer = document.getElementById('repositoryListContainer');
-    const selectAllReposCheckbox = document.getElementById('selectAllReposCheckbox');
-    const startScanSelectedBtn = document.getElementById('startScanSelectedBtn');
-    const selectedRepoCountSpan = document.getElementById('selectedRepoCount');
-
-    if (scanRepositoriesBtn) {
-        scanRepositoriesBtn.addEventListener('click', function() {
-            if (scanRepositoriesModal) {
-                scanRepositoriesModal.style.display = 'flex';
-                // TODO: Add logic here to fetch and display repositories
-                // For now, just a placeholder
-                repositoryListContainer.innerHTML = '<p class="text-slate-500">Fetching your repositories...</p>'; 
-                repositoryListContainer.innerHTML = '<p class="text-slate-500 animate-pulse">Fetching your repositories...</p>';
-                fetch("{% url 'accounts:list_github_repositories' %}")
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.json().then(err => { 
-                                let errorMsg = 'Failed to fetch repositories.';
-                                if (err && err.error) errorMsg = err.error;
-                                if (err && err.details) console.error('Error details:', err.details);
-                                throw new Error(errorMsg);
-                            });
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.repositories && data.repositories.length > 0) {
-                            let reposHTML = '<ul class="space-y-1">';
-                            data.repositories.forEach(repo => {
-                                reposHTML += `<li class="p-2 hover:bg-slate-100 rounded-md transition-colors duration-150">
-                                                <label class="flex items-center text-sm text-slate-700 cursor-pointer">
-                                                    <input type="checkbox" 
-                                                           class="form-checkbox h-4 w-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 mr-3 repo-checkbox" 
-                                                           value="${repo.html_url}" 
-                                                           data-repo-id="${repo.id}" 
-                                                           data-repo-fullname="${repo.full_name}">
-                                                    <span class="font-medium">${repo.full_name}</span>
-                                                    ${repo.private ? '<span class="ml-2 text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full font-semibold">Private</span>' : '<span class="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-semibold">Public</span>'}
-                                                </label>
-                                              </li>`;
-                            });
-                            reposHTML += '</ul>';
-                            repositoryListContainer.innerHTML = reposHTML;
-                        } else if (data.repositories && data.repositories.length === 0) {
-                            repositoryListContainer.innerHTML = '<p class="text-slate-500">No repositories found. Your token might not have access to any repositories, or you may not have any repositories on GitHub.</p>';
-                        } else if (data.error) {
-                             repositoryListContainer.innerHTML = `<p class="text-red-600 font-medium">Error: ${data.error}</p><p class="text-sm text-slate-600">Please ensure your GitHub token has the 'repo' scope and is correctly entered. If the issue persists, try reconnecting your GitHub account.</p>`;
-                        }
-                        updateSelectedCount();
-                    })
-                    .catch(error => {
-                        console.error('Error fetching repositories:', error);
-                        repositoryListContainer.innerHTML = `<p class="text-red-600 font-medium">An error occurred: ${error.message}</p><p class="text-sm text-slate-600">Check the browser console for more details. You might need to reconnect your GitHub account or check its permissions.</p>`;
-                        updateSelectedCount();
-                    });
-            }
-        });
-    }
-
-    function closeScanModal() {
-        if (scanRepositoriesModal) scanRepositoriesModal.style.display = 'none';
-        if (selectAllReposCheckbox) selectAllReposCheckbox.checked = false;
-        // Clear previously loaded list or reset state if needed
-        repositoryListContainer.innerHTML = '<p class="text-slate-500">Loading repositories...</p>'; 
-        updateSelectedCount();
-    }
-
-    if (closeScanModalBtn) {
-        closeScanModalBtn.addEventListener('click', closeScanModal);
-    }
-    if (cancelScanModalBtnElem) {
-        cancelScanModalBtnElem.addEventListener('click', closeScanModal);
-    }
-    window.addEventListener('click', function (event) {
-        if (event.target === scanRepositoriesModal) {
-            closeScanModal();
-        }
-    });
-
-    // Logic for select all and counting selected repositories
-    if (selectAllReposCheckbox) {
-        selectAllReposCheckbox.addEventListener('change', function() {
-            const checkboxes = repositoryListContainer.querySelectorAll('.repo-checkbox');
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = selectAllReposCheckbox.checked;
-            });
-            updateSelectedCount();
-        });
-    }
-
-    // Update count when individual checkboxes change
-    // Need to use event delegation as checkboxes are loaded dynamically
-    if (repositoryListContainer) {
-        repositoryListContainer.addEventListener('change', function(event) {
-            if (event.target.classList.contains('repo-checkbox')) {
-                updateSelectedCount();
-                // Uncheck "Select All" if any individual checkbox is unchecked
-                if (!event.target.checked) {
-                    selectAllReposCheckbox.checked = false;
-                }
-            }
-        });
-    }
-
-    function updateSelectedCount() {
-        if (!repositoryListContainer || !selectedRepoCountSpan) return;
-        const selectedCheckboxes = repositoryListContainer.querySelectorAll('.repo-checkbox:checked');
-        selectedRepoCountSpan.textContent = selectedCheckboxes.length;
-    }
-
-    if (startScanSelectedBtn) {
-        startScanSelectedBtn.addEventListener('click', function() {
-            const selectedCheckboxes = repositoryListContainer.querySelectorAll('.repo-checkbox:checked');
-            const selectedRepos = Array.from(selectedCheckboxes)
-                                       .map(cb => ({
-                                           id: cb.dataset.repoId,
-                                           fullName: cb.dataset.repoFullname,
-                                           url: cb.value // This is repo.html_url
-                                       }));
-            
-            if (selectedRepos.length > 0) {
-                console.log('Selected repositories for scan:', selectedRepos);
-                // TODO: Implement the actual scan initiation.
-                // This will likely involve another fetch POST request to a new Django endpoint
-                // that triggers a background task (e.g., Celery) for each selected repository.
-                // For now, we'll just show an alert.
-                alert(`Initiating scan for ${selectedRepos.length} repository(s):\n${selectedRepos.map(r => r.fullName).join('\n')}\n\n(Actual scan process to be implemented)`);
-                
-                // You might want to provide feedback to the user that the scan has started.
-                // For example, disable the button, show a spinner, etc.
-                closeScanModal(); // Close modal after initiating scan
-            } else {
-                alert('Please select at least one repository to scan.');
-            }
-        });
-    }
-
-});
-</script>
   </body></html>

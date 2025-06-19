@@ -27,6 +27,7 @@ urlpatterns = [
     path('github/connect/', views.github_connect_view, name='github_connect'),
     path('github/disconnect/', views.github_disconnect_view, name='github_disconnect'),
     path('github/add_by_url/', views.add_repository_by_url, name='add_repository_by_url'),
+    path('github/scan_repositories/', views.scan_selected_repositories_view, name='scan_selected_repositories'),
 
     # Include API routes under 'api/' prefix
     path('api/', include(api_urlpatterns)),

@@ -2,8 +2,8 @@ import os
 import re
 import yaml
 from pocketflow import Node, BatchNode
-from utils.crawl_github_files import crawl_github_files
-from utils.call_llm import call_llm
+from crawl_github_files import crawl_github_files
+# from call_llm import call_llm # Temporarily disabled for testing scan functionality
 
 
 # Helper to get content for specific file indices
@@ -116,111 +116,11 @@ class IdentifyAbstractions(Node):
             use_cache,
             max_abstraction_num,
         ) = prep_res  # Unpack all parameters
-        print(f"Identifying abstractions using LLM...")
-
-        # Add language instruction and hints only if not English
-        language_instruction = ""
-        name_lang_hint = ""
-        desc_lang_hint = ""
-        if language.lower() != "english":
-            language_instruction = f"IMPORTANT: Generate the `name` and `description` for each abstraction in **{language.capitalize()}** language. Do NOT use English for these fields.\n\n"
-            # Keep specific hints here as name/description are primary targets
-            name_lang_hint = f" (value in {language.capitalize()})"
-            desc_lang_hint = f" (value in {language.capitalize()})"
-
-        prompt = f"""
-For the project `{project_name}`:
-
-Codebase Context:
-{context}
-
-{language_instruction}Analyze the codebase context.
-Identify the top 5-{max_abstraction_num} core most important abstractions to help those new to the codebase.
-
-For each abstraction, provide:
-1. A concise `name`{name_lang_hint}.
-2. A beginner-friendly `description` explaining what it is with a simple analogy, in around 100 words{desc_lang_hint}.
-3. A list of relevant `file_indices` (integers) using the format `idx # path/comment`.
-
-List of file indices and paths present in the context:
-{file_listing_for_prompt}
-
-Format the output as a YAML list of dictionaries:
-
-```yaml
-- name: |
-    Query Processing{name_lang_hint}
-  description: |
-    Explains what the abstraction does.
-    It's like a central dispatcher routing requests.{desc_lang_hint}
-  file_indices:
-    - 0 # path/to/file1.py
-    - 3 # path/to/related.py
-- name: |
-    Query Optimization{name_lang_hint}
-  description: |
-    Another core concept, similar to a blueprint for objects.{desc_lang_hint}
-  file_indices:
-    - 5 # path/to/another.js
-# ... up to {max_abstraction_num} abstractions
-```"""
-        response = call_llm(prompt, use_cache=(use_cache and self.cur_retry == 0))  # Use cache only if enabled and not retrying
-
-        # --- Validation ---
-        yaml_str = response.strip().split("```yaml")[1].split("```")[0].strip()
-        abstractions = yaml.safe_load(yaml_str)
-
-        if not isinstance(abstractions, list):
-            raise ValueError("LLM Output is not a list")
-
-        validated_abstractions = []
-        for item in abstractions:
-            if not isinstance(item, dict) or not all(
-                k in item for k in ["name", "description", "file_indices"]
-            ):
-                raise ValueError(f"Missing keys in abstraction item: {item}")
-            if not isinstance(item["name"], str):
-                raise ValueError(f"Name is not a string in item: {item}")
-            if not isinstance(item["description"], str):
-                raise ValueError(f"Description is not a string in item: {item}")
-            if not isinstance(item["file_indices"], list):
-                raise ValueError(f"file_indices is not a list in item: {item}")
-
-            # Validate indices
-            validated_indices = []
-            for idx_entry in item["file_indices"]:
-                try:
-                    if isinstance(idx_entry, int):
-                        idx = idx_entry
-                    elif isinstance(idx_entry, str) and "#" in idx_entry:
-                        idx = int(idx_entry.split("#")[0].strip())
-                    else:
-                        idx = int(str(idx_entry).strip())
-
-                    if not (0 <= idx < file_count):
-                        raise ValueError(
-                            f"Invalid file index {idx} found in item {item['name']}. Max index is {file_count - 1}."
-                        )
-                    validated_indices.append(idx)
-                except (ValueError, TypeError):
-                    raise ValueError(
-                        f"Could not parse index from entry: {idx_entry} in item {item['name']}"
-                    )
-
-            item["files"] = sorted(list(set(validated_indices)))
-            # Store only the required fields
-            validated_abstractions.append(
-                {
-                    "name": item["name"],  # Potentially translated name
-                    "description": item[
-                        "description"
-                    ],  # Potentially translated description
-                    "files": item["files"],
-                }
-            )
-
-        print(f"Identified {len(validated_abstractions)} abstractions.")
-        return validated_abstractions
+        print(f"Skipping LLM call. Returning file list for project: {project_name}")
+        # The 'file_listing_for_prompt' is a string with each file on a new line, prefixed by index.
+        # Example: "- 0 # path/to/file1.py\n- 1 # path/to/file2.js"
+        # We will return this directly. The 'post' method will store this in shared['abstractions'].
+        return file_listing_for_prompt
 
     def post(self, shared, prep_res, exec_res):
         shared["abstractions"] = (
