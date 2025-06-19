@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse # For placeholder API views
 
@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from .utils import get_index_lists,get_sessions, get_users, get_postgre_db, get_all_table
+from .utils import get_index_lists,get_sessions, get_users, get_postgre_db, get_all_table, make_index
 # Create your views here.
 
 def dashboard_view(request):
@@ -28,11 +28,21 @@ def dashboard_view(request):
         context['sessions'] = get_sessions() 
     elif section == "user" :
         context['users'] = get_users()
-    elif section == "settings" :
-        pass
     else : 
         return JsonResponse({'error': 'Invalid section'}, status=400)
     return render(request, 'knowledge/dashboard.html', context)
+
+def create_index(request):
+    if request.method == 'POST':
+        index_name = request.POST.get('name')
+        vector_type = request.POST.get('vector_type')
+        metric = request.POST.get('metric')
+        dimension = int(request.POST.get('dimension'))
+        make_index(name=index_name, vector_type=vector_type, metric=metric, dimension=dimension)
+        return redirect('knowledge:dashboard')
+    else : 
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
+
 
 # Placeholder API views to match knowledge/urls.py
 # These should be properly implemented later.
