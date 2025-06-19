@@ -66,8 +66,6 @@ def get_all_table():
     return result
 
 
-
-
 def get_index_lists() :
     """Pinecone 인덱스 목록을 가져오는 함수"""
     load_dotenv()
@@ -94,6 +92,7 @@ def get_index_lists() :
         # describe_index_stats() : '해당' 인덱스 통계 정보 가져오기
         # pc.Index(name) : 해당 인덱스 객체 생성
         index_stats = pc.Index(name).describe_index_stats()
+        region = pc.describe_index(name=name).spec.serverless.region
         total_count = sum(
             ns.vector_count
             for ns in index_stats.namespaces.values()
@@ -101,10 +100,40 @@ def get_index_lists() :
         results.append({
         "name":         name,
         "dimension":    dim,
-        "total_count":  total_count
+        "total_count":  total_count,
+        "region" : region,
         })
-
     return results
+
+def make_index(name, metric='cosine', vector_type='dense', dimension=1532) : 
+    """Pinecone 인덱스를 생성하는 함수"""
+    load_dotenv()
+    # 1-1) OpenAI 클라이언트 생성
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        raise ValueError("OPENAI_API_KEY 환경 변수가 설정되어 있지 않습니다.")
+    openai_client = OpenAI(api_key=openai_api_key)
+    
+    # 1-2) Pinecone 인스턴스 생성
+    pinecone_api_key = os.getenv("PINECONE_API_KEY") # Pinecone API 키
+    pinecone_env = os.getenv("PINECONE_ENVIRONMENT") # Pinecone 환경
+    if not pinecone_api_key or not pinecone_env:
+        raise ValueError("PINECONE_API_KEY 또는 PINECONE_ENVIRONMENT 환경 변수가 설정되어 있지 않습니다.")
+    pc = Pinecone(api_key=pinecone_api_key, environment=pinecone_env)
+    if name not in pc.list_indexes():
+        pc.create_index(
+            spec = ServerlessSpec(
+                cloud  = "aws",
+                region = "us-east-1"
+            ),
+            name=name,
+            dimension=dimension,
+            metric=metric,
+            vector_type=vector_type
+        )
+        print(f"✅ Pinecone 인덱스 생성: {name}")
+    else:
+        print(f"ℹ️ Pinecone 인덱스 이미 존재: {name}")
 
 def get_sessions() :
     """세션 목록을 가져오는 함수""" 

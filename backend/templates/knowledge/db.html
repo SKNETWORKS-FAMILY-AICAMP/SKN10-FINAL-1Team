@@ -1,4 +1,8 @@
 <div class="p-8">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
     <div class="mx-auto max-w-4xl">
     <div class="flex w-full bg-gray-100 rounded-lg p-1">
         <button class="{% if db == 'postgre' %}flex-1 text-center py-2 rounded-lg bg-white text-gray-900 font-medium
@@ -92,10 +96,98 @@
     <section class="mt-6 rounded-lg bg-white p-6 shadow-md border border-gray-200">
     <div class="flex items-center justify-between mb-6">
         <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em]">Pinecone DB 인덱스</h3>
-        <button class="flex items-center gap-3 rounded-full px-6 py-1.5 text-black bg-orange-400 hover:bg-orange-600 transition-colors duration-150"
-        id="create-user-button">
-            <span class="material-icons-outlined font-bold">인덱스 추가</span>
-        </button>
+        <!-- Alpine 컴포넌트 시작 -->
+        <div x-data="{ open: false, vector_type: 'dense', metric: 'cosine', dimension: null,
+            init() { this.dimension = 1536;}}"
+            x-init="init()" class="flex items-center gap-4">
+        <!-- 1) 인덱스 추가 버튼 -->
+        <button
+            @click="open = true"
+            class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
+        ><span class="material-icons-outlined font-bold">인덱스 추가</span></button>
+
+        <!-- 2) 백그라운드 오버레이 -->
+        <div
+            x-show="open"
+            x-cloak
+            class="fixed inset-0 bg-black bg-opacity-50 z-40"
+            @click="open = false"
+        ></div>
+
+        <!-- 3) 모달 박스 -->
+        <div
+            x-show="open"
+            class="fixed inset-0 flex items-center justify-center z-50 p-4"
+            x-cloak
+        >
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 class="text-lg font-semibold">Pinecone 인덱스 추가</h2>
+                <button @click="open = false" class="text-xl leading-none">&times;</button>
+            </div>
+
+            <form
+                action="{% url 'knowledge:create_index' %}"
+                method="post"
+                class="px-6 py-4 space-y-4">
+                {% csrf_token %}
+
+                <div>
+                <label class="block text-sm font-medium">인덱스 이름</label>
+                <input name="name" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">벡터 타입</label>
+                <select id="vector_type" name="vector_type" class="w-full border rounded p-2"
+                    x-model="vector_type"
+                    @change="
+                    if (vector_type === 'sparse') {
+                        metric = 'dotproduct';
+                        dimension = 0;
+                    } else {
+                        metric = 'cosine';
+                        dimension = 1536;
+                    }">
+                    <option value="dense">dense</option>
+                    <option value="sparse">sparse</option>
+                </select>
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">거리 함수</label>
+                <select id="metric" name="metric" class="w-full border rounded p-2"
+                    x-model="metric" 
+                    :disabled="vector_type === 'sparse'">
+                    <option value="cosine">cosine</option>
+                    <option value="dotproduct">dotproduct</option>
+                    <option value="euclidean">euclidean</option>
+                </select>
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">차원 수</label>
+                <input name="dimension" type="number" class="mt-1 w-full border rounded px-3 py-2"
+                    x-model="dimension" 
+                    :disabled="vector_type === 'sparse'"/>
+                </div>
+                
+                <div class="text-right space-x-2">
+                <button
+                    type="button"
+                    @click="open = false"
+                    class="px-4 py-2 rounded border hover:bg-gray-100"
+                >취소</button>
+                <button
+                    type="submit"
+                    class="px-4 py-2 rounded bg-orange-400 hover:bg-orange-600 text-white"
+                >추가</button>
+                </div>
+            </form>
+            </div>
+        </div>
+        </div>
+        <!-- Alpine 컴포넌트 끝 -->
     </div>
     <div class="@container">
     <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
@@ -103,15 +195,17 @@
     <thead class="bg-slate-50">
     <tr>
     <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                                인덱스명
+                            인덱스명
                             </th>
     <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                                차원 수
+                            차원 수
                             </th>
     <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                                전체 레코드 수
+                            전체 레코드 수
                             </th>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col"></th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            지역
+    </th>
     </tr>
     </thead>
     <tbody class="divide-y divide-[var(--border-color)] bg-white">
@@ -120,6 +214,7 @@
         <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">{{index.name}}</td>
         <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{index.dimension}}</td>
         <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{index.total_count}}</td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{index.region}}</td>
     </tr>
     {% endfor %}
     </tbody>

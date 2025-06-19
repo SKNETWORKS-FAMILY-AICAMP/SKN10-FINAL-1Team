@@ -27,7 +27,7 @@ api_urlpatterns = [
 urlpatterns = [
     # Web page route for dashboard
     path('dashboard/', views.dashboard_view, name='dashboard'), # New view for dashboard.html
-
+    path('dashboard/create_index/', views.create_index, name='create_index'),
     # Include API routes under 'api/' prefix
     path('api/', include(api_urlpatterns)),
 ]
