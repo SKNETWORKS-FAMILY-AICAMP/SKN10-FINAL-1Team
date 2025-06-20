@@ -1,7 +1,8 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse # For placeholder API views
-
+from django.urls import reverse
+from django.contrib import messages
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -34,14 +35,33 @@ def dashboard_view(request):
 
 def create_index(request):
     if request.method == 'POST':
-        index_name = request.POST.get('name')
-        vector_type = request.POST.get('vector_type')
-        metric = request.POST.get('metric')
-        dimension = int(request.POST.get('dimension'))
-        make_index(name=index_name, vector_type=vector_type, metric=metric, dimension=dimension)
-        return redirect('knowledge:dashboard')
+        index_name = request.POST.get('name') # 인덱스명
+        vector_type = request.POST.get('vector_type') # 벡터 타입
+        metric = request.POST.get('metric') # 유사도 측정 방식
+        dimension = request.POST.get('dimension') # 차원 수
+        cloud = request.POST.get('cloud')  # 클라우드 제공자
+        region = request.POST.get('region')  # 클라우드 지역
+        
+        # index_name이나 dimension을 입력하지 않았을때 예외처리
+        if index_name == "" or dimension == '' :
+            messages.error(request, '❌ 인덱스명과 차원 수는 필수 입력 항목입니다!')
+        # vector_type이 dense인데 dimension이 0이하인 경우 예외처리
+        elif vector_type == "dense" and int(dimension) <= 0 : 
+            messages.error(request, '❌ dense 인덱스의 차원 수는 0보다 큰 정수여야 합니다!')
+        # 정상적으로 입력했을때 
+        else : 
+            dimension = int(dimension)
+            is_created = make_index(name=index_name, vector_type=vector_type, metric=metric, dimension=dimension, cloud=cloud, region=region)
+
+            if is_created: 
+                messages.success(request, '✅ 성공적으로 인덱스가 생성되었습니다!')
+            else: 
+                messages.error(request, '⚠️ 이미 존재하는 인덱스명입니다!')
+
+        url = reverse('knowledge:dashboard') + '?section=db&db=pinecone'
+        return redirect(url)
     else : 
-        return JsonResponse({'error': 'Invalid request method'}, status=405)
+        return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
 
 
 # Placeholder API views to match knowledge/urls.py
