@@ -153,6 +153,34 @@ def make_index(name, cloud, region, metric, vector_type, dimension) :
         print(f"ℹ️ Pinecone 인덱스 이미 존재: {name}")
         return False
 
+def remove_index(name) : 
+    load_dotenv()
+
+    # 1-1) OpenAI 클라이언트 생성
+    openai_api_key = os.getenv("OPENAI_API_KEY")
+    if not openai_api_key:
+        raise ValueError("OPENAI_API_KEY 환경 변수가 설정되어 있지 않습니다.")
+    openai_client = OpenAI(api_key=openai_api_key)
+    
+    # 1-2) Pinecone 인스턴스 생성
+    pinecone_api_key = os.getenv("PINECONE_API_KEY") # Pinecone API 키
+    pinecone_env = os.getenv("PINECONE_ENVIRONMENT") # Pinecone 환경
+    if not pinecone_api_key or not pinecone_env:
+        raise ValueError("PINECONE_API_KEY 또는 PINECONE_ENVIRONMENT 환경 변수가 설정되어 있지 않습니다.")
+    pc = Pinecone(api_key=pinecone_api_key, environment=pinecone_env)
+
+    # 1-3) 해당 인덱스가 Pinecone index에 있는지 확인 후 인덱스 삭제 
+    if name not in pc.list_indexes().names():
+        print(f"ℹ️ {name} 인덱스가 Pinecone DB에 없음! ")
+        return False
+    else : 
+        pc.delete_index(name=name)
+        print(f"✅ 해당 {name} 인덱스를 성공적으로 삭제함!")
+        return True
+    
+
+
+
 def get_sessions() :
     """세션 목록을 가져오는 함수""" 
     sessions = ChatSession.objects.all()

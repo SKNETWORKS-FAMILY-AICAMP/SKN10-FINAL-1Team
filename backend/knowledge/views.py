@@ -7,7 +7,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from .utils import get_index_lists,get_sessions, get_users, get_postgre_db, get_all_table, make_index
+from .utils import get_index_lists,get_sessions, get_users, get_postgre_db, get_all_table, make_index, remove_index
 # Create your views here.
 
 def dashboard_view(request):
@@ -62,6 +62,27 @@ def create_index(request):
         return redirect(url)
     else : 
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
+
+def delete_index(request):
+    if request.method == 'POST':
+        index_name = request.POST.get('name') # 인덱스 이름
+        # 입력한 인덱스 이름이 비어있을 때 예외처리
+        if index_name == "" :
+            messages.error(request, '❌ 삭제할 인덱스명을 입력해주세요!')
+        else : 
+            is_deleted = remove_index(index_name)
+            # 정상적으로 삭제되었을 때
+            if is_deleted :
+                messages.success(request, '✅ 성공적으로 해당 인덱스가 삭제되었습니다!')
+            # 해당 인덱스가 존재하지 않아 삭제되지 않았을 때
+            else: 
+                messages.error(request, '⚠️ 입력하신 인덱스가 DB에 없습니다!')
+        
+        url = reverse('knowledge:dashboard') + '?section=db&db=pinecone'
+        return redirect(url)
+    else : 
+        return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
+
 
 
 # Placeholder API views to match knowledge/urls.py
