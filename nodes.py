@@ -3,7 +3,7 @@ import re
 import yaml
 from pocketflow import Node, BatchNode
 from crawl_github_files import crawl_github_files
-# from call_llm import call_llm # Temporarily disabled for testing scan functionality
+from call_llm import call_llm
 
 
 # Helper to get content for specific file indices
@@ -74,37 +74,57 @@ class FetchRepo(Node):
 
 class IdentifyAbstractions(Node):
     def prep(self, shared):
+        print("--- RUNNING MODIFIED IdentifyAbstractions.prep ---")
         files_data = shared["files"]
-        project_name = shared["project_name"]  # Get project name
-        language = shared.get("language", "english")  # Get language
-        use_cache = shared.get("use_cache", True)  # Get use_cache flag, default to True
-        max_abstraction_num = shared.get("max_abstraction_num", 10)  # Get max_abstraction_num, default to 10
+        project_name = shared["project_name"]
+        language = shared.get("language", "english")
+        use_cache = shared.get("use_cache", True)
+        max_abstraction_num = shared.get("max_abstraction_num", 10)
+        # New parameter for context size limit, can be added to shared/args later
+        max_context_chars = shared.get("max_context_chars", 100000)
+        print(f"--- Max context characters: {max_context_chars} ---")
 
-        # Helper to create context from files, respecting limits (basic example)
-        def create_llm_context(files_data):
+        # --- Start: Added for debugging context size ---
+        full_context_for_debug = ""
+        for i, (path, content) in enumerate(files_data):
+            full_context_for_debug += f"--- File Index {i}: {path} ---\n{content}\n\n"
+        print(f"--- Full context size (before truncation): {len(full_context_for_debug)} chars ---")
+        # --- End: Added for debugging context size ---
+
+        def create_llm_context(files_data, max_chars):
             context = ""
             file_info = []  # Store tuples of (index, path)
+            included_files_count = 0
             for i, (path, content) in enumerate(files_data):
                 entry = f"--- File Index {i}: {path} ---\n{content}\n\n"
+                if len(context) + len(entry) > max_chars:
+                    print(
+                        f"Warning: Context size limit ({max_chars} chars) reached. "
+                        f"Stopping at file index {i-1}. "
+                        f"{len(files_data) - included_files_count} files were not included in the context."
+                    )
+                    break
                 context += entry
                 file_info.append((i, path))
+                included_files_count += 1
+            return context, file_info
 
-            return context, file_info  # file_info is list of (index, path)
+        context, file_info = create_llm_context(files_data, max_context_chars)
+        print(f"--- Truncated context size: {len(context)} chars ---")
 
-        context, file_info = create_llm_context(files_data)
-        # Format file info for the prompt (comment is just a hint for LLM)
+        # The file listing for the prompt should only include files that are actually in the context
         file_listing_for_prompt = "\n".join(
             [f"- {idx} # {path}" for idx, path in file_info]
         )
         return (
             context,
             file_listing_for_prompt,
-            len(files_data),
+            len(file_info), # BUG FIX: Use the count of files actually included in the context
             project_name,
             language,
             use_cache,
             max_abstraction_num,
-        )  # Return all parameters
+        )
 
     def exec(self, prep_res):
         (
@@ -116,86 +136,167 @@ class IdentifyAbstractions(Node):
             use_cache,
             max_abstraction_num,
         ) = prep_res  # Unpack all parameters
-        print(f"Skipping LLM call. Returning file list for project: {project_name}")
-        # The 'file_listing_for_prompt' is a string with each file on a new line, prefixed by index.
-        # Example: "- 0 # path/to/file1.py\n- 1 # path/to/file2.js"
-        # We will return this directly. The 'post' method will store this in shared['abstractions'].
-        return file_listing_for_prompt
+
+        # --- Start LLM Prompt for Abstractions ---
+        prompt = f"""
+Analyze the following codebase for the project '{project_name}'.
+
+Available files (total {file_count}):
+{file_listing_for_prompt}
+
+Full context of all files:
+{context}
+
+Based on the provided codebase, identify the key abstractions that are central to understanding this project. 
+These abstractions should represent the core components, modules, or concepts.
+
+Desired output format is a YAML list of objects, where each object has:
+- 'name': A concise name for the abstraction (in {language}).
+- 'description': A brief explanation of what this abstraction represents and its role (in {language}).
+- 'file_indices': A list of integer file indices that are most relevant to this abstraction. Choose from the file list above.
+
+Return at most {max_abstraction_num} key abstractions.
+
+Example for a different project (simple web server):
+```yaml
+- name: "HTTP 요청 핸들러 (HTTP Request Handler)"
+  description: "수신 HTTP 요청을 처리하고 적절한 응답을 생성하는 구성 요소입니다. (Component that processes incoming HTTP requests and generates appropriate responses.)"
+  file_indices: [0, 2]
+- name: "라우팅 설정 (Routing Configuration)"
+  description: "URL 경로를 특정 요청 핸들러 함수에 매핑하는 규칙을 정의합니다. (Defines rules for mapping URL paths to specific request handler functions.)"
+  file_indices: [1]
+```
+
+Your response should be only the YAML list, enclosed in triple backticks (```yaml ... ```).
+Ensure the output is valid YAML.
+"""
+        # --- End LLM Prompt ---
+
+        print(f"Identifying abstractions for {project_name} (in {language})...")
+        llm_response = call_llm(prompt, use_cache=use_cache)
+        print(f"LLM response for abstractions:\n{llm_response}")
+
+        abstractions = []
+        try:
+            # Try to parse as YAML first
+            # Remove backticks and 'yaml' language identifier if present
+            cleaned_response = llm_response.strip()
+            if cleaned_response.startswith("```yaml"):
+                cleaned_response = cleaned_response[7:]
+            if cleaned_response.endswith("```"):
+                cleaned_response = cleaned_response[:-3]
+            
+            abstractions = yaml.safe_load(cleaned_response)
+            if not isinstance(abstractions, list):
+                abstractions = [] # Ensure it's a list
+                print("Warning: LLM response for abstractions was not a YAML list.")
+
+        except yaml.YAMLError as e:
+            print(f"YAML parsing failed for abstractions: {e}. Falling back to regex.")
+            # Fallback to regex if YAML parsing fails (basic example)
+            # This regex is very basic and might need to be adjusted based on common LLM output variations.
+            # It looks for items starting with '- name:' and tries to capture name, description, and file_indices.
+            pattern = re.compile(
+                r"- name: (?P<name>.*?)\n\s*description: (?P<description>.*?)\n\s*file_indices: (?P<file_indices>.*?)(?=\n- name:|$)",
+                re.DOTALL,
+            )
+            for match in pattern.finditer(llm_response):
+                try:
+                    name = match.group("name").strip().replace('"', '')
+                    description = match.group("description").strip().replace('"', '')
+                    # Process file_indices carefully, as it might be a string like "[0, 1]"
+                    indices_str = match.group("file_indices").strip()
+                    # Remove brackets and split by comma, then convert to int
+                    file_indices = [
+                        int(i.strip())
+                        for i in indices_str.strip("[]").split(",")
+                        if i.strip().isdigit()
+                    ]
+                    abstractions.append({
+                        "name": name,
+                        "description": description,
+                        "file_indices": file_indices,
+                    })
+                except Exception as regex_err:
+                    print(f"Error parsing abstraction with regex: {regex_err}")
+        
+        if not abstractions:
+            print("Warning: Could not parse any abstractions from LLM response.")
+            # As a last resort, if no abstractions are parsed, we might return an empty list
+            # or a default structure if that's preferable to failing the flow.
+            # For now, we'll return an empty list, which downstream nodes should handle.
+
+        print(f"Identified {len(abstractions)} abstractions.")
+        return abstractions
 
     def post(self, shared, prep_res, exec_res):
         shared["abstractions"] = (
-            exec_res  # List of {"name": str, "description": str, "files": [int]}
+            exec_res  # List of {"name": str, "description": str, "file_indices": [int]}
         )
 
 
 class AnalyzeRelationships(Node):
     def prep(self, shared):
-        abstractions = shared[
-            "abstractions"
-        ]  # Now contains 'files' list of indices, name/description potentially translated
+        print("--- RUNNING AnalyzeRelationships.prep ---")
+        abstractions = shared["abstractions"]
         files_data = shared["files"]
-        project_name = shared["project_name"]  # Get project name
-        language = shared.get("language", "english")  # Get language
-        use_cache = shared.get("use_cache", True)  # Get use_cache flag, default to True
-
-        # Get the actual number of abstractions directly
+        project_name = shared["project_name"]
+        language = shared.get("language", "english")
+        use_cache = shared.get("use_cache", True)
         num_abstractions = len(abstractions)
 
-        # Create context with abstraction names, indices, descriptions, and relevant file snippets
-        context = "Identified Abstractions:\\n"
+        context = "Identified Abstractions:\n"
         all_relevant_indices = set()
         abstraction_info_for_prompt = []
         for i, abstr in enumerate(abstractions):
-            # Use 'files' which contains indices directly
-            file_indices_str = ", ".join(map(str, abstr["files"]))
-            # Abstraction name and description might be translated already
-            info_line = f"- Index {i}: {abstr['name']} (Relevant file indices: [{file_indices_str}])\\n  Description: {abstr['description']}"
-            context += info_line + "\\n"
-            abstraction_info_for_prompt.append(
-                f"{i} # {abstr['name']}"
-            )  # Use potentially translated name here too
-            all_relevant_indices.update(abstr["files"])
+            file_indices_str = ", ".join(map(str, abstr["file_indices"]))
+            info_line = f"- Index {i}: {abstr['name']} (Relevant file indices: [{file_indices_str}])\n  Description: {abstr['description']}"
+            context += info_line + "\n"
+            abstraction_info_for_prompt.append(f"{i} # {abstr['name']}")
+            all_relevant_indices.update(abstr["file_indices"])
 
-        context += "\\nRelevant File Snippets (Referenced by Index and Path):\\n"
-        # Get content for relevant files using helper
+        print(f"--- All relevant indices: {all_relevant_indices} ---")
+
+        context += "\nRelevant File Snippets (Referenced by Index and Path):\n"
         relevant_files_content_map = get_content_for_indices(
             files_data, sorted(list(all_relevant_indices))
         )
-        # Format file content for context
-        file_context_str = "\\n\\n".join(
-            f"--- File: {idx_path} ---\\n{content}"
+        file_context_str = "\n\n".join(
+            f"--- File: {idx_path} ---\n{content}"
             for idx_path, content in relevant_files_content_map.items()
         )
         context += file_context_str
 
         return (
             context,
-            "\n".join(abstraction_info_for_prompt),
-            num_abstractions, # Pass the actual count
+            abstraction_info_for_prompt,
+            num_abstractions,
             project_name,
             language,
             use_cache,
-        )  # Return use_cache
+        )
 
     def exec(self, prep_res):
         (
             context,
-            abstraction_listing,
-            num_abstractions, # Receive the actual count
+            abstraction_info_for_prompt,
+            num_abstractions,
             project_name,
             language,
             use_cache,
-         ) = prep_res  # Unpack use_cache
+        ) = prep_res
+
+        abstraction_listing = "\n".join(abstraction_info_for_prompt)
+
         print(f"Analyzing relationships using LLM...")
 
-        # Add language instruction and hints only if not English
         language_instruction = ""
         lang_hint = ""
         list_lang_note = ""
         if language.lower() != "english":
             language_instruction = f"IMPORTANT: Generate the `summary` and relationship `label` fields in **{language.capitalize()}** language. Do NOT use English for these fields.\n\n"
             lang_hint = f" (in {language.capitalize()})"
-            list_lang_note = f" (Names might be in {language.capitalize()})"  # Note for the input list
+            list_lang_note = f" (Names might be in {language.capitalize()})"
 
         prompt = f"""
 Based on the following abstractions and relevant code snippets from the project `{project_name}`:
@@ -235,9 +336,8 @@ relationships:
 
 Now, provide the YAML output:
 """
-        response = call_llm(prompt, use_cache=(use_cache and self.cur_retry == 0)) # Use cache only if enabled and not retrying
+        response = call_llm(prompt, use_cache=(use_cache and self.cur_retry == 0))
 
-        # --- Validation ---
         yaml_str = response.strip().split("```yaml")[1].split("```")[0].strip()
         relationships_data = yaml.safe_load(yaml_str)
 
@@ -252,21 +352,17 @@ Now, provide the YAML output:
         if not isinstance(relationships_data["relationships"], list):
             raise ValueError("relationships is not a list")
 
-        # Validate relationships structure
         validated_relationships = []
         for rel in relationships_data["relationships"]:
-            # Check for 'label' key
             if not isinstance(rel, dict) or not all(
                 k in rel for k in ["from_abstraction", "to_abstraction", "label"]
             ):
                 raise ValueError(
                     f"Missing keys (expected from_abstraction, to_abstraction, label) in relationship item: {rel}"
                 )
-            # Validate 'label' is a string
             if not isinstance(rel["label"], str):
                 raise ValueError(f"Relationship label is not a string: {rel}")
 
-            # Validate indices
             try:
                 from_idx = int(str(rel["from_abstraction"]).split("#")[0].strip())
                 to_idx = int(str(rel["to_abstraction"]).split("#")[0].strip())
@@ -280,7 +376,7 @@ Now, provide the YAML output:
                     {
                         "from": from_idx,
                         "to": to_idx,
-                        "label": rel["label"],  # Potentially translated label
+                        "label": rel["label"],
                     }
                 )
             except (ValueError, TypeError):
@@ -288,13 +384,11 @@ Now, provide the YAML output:
 
         print("Generated project summary and relationship details.")
         return {
-            "summary": relationships_data["summary"],  # Potentially translated summary
-            "details": validated_relationships,  # Store validated, index-based relationships with potentially translated labels
+            "summary": relationships_data["summary"],
+            "details": validated_relationships,
         }
 
     def post(self, shared, prep_res, exec_res):
-        # Structure is now {"summary": str, "details": [{"from": int, "to": int, "label": str}]}
-        # Summary and label might be translated
         shared["relationships"] = exec_res
 
 

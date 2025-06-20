@@ -53,6 +53,7 @@ def main():
     parser.add_argument("--no-cache", action="store_true", help="Disable LLM response caching (default: caching enabled)")
     # Add max_abstraction_num parameter to control the number of abstractions
     parser.add_argument("--max-abstractions", type=int, default=10, help="Maximum number of abstractions to identify (default: 10)")
+    parser.add_argument("--max-context-chars", type=int, default=100000, help="Maximum number of characters for the LLM context (default: 100000).")
 
     args = parser.parse_args()
 
@@ -81,6 +82,9 @@ def main():
         
         # Add max_abstraction_num parameter
         "max_abstraction_num": args.max_abstractions,
+
+        # Add context character limit
+        "max_context_chars": args.max_context_chars,
 
         # Outputs will be populated by the nodes
         "files": [],

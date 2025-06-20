@@ -19,6 +19,7 @@ from urllib.parse import urlparse # For parsing URLs
 import tempfile # For creating temporary files and directories
 from django.contrib import messages
 import json # For JSON parsing
+import subprocess # For running background processes
 
 # Adjust sys.path to include project root for main/flow imports
 import sys
@@ -276,12 +277,24 @@ def settings_view(request):
 
 
 def _parse_github_url(url):
-    """Parses a GitHub URL to extract owner and repository name."""
-    # This regex handles URLs with or without '.git' and trailing slashes
-    match = re.match(r"https?://github\.com/([^/]+)/([^/.]+)", url)
-    if match:
-        # .git suffix is removed from the repo name if present
-        return match.group(1), match.group(2).replace('.git', '')
+    """Parses a GitHub URL to extract owner and repository name, ignoring subpaths."""
+    try:
+        parsed_url = urlparse(url)
+        if parsed_url.hostname != 'github.com':
+            return None, None
+        
+        path_parts = parsed_url.path.strip('/').split('/')
+        
+        if len(path_parts) >= 2:
+            owner = path_parts[0]
+            repo_name = path_parts[1]
+            if repo_name.endswith('.git'):
+                repo_name = repo_name[:-4]
+            return owner, repo_name
+            
+    except Exception:
+        return None, None
+        
     return None, None
 
 
@@ -346,150 +359,94 @@ def list_branches_for_url_view(request):
 
 @login_required
 @require_POST
-@csrf_exempt # AJAX POST 요청이므로 CSRF 보호 예외 처리 (또는 CSRF 토큰을 올바르게 전송)
+@csrf_exempt
 def scan_selected_repositories_view(request):
     try:
-        data = json.loads(request.body.decode('utf-8')) # 요청 본문을 JSON으로 파싱
+        data = json.loads(request.body.decode('utf-8'))
         scan_type = data.get('scan_type')
         user = request.user
         github_token = getattr(user, 'github_access_token', None)
         scan_results = []
 
-        if scan_type == 'public_branches':
+        output_base_dir = os.path.join(PROJECT_ROOT, 'scanned_tutorials')
+        os.makedirs(output_base_dir, exist_ok=True)
+        
+        main_script_path = os.path.join(PROJECT_ROOT, 'main.py')
+
+        if scan_type == 'user_repos':
+            repo_urls = data.get('repo_urls', [])
+            if not repo_urls:
+                return JsonResponse({'status': 'error', 'message': 'Repository URLs are required.'}, status=400)
+            if not github_token:
+                return JsonResponse({'status': 'error', 'message': 'GitHub token is required.'}, status=403)
+
+            for repo_url in repo_urls:
+                try:
+                    owner, repo_name = _parse_github_url(repo_url)
+                    if not owner or not repo_name:
+                        scan_results.append({'repo_url': repo_url, 'status': 'error', 'message': 'Invalid GitHub URL format.'})
+                        continue
+
+                    repo_output_dir = os.path.join(output_base_dir, f"{owner}_{repo_name}")
+                    
+                    command = [
+                        sys.executable,
+                        main_script_path,
+                        '--repo', repo_url,
+                        '--output', repo_output_dir,
+                        '--token', github_token,
+                        '--language', 'korean'
+                    ]
+                    
+                    subprocess.Popen(command, cwd=PROJECT_ROOT)
+                    
+                    scan_results.append({'repo_url': repo_url, 'status': 'success', 'message': 'Scan initiated successfully.'})
+
+                except Exception as e:
+                    print(f"Error launching scan for {repo_url}: {e}")
+                    scan_results.append({'repo_url': repo_url, 'status': 'error', 'message': f'Failed to start scan: {str(e)}'})
+        
+        elif scan_type == 'public_branches':
             public_repo_url_base = data.get('public_repo_url')
             branches_to_scan = data.get('branches', [])
 
             if not public_repo_url_base or not branches_to_scan:
-                return JsonResponse({'error': 'Public repository URL and at least one branch are required for this scan type.'}, status=400)
+                return JsonResponse({'status': 'error', 'message': 'Repository URL and branches are required.'}, status=400)
 
-
-            parsed_base_url = _parse_github_url(public_repo_url_base)
-            if not parsed_base_url:
-                 return JsonResponse({'error': 'Invalid base public repository URL format.'}, status=400)
-            
-            owner, repo_name_only = parsed_base_url
+            owner, repo_name = _parse_github_url(public_repo_url_base)
+            if not owner or not repo_name:
+                return JsonResponse({'status': 'error', 'message': 'Invalid GitHub URL format.'}, status=400)
 
             for branch_name in branches_to_scan:
-                repo_scan_url = f"https://github.com/{owner}/{repo_name_only}/tree/{branch_name}"
-                
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    try:
-                        shared_public = {
-                            "repo_url": repo_scan_url,
-                            "project_name": f"{repo_name_only}-{branch_name}", # README 및 출력물 이름용
-                            "github_token": None,  # 공개 리포지토리는 토큰 불필요
-                            "output_dir": temp_dir,
-                            "include_patterns": DEFAULT_INCLUDE_PATTERNS,
-                            "exclude_patterns": DEFAULT_EXCLUDE_PATTERNS,
-                            "max_file_size": 100000,
-                            "language": "english",
-                            "use_cache": True,
-                            "max_abstraction_num": 10,
-                            "files": [],
-                            "abstractions": [],
-                            "relationships": {},
-                            "chapter_order": [],
-                            "chapters": [],
-                            "final_output_dir": None
-                        }
-                        
-                        tutorial_flow = create_tutorial_flow()
-                        tutorial_flow.run(shared_public) # 실제 스캔 실행
-                        
-                        final_output_path = shared_public.get("final_output_dir", "Not specified")
-                        file_list_string = shared_public.get('abstractions', 'No file list generated.')
+                repo_scan_url = f"https://github.com/{owner}/{repo_name}/tree/{branch_name}"
+                try:
+                    repo_output_dir = os.path.join(output_base_dir, f"{owner}_{repo_name}_{branch_name}")
+                    
+                    command = [
+                        sys.executable,
+                        main_script_path,
+                        '--repo', repo_scan_url,
+                        '--output', repo_output_dir,
+                        '--language', 'korean'
+                    ]
+                    
+                    subprocess.Popen(command, cwd=PROJECT_ROOT)
+                    
+                    scan_results.append({'repo_url': repo_scan_url, 'status': 'success', 'message': 'Scan initiated successfully.'})
+                except Exception as e:
+                    print(f"Error launching scan for {repo_scan_url}: {e}")
+                    scan_results.append({'repo_url': repo_scan_url, 'status': 'error', 'message': f'Failed to start scan: {str(e)}'})
 
-                        if isinstance(file_list_string, str) and len(file_list_string) > 500:
-                            file_list_message = file_list_string[:500] + "... (list truncated)"
-                        elif isinstance(file_list_string, str):
-                            file_list_message = file_list_string.replace('\n', '<br>')
-                        else:
-                            file_list_message = "File list not available or not a string."
-
-                        scan_results.append({
-                            'repo_url': public_repo_url_base, # 스캔 요청된 기본 리포 URL
-                            'branch_name': branch_name,       # 스캔된 브랜치 이름
-                            'status': 'success',
-                            'message': f'Scan for branch {branch_name} completed. Files found:<br>{file_list_message}',
-                            'output_path': final_output_path
-                        })
-                    except Exception as e:
-                        scan_results.append({
-                            'repo_url': public_repo_url_base,
-                            'branch_name': branch_name,
-                            'status': 'error',
-                            'message': f'Failed to scan branch {branch_name}: {str(e)}'
-                        })
-            
-            return JsonResponse({'status': 'completed', 'results': scan_results})
-
-        elif scan_type == 'user_repos':
-            repo_urls = data.get('repo_urls', [])
-            if not github_token:
-                return JsonResponse({'error': 'GitHub token not found. Please connect your GitHub account.'}, status=403)
-            if not repo_urls:
-                return JsonResponse({'error': 'No repository URLs provided for scanning.'}, status=400)
-
-            for repo_url in repo_urls: # repo_url은 'https://github.com/owner/repo/tree/branch' 형태
-                with tempfile.TemporaryDirectory() as temp_dir:
-                    try:
-                        parsed_scan_url = urlparse(repo_url)
-                        path_parts = parsed_scan_url.path.strip('/').split('/')
-                        
-                        repo_name_for_readme = "scanned-repo" # 기본값
-                        if len(path_parts) >= 4 and path_parts[2] == 'tree': # /owner/repo/tree/branch
-                            repo_name_for_readme = f"{path_parts[1]}-{path_parts[3]}" # repo-branch
-                        elif len(path_parts) >= 2: # /owner/repo (fallback)
-                            repo_name_for_readme = f"{path_parts[0]}-{path_parts[1]}" # owner-repo
-
-                        shared = {
-                            "repo_url": repo_url,
-                            "project_name": repo_name_for_readme,
-                            "github_token": github_token,
-                            "output_dir": temp_dir,
-                            "include_patterns": DEFAULT_INCLUDE_PATTERNS,
-                            "exclude_patterns": DEFAULT_EXCLUDE_PATTERNS,
-                            "max_file_size": 100000,
-                            "language": "english",
-                            "use_cache": True,
-                            "max_abstraction_num": 10,
-                            "files": [],
-                            "abstractions": [],
-                            "relationships": {},
-                            "chapter_order": [],
-                            "chapters": [],
-                            "final_output_dir": None
-                        }
-                        
-                        tutorial_flow = create_tutorial_flow()
-                        tutorial_flow.run(shared) # 실제 스캔 실행
-                        
-                        final_output_path = shared.get("final_output_dir", "Not specified")
-                        file_list_string = shared.get('abstractions', 'No file list generated.')
-
-                        if isinstance(file_list_string, str) and len(file_list_string) > 500:
-                            file_list_message = file_list_string[:500] + "... (list truncated)"
-                        elif isinstance(file_list_string, str):
-                            file_list_message = file_list_string.replace('\n', '<br>')
-                        else:
-                            file_list_message = "File list not available or not a string."
-
-                        scan_results.append({
-                            'repo_url': repo_url,
-                            'status': 'success',
-                            'message': f'Files found:<br>{file_list_message}',
-                            'output_path': final_output_path 
-                        })
-                    except Exception as e:
-                        scan_results.append({
-                            'repo_url': repo_url,
-                            'status': 'error',
-                            'message': f'Error scanning repository {repo_url}: {str(e)}'
-                        })
-            
-            return JsonResponse({'status': 'completed', 'results': scan_results})
         else:
-            return JsonResponse({'error': f"Invalid scan_type: '{scan_type}'. Expected 'public_branches' or 'user_repos'."}, status=400)
+            return JsonResponse({'status': 'error', 'message': f'Invalid scan_type: {scan_type}'}, status=400)
+
+        return JsonResponse({'status': 'completed', 'results': scan_results})
+
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON in request body.'}, status=400)
+    except Exception as e:
+        print(f"Unexpected error in scan_selected_repositories_view: {e}")
+        return JsonResponse({'status': 'error', 'message': 'An unexpected server error occurred.'}, status=500)
 
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON in request body.'}, status=400)
@@ -563,13 +520,7 @@ def logout_page_view(request):
     auth_logout(request)
     return redirect('home') # Redirect to home page after logout
 
-def _parse_github_url(url):
-    """Parses a GitHub URL and returns (owner, repo_name) or None if invalid."""
-    # Regex for standard GitHub repo URLs (http, https, with/without .git)
-    match = re.match(r"^https?://github\.com/([^/]+)/([^/.]+)(\.git)?/?$", url)
-    if match:
-        return match.group(1), match.group(2)
-    return None
+
 
 @require_GET
 def list_public_repository_branches(request):

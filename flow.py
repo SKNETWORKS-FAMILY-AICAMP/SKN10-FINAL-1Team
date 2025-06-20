@@ -22,10 +22,10 @@ def create_tutorial_flow():
 
     # Connect nodes in sequence based on the design
     fetch_repo >> identify_abstractions
-    # identify_abstractions >> analyze_relationships  # Temporarily disabled to only show file list
-    # analyze_relationships >> order_chapters
-    # order_chapters >> write_chapters
-    # write_chapters >> combine_tutorial
+    identify_abstractions >> analyze_relationships
+    analyze_relationships >> order_chapters
+    order_chapters >> write_chapters
+    write_chapters >> combine_tutorial
 
     # Create the flow starting with FetchRepo
     tutorial_flow = Flow(start=fetch_repo)
