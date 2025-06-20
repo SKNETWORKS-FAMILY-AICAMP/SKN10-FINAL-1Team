@@ -1,8 +1,12 @@
 "use client"
 
-import { useState, useEffect, useRef, FormEvent, ChangeEvent } from "react"
+import React, { useState, useEffect, useRef, FormEvent, ChangeEvent, useCallback } from "react";
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { v4 as uuidv4 } from 'uuid';
+import { Button } from "@/components/ui/button";
+import { ChatSession, AgentType, ChatMessage as ApiChatMessage } from "../../lib/api/chat-service";
+import { getUserChatSessions, createChatSessionInDB, getChatMessagesFromDB, saveChatMessageToDB, updateSessionAgentTypeInDB, deleteChatSessionFromDB, updateChatSessionTitleInDB } from "../../lib/api/postgres-chat-service";
+import { createChatWebSocket, ChatWebSocketControls } from "../../lib/api/fastapi-service";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { SendIcon, Upload, FileIcon, Paperclip, XIcon } from "lucide-react"
@@ -12,29 +16,20 @@ import { ChatHeader } from "@/components/chat-header"
 import { Canvas } from "@/components/canvas"
 import { ChatSidebar } from "@/components/chat-sidebar"
 import { getCurrentUser, logoutUser, type User } from "@/lib/api/auth-service"
-import { type ChatMessage, type AgentType } from "@/lib/api/chat-service"
 import { toast } from "@/hooks/use-toast"
 import { isPreviewEnvironment } from "@/lib/api/mock-data"
-import { createChatWebSocket } from "@/lib/api/fastapi-service"
-import {
-  getUserChatSessions,
-  createChatSessionInDB,
-  getChatMessagesFromDB,
-  saveChatMessageToDB,
-  deleteChatSessionFromDB,
-  updateChatSessionTitleInDB,
-  updateSessionAgentTypeInDB
-} from "@/lib/api/postgres-chat-service"
 
 import { Textarea } from "@/components/ui/textarea"
+
+const AVAILABLE_AGENTS: (AgentType | "auto")[] = ["auto", "code", "analytics", "prediction", "supervisor"];
 
 export default function ChatPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
-  const [ws, setWs] = useState<ReturnType<typeof createChatWebSocket> | null>(null);
+  const [ws, setWs] = useState<ChatWebSocketControls | null>(null);
   const [threadId, setThreadId] = useState<string>('');
   const [input, setInput] = useState("")
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ApiChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isReceivingResponse, setIsReceivingResponse] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<AgentType | "auto">("auto")
@@ -50,8 +45,8 @@ export default function ChatPage() {
 
   const [canvasContent, setCanvasContent] = useState<CanvasContent>(null)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-  const [sessions, setSessions] = useState<any[]>([])
-  const [activeSession, setActiveSession] = useState<any | null>(null)
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSession, setActiveSession] = useState<ChatSession | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -64,6 +59,12 @@ export default function ChatPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [attachedFile, setAttachedFile] = useState<File | null>(null)
 
+  // Ref to keep track of the latest messages for callbacks
+  const messagesRef = useRef<ApiChatMessage[]>(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   const readFileAsText = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -73,33 +74,37 @@ export default function ChatPage() {
     })
   }
 
+  // Initialize user data function, memoized with useCallback
+  // This function is defined at the top-level of the ChatPage component.
+  const initializeUserData = useCallback(async (user: User) => {
+    if (user && user.id) {
+      // Assuming fetchUserSessions is defined elsewhere (e.g., imported or a prop)
+      // and is stable or correctly memoized if defined within ChatPage.
+      await fetchUserSessions(user.id);
+    }
+  }, []); // If fetchUserSessions is defined in ChatPage and isn't stable/memoized, add it as a dependency here.
+
   useEffect(() => {
     const checkUser = async () => {
-      const currentUser = await getCurrentUser()
+      const currentUser = await getCurrentUser();
       if (!currentUser) {
         if (isPreviewEnvironment()) {
-          router.push("/demo")
-          return null
+          router.push("/demo");
+          return null; // Ensure promise resolves with null if redirecting
         }
-        router.push("/login")
-        return null
+        router.push("/login");
+        return null; // Ensure promise resolves with null if redirecting
       }
-      setUser(currentUser)
-      return currentUser
-    }
-
-    const initializeUserData = async (user: User) => {
-      if (user && user.id) {
-        await fetchUserSessions(user.id)
-      }
-    }
+      setUser(currentUser);
+      return currentUser;
+    };
 
     checkUser().then((userData) => {
       if (userData) {
-        initializeUserData(userData)
+        initializeUserData(userData);
       }
-    })
-  }, [router])
+    });
+  }, [router, initializeUserData]); // Added initializeUserData to the dependency array
 
   useEffect(() => {
     if (activeSessionId) {
@@ -124,7 +129,7 @@ export default function ChatPage() {
     }
   }, [messages])
 
-  const fetchUserSessions = async (userId: string): Promise<any[]> => {
+  const fetchUserSessions = useCallback(async (userId: string): Promise<ChatSession[]> => {
     try {
       const sessions = await getUserChatSessions(userId)
       setSessions(sessions)
@@ -143,9 +148,9 @@ export default function ChatPage() {
       toast({ title: "Error", description: "Failed to load chat sessions", variant: "destructive" })
       return []
     }
-  }
+  }, []);
 
-  const fetchSessionMessages = async (sessionId: string) => {
+  const fetchSessionMessages = useCallback(async (sessionId: string) => {
     try {
       const messages = await getChatMessagesFromDB(sessionId)
       setMessages(messages)
@@ -153,7 +158,7 @@ export default function ChatPage() {
       console.error("Error fetching messages:", error)
       toast({ title: "Error", description: "Failed to load messages", variant: "destructive" })
     }
-  }
+  }, []);
 
   const handleSessionChange = (sessionId: string) => {
     const selected = sessions.find(s => s.id === sessionId)
@@ -230,210 +235,183 @@ export default function ChatPage() {
     if (agentType !== "auto" && activeSessionId) {
       try {
         await updateSessionAgentTypeInDB(activeSessionId, agentType as AgentType)
+        setActiveSession(prev => prev ? { ...prev, agent_type: agentType } : null);
+        toast({ title: "Agent Updated", description: `Session agent set to ${agentType}` })
       } catch (error) {
+        console.error("Error updating agent type:", error)
         toast({ title: "Error", description: "Failed to update agent type. Please try again.", variant: "destructive" })
       }
     }
   }
 
-  const handleNewSession = async (agentType: AgentType = "code") => {
-    setIsLoading(true)
+  const handleNewSession = useCallback(async (agentType: AgentType | "auto" = "auto") => {
+    if (!user?.id) {
+      toast({ title: "Error", description: "You must be logged in to start a new session.", variant: "destructive" });
+      return null;
+    }
+    setIsLoading(true);
     try {
-      const newSession = await createChatSessionInDB(user?.id || '', agentType)
+      const agentToStore = agentType === 'auto' ? 'code' : agentType;
+      const newSession = await createChatSessionInDB(user.id, agentToStore);
       if (newSession) {
-        await fetchUserSessions(user?.id || '')
-        handleSessionChange(newSession.id)
-        toast({ title: "New Session", description: "New chat session created." })
+        await fetchUserSessions(user.id);
+        handleSessionChange(newSession.id);
+        toast({ title: "New Session", description: `New chat session started with ${agentType} agent.` });
+        return newSession;
       }
     } catch (error) {
-      console.error("Error creating new session:", error)
-      toast({ title: "Error", description: "Failed to create new chat session", variant: "destructive" })
+      console.error("Error creating new session:", error);
+      toast({ title: "Error", description: "Failed to create new chat session", variant: "destructive" });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+    return null;
+  }, [user, fetchUserSessions, handleSessionChange]);
 
-  const handleSendMessage = async (e: FormEvent) => {
+  const handleSendMessage = useCallback(async (e: FormEvent) => {
     e.preventDefault();
-    if ((!input.trim() && !attachedFile) || isLoading || !activeSessionId) return;
+    if (isLoading || (!input.trim() && !attachedFile)) return;
 
-    const userMessage: ChatMessage = {
-      id: `temp-user-${Date.now()}`,
-      session: activeSessionId,
-      role: "user",
+    setIsLoading(true);
+    setIsReceivingResponse(true);
+
+    let currentSessionId = activeSessionId;
+    if (!currentSessionId) {
+      const newSession = await handleNewSession(selectedAgent);
+      if (!newSession) {
+        setIsLoading(false);
+        setIsReceivingResponse(false);
+        return;
+      }
+      currentSessionId = newSession.id;
+    }
+
+    const userMessage: ApiChatMessage = {
+      id: uuidv4(),
+      session: currentSessionId,
+      role: 'user',
       content: input,
       created_at: new Date().toISOString(),
     };
-
-    // Optimistically update UI
     setMessages(prev => [...prev, userMessage]);
+    await saveChatMessageToDB(userMessage.session, userMessage.role, userMessage.content);
+
+    const assistantMessageId = uuidv4();
+    const assistantMessagePlaceholder: ApiChatMessage = {
+      id: assistantMessageId,
+      session: currentSessionId,
+      role: 'assistant',
+      content: '',
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, assistantMessagePlaceholder]);
+
     const messageToSend = input;
     const fileToSend = attachedFile;
     setInput("");
     setAttachedFile(null);
-    if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-    }
-    setIsLoading(true);
-    setIsReceivingResponse(true);
+    if (fileInputRef.current) fileInputRef.current.value = "";
 
-    let assistantMessageId: string | null = null;
+    if (ws) ws.close();
 
-    try {
-      // Save user message to DB
-      await saveChatMessageToDB(activeSessionId, userMessage.role, userMessage.content);
-
-      // Close existing WebSocket if it's there
-      if (ws) {
-        ws.close();
+    const newWsConnection = createChatWebSocket(
+      currentSessionId,
+      selectedAgent,
+      (token) => { // onToken
+        setMessages(prev => prev.map(msg =>
+          msg.id === assistantMessageId ? { ...msg, content: msg.content + token } : msg
+        ));
+      },
+      (agent) => { // onAgentChange
+        toast({ title: "Agent Switched", description: `Request routed to ${agent} agent.` });
+      },
+      (tool) => { /* onToolStart */ console.log("Tool started:", tool); },
+      (result) => { /* onToolEnd */ console.log("Tool ended:", result); },
+      (error) => { // onError
+        console.error("WebSocket Error:", error);
+        setMessages(prev => prev.map(msg =>
+          msg.id === assistantMessageId ? { ...msg, content: `${msg.content}\n\n**Error:** ${error}` } : msg
+        ));
+        setIsLoading(false);
+        setIsReceivingResponse(false);
+      },
+      () => { // onDone
+        const finalAssistantMessage = messagesRef.current.find(msg => msg.id === assistantMessageId);
+        if (finalAssistantMessage) {
+          saveChatMessageToDB(finalAssistantMessage.session, finalAssistantMessage.role, finalAssistantMessage.content);
+        }
+        setIsLoading(false);
+        setIsReceivingResponse(false);
+        if (newWsConnection) newWsConnection.close();
+        setWs(null);
       }
+    );
 
-      const wsConnection = createChatWebSocket(
-        activeSessionId,
-        activeSession?.agent_type || selectedAgent,
-        (token) => { // onToken
-          setMessages(prev => {
-            if (assistantMessageId) {
-              // Find and update the existing assistant message
-              return prev.map(m => 
-                m.id === assistantMessageId 
-                  ? { ...m, content: m.content + token } 
-                  : m
-              );
-            } else {
-              // Create new assistant message
-              const newAssistantMessage: ChatMessage = {
-                id: `temp-assistant-${Date.now()}`,
-                session: activeSessionId,
-                role: 'assistant',
-                content: token,
-                created_at: new Date().toISOString(),
-              };
-              assistantMessageId = newAssistantMessage.id;
-              return [...prev, newAssistantMessage];
-            }
-          });
-        },
-        (agent) => { // onAgentChange
-          setSelectedAgent(agent as AgentType);
-          toast({ title: `Agent changed to: ${agent}` });
-        },
-        (toolData) => { // onToolStart
-          console.log("Tool started:", toolData);
-        },
-        (toolResult) => { // onToolEnd
-          console.log("Tool ended:", toolResult);
-          if (toolResult.type === "canvas") {
-            setCanvasContent(toolResult.content);
-          }
-        },
-        (error) => { // onError
-          toast({ title: 'WebSocket Error', description: error, variant: 'destructive' });
-          setIsLoading(false);
-          setIsReceivingResponse(false);
-        },
-        async () => { // onDone
-            // When done, fetch final messages from DB to ensure consistency
-            const finalMessages = await getChatMessagesFromDB(activeSessionId);
-            setMessages(finalMessages);
-            setIsLoading(false);
-            setIsReceivingResponse(false);
-            assistantMessageId = null;
-        }
-      );
+    setWs(newWsConnection);
 
-      setWs(wsConnection);
-
-      // Wait for connection to be open
-      await new Promise<void>((resolve, reject) => {
-        if (wsConnection && wsConnection.ws) {
-          if (wsConnection.ws.readyState === WebSocket.OPEN) {
-            resolve();
-          } else {
-            wsConnection.ws.onopen = () => resolve();
-            wsConnection.ws.onerror = (err) => reject(err); 
-          }
-        } else {
-          reject(new Error("WebSocket connection not established."));
-        }
-      });
-
-      // Send message based on agent and file attachment
-      const agentInCharge = activeSession?.agent_type || selectedAgent;
-      if (agentInCharge === 'prediction' && fileToSend) {
-        if (fileToSend.type !== 'text/csv') {
-          toast({ title: 'Invalid File Type', description: 'Please upload a CSV file for the prediction agent.', variant: 'destructive' });
-          setIsLoading(false); 
-          if (wsConnection && wsConnection.ws) wsConnection.close();
-          return;
-        }
-        const csvContent = await readFileAsText(fileToSend);
-        if (wsConnection && wsConnection.ws) {
-            wsConnection.sendMessage({ user_query: messageToSend, csv_file_content: csvContent });
-        } else {
-            throw new Error("WebSocket connection not available to send message.");
-        }
-      } else if (fileToSend) {
-        // Handle other file types for other agents (e.g., analytics)
-        const reader = new FileReader();
-        reader.readAsDataURL(fileToSend);
-        reader.onload = () => {
-          const fileData = { 
-              name: fileToSend.name, 
-              content: (reader.result as string).split(',')[1] // base64 content
-          };
-          // For supervisor agent, message is a stringified JSON
-          const payload = JSON.stringify({ message: messageToSend, file: fileData });
-          if (wsConnection && wsConnection.ws) {
-            wsConnection.sendMessage({ message: payload });
-          } else {
-            throw new Error("WebSocket connection not available to send message.");
-          }
-        };
-        reader.onerror = () => {
-          toast({ title: 'File Read Error', description: 'Could not read the attached file.', variant: 'destructive' });
-          setIsLoading(false); 
-          if (wsConnection && wsConnection.ws) wsConnection.close();
-        };
-      } else {
-        // Simple text message
-        if (wsConnection && wsConnection.ws) {
-            wsConnection.sendMessage({ message: messageToSend });
-        } else {
-            throw new Error("WebSocket connection not available to send message.");
-        }
-      }
-    } catch (error) {
-      console.error("Error in handleSendMessage:", error);
-      toast({ title: "Error", description: "Failed to send message.", variant: "destructive" });
-      // Revert optimistic UI update
-      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+    if (!newWsConnection) {
+      toast({ title: "Connection Error", description: "Failed to create WebSocket connection.", variant: "destructive" });
       setIsLoading(false);
       setIsReceivingResponse(false);
+      return;
     }
-  };
+
+    let csvContent: string | null = null;
+    if (fileToSend) {
+      try {
+        csvContent = await fileToSend.text();
+      } catch (err) {
+        console.error("Error reading file:", err);
+        toast({ title: "File Read Error", description: "Could not read the attached file.", variant: "destructive" });
+        setIsLoading(false);
+        setIsReceivingResponse(false);
+        newWsConnection.close();
+        setWs(null);
+        return;
+      }
+    }
+
+    const payload = {
+      user_query: messageToSend,
+      csv_file_content: csvContent,
+    };
+    
+    console.log(">>> CHAT_PAGE: Sending payload to WebSocket:", payload);
+    newWsConnection.sendMessage(payload);
+
+  }, [
+    user,
+    activeSessionId,
+    selectedAgent,
+    input,
+    attachedFile,
+    isLoading,
+    ws,
+    handleNewSession,
+    messagesRef,
+  ]);
 
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      if (file.type !== "text/csv") {
-        toast({ title: "Invalid File Type", description: "Only CSV files are allowed.", variant: "destructive" })
-        return
+      const file = e.target.files[0];
+      if (file.type !== "text/csv" && !file.name.endsWith('.csv')) {
+        toast({ title: "Invalid File Type", description: "Only CSV files are allowed.", variant: "destructive" });
+        return;
       }
       if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        toast({ title: "File Too Large", description: "Please select a file smaller than 10MB.", variant: "destructive" })
-        return
+        toast({ title: "File Too Large", description: "Please select a file smaller than 10MB.", variant: "destructive" });
+        return;
       }
-      setAttachedFile(file)
+      setAttachedFile(file);
     }
-  }
+  };
 
   const handleRemoveAttachedFile = () => {
-    setAttachedFile(null)
+    setAttachedFile(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""
+      fileInputRef.current.value = "";
     }
-  }
+  };
 
   const handleLogout = async () => {
     await logoutUser();
@@ -441,33 +419,25 @@ export default function ChatPage() {
   };
 
   const handleOpenUploadModal = async () => {
-    try {
-      // const tables = await getPostgresTables()
-      // setAvailableTables(tables)
-      toast({ title: "Feature Disabled", description: "Fetching tables is temporarily disabled." });
-      setIsUploadModalOpen(true)
-    } catch (error) {
-      console.error("Error fetching tables:", error)
-      toast({ title: "Error", description: "Could not fetch existing tables.", variant: "destructive" })
-    }
-  }
+    toast({ title: "Feature Disabled", description: "Direct database upload is temporarily disabled." });
+    // setIsUploadModalOpen(true); // Logic can be re-enabled later
+  };
 
   const handleFileUpload = async () => {
-    if (!uploadFile || !uploadTableName) return
-    setIsUploading(true)
+    if (!uploadFile || !uploadTableName) return;
+    setIsUploading(true);
     try {
-      // const result = await uploadCsvToPostgres(uploadFile, uploadTableName, createNewTable)
-      toast({ title: "Feature Disabled", description: "File upload is temporarily disabled." })
-      setIsUploadModalOpen(false)
-      setUploadFile(null)
-      setUploadTableName("")
+      toast({ title: "Feature Disabled", description: "File upload is temporarily disabled." });
+      setIsUploadModalOpen(false);
+      setUploadFile(null);
+      setUploadTableName("");
     } catch (error: any) {
-      console.error("Error uploading file:", error)
-      toast({ title: "Upload Failed", description: error.message || "An unknown error occurred.", variant: "destructive" })
+      console.error("Error uploading file:", error);
+      toast({ title: "Upload Failed", description: error.message || "An unknown error occurred.", variant: "destructive" });
     } finally {
-      setIsUploading(false)
+      setIsUploading(false);
     }
-  }
+  };
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
@@ -485,7 +455,7 @@ export default function ChatPage() {
       <div className="flex flex-1 flex-col">
         {user && (
           <ChatHeader
-            user={user}
+            user={{ ...user, isDemo: isPreviewEnvironment() }}
             onLogout={handleLogout}
             onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)}
             activeSession={activeSession}
@@ -501,7 +471,7 @@ export default function ChatPage() {
         <main className="flex-1 overflow-auto p-4">
           <div className="h-full space-y-4">
             {messages.map((m, i) => (
-              <ChatMessageComponent key={m.id || i} message={m} />
+              <ChatMessageComponent key={m.id || i} message={{ id: m.id, role: m.role, content: m.content, agentType: m.agentType }} />
             ))}
             <div ref={messagesEndRef} />
           </div>
@@ -543,7 +513,7 @@ export default function ChatPage() {
                   <Paperclip className="h-5 w-5" />
                 </Button>
                 <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept=".csv" />
-                <Button type="submit" disabled={isLoading || (!input.trim() && !attachedFile)}>
+                <Button type="submit" disabled={isLoading || !activeSessionId || (!input.trim() && !attachedFile)}>
                   <SendIcon className="h-5 w-5" />
                 </Button>
               </div>

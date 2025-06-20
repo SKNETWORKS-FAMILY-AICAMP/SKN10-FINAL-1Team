@@ -43,7 +43,7 @@ const API_BASE_URL = "/api"
  */
 export async function loginUser(credentials: LoginCredentials): Promise<User | null> {
   // 디버깅 모드에서는 항상 실제 API 사용
-  const forceRealApi = true; // 로그인은 항상 실제 API 사용
+  const forceRealApi = false; // 로그인은 모의 API 우선 사용 (isPreviewEnvironment 조건에 따라)
   
   // Use mock data in preview environment - but only if not forcing real API
   if (!forceRealApi && isPreviewEnvironment()) {

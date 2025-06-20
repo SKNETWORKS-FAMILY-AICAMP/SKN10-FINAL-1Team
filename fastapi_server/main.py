@@ -13,6 +13,75 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import re # Import re for regex operations
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
+import numpy as np
+import pandas as pd
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing import LabelEncoder
+
+# --- Custom Class Definitions for Model Loading ---
+# These classes must be defined in the main script's namespace for joblib to find them.
+class Preprocessor(BaseEstimator, TransformerMixin):
+    def __init__(self):
+        self.label_encoders = {}
+        self.binary_map = {'Yes': 1, 'No': 0}
+        self.categorical_cols = []
+
+    def fit(self, X, y=None):
+        X = X.copy()
+        X['totalcharges'] = pd.to_numeric(X['totalcharges'], errors='coerce')
+
+        binary_cols = ['partner', 'dependents', 'phoneservice', 'paperlessbilling']
+        for col in binary_cols:
+            X[col] = X[col].map(self.binary_map)
+
+        self.categorical_cols = [
+            col for col in X.select_dtypes(include=['object', 'category']).columns
+            if not pd.to_numeric(X[col], errors='coerce').notna().all()
+        ]
+
+        for col in self.categorical_cols:
+            le = LabelEncoder()
+            le.fit(X[col].astype(str))
+            self.label_encoders[col] = le
+        return self
+
+    def transform(self, X):
+        X = X.copy()
+        X['totalcharges'] = pd.to_numeric(X['totalcharges'], errors='coerce')
+        X['totalcharges'] = X['totalcharges'].fillna(X['tenure'] * X['monthlycharges'])
+
+        X['new_totalservices'] = (X[['phoneservice', 'internetservice', 'onlinesecurity',
+                                     'onlinebackup', 'deviceprotection', 'techsupport',
+                                     'streamingtv', 'streamingmovies']] == 'Yes').sum(axis=1)
+
+        X['new_avg_charges'] = X['totalcharges'] / (X['tenure'] + 1e-5)
+        X['new_increase'] = X['new_avg_charges'] / X['monthlycharges']
+        X['new_avg_service_fee'] = X['monthlycharges'] / (X['new_totalservices'] + 1e-5)
+        X['charge_increased'] = (X['monthlycharges'] > X['new_avg_charges']).astype(int)
+        X['charge_growth_rate'] = (X['monthlycharges'] - X['new_avg_charges']) / (X['new_avg_charges'] + 1e-5)
+        X['is_auto_payment'] = X['paymentmethod'].apply(lambda x: int('automatic' in str(x).lower() or 'bank' in str(x).lower()))
+
+        binary_cols = ['partner', 'dependents', 'phoneservice', 'paperlessbilling']
+        for col in binary_cols:
+            X[col] = X[col].map(self.binary_map)
+
+        for col in self.categorical_cols:
+            X[col] = self.label_encoders[col].transform(X[col].astype(str))
+
+        return X.values
+
+class ThresholdWrapper:
+    def __init__(self, pipeline, threshold=0.5):
+        self.pipeline = pipeline
+        self.threshold = threshold
+
+    def predict(self, X):
+        probas = self.pipeline.predict_proba(X)[:, 1]
+        return (probas >= self.threshold).astype(int)
+
+    def predict_proba(self, X):
+        return self.pipeline.predict_proba(X)
+
 
 # --- Project Root and Environment Loading ---
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -30,6 +99,7 @@ if not os.getenv("OPENAI_API_KEY"):
 # --- Agent Imports ---
 from fastapi_server.agent.agent3 import app as analysis_app
 from fastapi_server.agent.agent4 import app as prediction_app
+from fastapi_server.agent.agent_supervisor import supervisor_app # Import the new supervisor
 from fastapi_server.app.ml_models import run_customer_ml_model
 
 # --- Pydantic Models for API Requests ---
@@ -152,7 +222,82 @@ async def invoke_prediction_agent(request: PredictionRequest):
         raise HTTPException(status_code=500, detail=f"An error occurred: {str(e)}")
 
 
-# --- WebSocket Endpoint for Prediction Agent ---
+# --- WebSocket Endpoint for Supervisor Agent ---
+@app.websocket("/ws/supervisor")
+async def websocket_supervisor(websocket: WebSocket):
+    await websocket.accept()
+    logging.info("WebSocket connection accepted for supervisor.")
+    try:
+        while True:
+            try:
+                data = await websocket.receive_text()
+                payload = json.loads(data)
+                user_query = payload.get("user_query")
+                csv_file_content = payload.get("csv_file_content")
+
+                if not user_query and not csv_file_content:
+                    continue
+
+                # 1. Run supervisor to decide the route
+                supervisor_input = {"user_query": user_query, "csv_file_content": csv_file_content}
+                supervisor_result = await supervisor_app.ainvoke(supervisor_input)
+                route = supervisor_result.get("route")
+
+                # 2. Based on route, invoke the correct agent
+                if route == "prediction":
+                    logging.info("Supervisor routing to: prediction_agent")
+                    # Inform the client that we are switching agents
+                    await websocket.send_json({"event_type": "agent_change", "data": {"agent": "prediction"}})
+                    
+                    # Prepare input for the prediction agent
+                    prediction_input = {
+                        "messages": [HumanMessage(content=user_query)] if user_query else [],
+                        "user_query": user_query,
+                        "csv_file_content": csv_file_content
+                    }
+                    
+                    # Stream the prediction agent's response back to the client
+                    response_sent = False
+                    async for chunk in prediction_app.astream(prediction_input):
+                        if isinstance(chunk, dict) and not response_sent:
+                            final_answer = chunk.get("csv_analysis_node", {}).get("final_answer")
+                            error_message = chunk.get("csv_analysis_node", {}).get("error_message")
+
+                            if error_message:
+                                await websocket.send_json({"event_type": "error", "data": {"error": error_message}})
+                                response_sent = True
+                            elif final_answer:
+                                await websocket.send_json({"event_type": "token", "data": {"token": final_answer}})
+                                response_sent = True
+                        if response_sent:
+                            break # Stop after getting the first valid response
+
+                elif route == "conversation":
+                    # Placeholder for a general conversational agent
+                    logging.info("Supervisor routing to: conversation (placeholder)")
+                    await websocket.send_json({"event_type": "token", "data": {"token": "This is a placeholder for the conversational agent."}})
+
+                else:
+                    await websocket.send_json({"event_type": "error", "data": {"error": f"Unknown route '{route}' decided by supervisor."}})
+
+                # 3. Send done signal
+                await websocket.send_json({"event_type": "done"})
+
+            except json.JSONDecodeError:
+                logging.warning("Invalid JSON received on supervisor WebSocket.")
+                await websocket.send_json({"event_type": "error", "data": {"error": "Invalid JSON format."}})
+            except Exception as e:
+                logging.error(f"Error in supervisor WebSocket: {e}", exc_info=True)
+                await websocket.send_json({"event_type": "error", "data": {"error": str(e)}})
+
+    except WebSocketDisconnect:
+        logging.info("Client disconnected from supervisor WebSocket.")
+    finally:
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.close()
+
+
+# --- WebSocket Endpoint for Prediction Agent (Direct Connection) ---
 @app.websocket("/ws/prediction_agent")
 async def websocket_prediction_agent(websocket: WebSocket):
     await websocket.accept()
@@ -166,105 +311,68 @@ async def websocket_prediction_agent(websocket: WebSocket):
                 payload = json.loads(data)
                 user_query = payload.get("user_query")
                 csv_file_content = payload.get("csv_file_content")
-                agent_type_from_payload = payload.get("agent_type", "prediction") # Default to "prediction"
-
+                
                 if not user_query and not csv_file_content:
                     logging.warning("WebSocket received empty query and no file.")
-                    # await websocket.send_text(json.dumps({"type": "error", "content": "Empty query and no file received."}))
-                    # await websocket.send_text(json.dumps({"type": "stream_end"}))
                     continue
 
-                if agent_type_from_payload == "customer_ml_agent":
-                    if not csv_file_content:
-                        logging.warning("customer_ml_agent: CSV file content is required.")
-                        await websocket.send_text(json.dumps({"type": "error", "content": "CSV file content is required for this agent."}))
-                        await websocket.send_text(json.dumps({"type": "stream_end"}))
-                        continue
-                    if not user_query:
-                        logging.warning("customer_ml_agent: User query is required.")
-                        await websocket.send_text(json.dumps({"type": "error", "content": "User query is required for this agent."}))
-                        await websocket.send_text(json.dumps({"type": "stream_end"}))
-                        continue
-                    
-                    logging.info(f"Invoking customer_ml_agent with query: '{user_query}' and CSV data (size: {len(csv_file_content)}).")
-                    try:
-                        ml_response = run_customer_ml_model(csv_file_content, user_query)
-                        await websocket.send_text(json.dumps({"type": "final_answer", "content": ml_response}))
-                    except Exception as ml_e:
-                        logging.error(f"Error in customer_ml_agent: {ml_e}", exc_info=True)
-                        await websocket.send_text(json.dumps({"type": "error", "content": f"Error processing CSV with ML model: {str(ml_e)}"}))
-                    await websocket.send_text(json.dumps({"type": "stream_end"}))
+                input_data_for_agent = {
+                    "messages": [HumanMessage(content=user_query)] if user_query else [],
+                    "user_query": user_query,
+                    "csv_file_content": csv_file_content
+                }
                 
-                elif agent_type_from_payload == "prediction": # Or other LangGraph agents
-                    messages_for_agent: List[BaseMessage] = []
-                    if user_query:
-                        messages_for_agent.append(HumanMessage(content=user_query))
-
-                    input_data_for_agent = {"messages": messages_for_agent}
-                    if csv_file_content: # prediction_app might also use csv_file_content
-                        input_data_for_agent["csv_file_content"] = csv_file_content
-                    
-                    logging.info(f"Invoking prediction_app (LangGraph) with query: '{user_query}' and file size: {len(csv_file_content) if csv_file_content else 0}")
-                    async for event in prediction_app.astream(
-                        input_data_for_agent,
-                        config={"configurable": {"thread_id": "prediction-thread"}}
-                    ):
-                        event_type = event["event"]
-                        event_name = event.get("name")
-                        event_data = event.get("data", {})
+                logging.info(f"Invoking prediction_app (LangGraph) with query: '{user_query}' and file size: {len(csv_file_content) if csv_file_content else 0}")
+                
+                response_sent = False
+                async for current_state in prediction_app.astream(
+                    input_data_for_agent,
+                    config={"configurable": {"thread_id": "prediction-thread"}}
+                ):
+                    logging.debug(f"Agent stream: current_state: {current_state}")
+                    if isinstance(current_state, dict) and not response_sent:
+                        final_answer = None
+                        error_message = None
                         
-                        logging.debug(f"Agent event: type='{event_type}', name='{event_name}', data='{event_data}'")
+                        if "csv_analysis_node" in current_state:
+                            node_output = current_state.get("csv_analysis_node")
+                            if isinstance(node_output, dict):
+                                final_answer = node_output.get("final_answer")
+                                error_message = node_output.get("error_message")
 
-                        if event_type == "on_chat_model_stream":
-                            chunk = event_data.get("chunk")
-                            if hasattr(chunk, 'content') and chunk.content:
-                                await websocket.send_text(json.dumps({"type": "stream", "content": chunk.content}))
-                        
-                        elif event_type == "on_chain_end" and event_name == "LangGraph": # Assuming 'LangGraph' is the name for the top-level graph events
-                            output_state = event_data.get("output", {})
-                            if isinstance(output_state, dict):
-                                final_answer = output_state.get("final_answer")
-                                error_message = output_state.get("error_message")
+                        if error_message:
+                            logging.error(f"Agent error from stream: {error_message}")
+                            await websocket.send_json({"event_type": "error", "data": {"error": error_message}})
+                            response_sent = True
+                        elif final_answer:
+                            logging.info(f"Sending final_answer from stream: {final_answer}")
+                            await websocket.send_json({"event_type": "token", "data": {"token": final_answer}})
+                            response_sent = True
 
-                                if error_message:
-                                    logging.error(f"Agent error in final state: {error_message}")
-                                    await websocket.send_text(json.dumps({"type": "error", "content": error_message}))
-                                elif final_answer:
-                                    logging.info(f"Sending final_answer from LangGraph end: {final_answer}")
-                                    await websocket.send_text(json.dumps({"type": "final_answer", "content": final_answer}))
-                                else:
-                                    logging.info("LangGraph finished, no specific final_answer or error_message in output state.")
-                                    await websocket.send_text(json.dumps({"type": "info", "content": "Processing complete."}))
-                            else:
-                                logging.warning(f"Unexpected output format at LangGraph end: {output_state}")
-                                await websocket.send_text(json.dumps({"type": "info", "content": "Processing complete with unexpected output format."}))
-                            
-                            await websocket.send_text(json.dumps({"type": "stream_end"})) # Signal end of messages for this request
-
-                        elif event_type.endswith("_error"): # Catch specific error events like on_chain_error, on_tool_error etc.
-                            error_detail = str(event_data.get("error", event_data)) # data could be the error itself or a dict containing it
-                            logging.error(f"Agent error event ({event_type}): {error_detail}")
-                            await websocket.send_text(json.dumps({"type": "error", "content": f"Agent error ({event_type}): {error_detail}"}))
-                            await websocket.send_text(json.dumps({"type": "stream_end"})) # End stream on error
+                    if response_sent:
+                        break
+                
+                logging.info("Sending 'done' signal to client.")
+                await websocket.send_json({"event_type": "done"})
 
             except json.JSONDecodeError:
                 logging.warning("Invalid JSON received on WebSocket.")
-                await websocket.send_text(json.dumps({"type": "error", "content": "Invalid JSON received"}))
-            except Exception as e: # Catch errors during message processing for one client request
+                await websocket.send_json({"event_type": "error", "data": {"error": "Invalid JSON format received."}})
+                await websocket.send_json({"event_type": "done"})
+            except Exception as e:
                 logging.error(f"Error processing WebSocket message: {e}", exc_info=True)
-                await websocket.send_text(json.dumps({"type": "error", "content": f"An internal server error occurred: {str(e)}"}))
-                await websocket.send_text(json.dumps({"type": "stream_end"})) # Ensure client knows this stream is done
+                await websocket.send_json({"event_type": "error", "data": {"error": f"An internal server error occurred: {str(e)}"}})
+                await websocket.send_json({"event_type": "done"})
                 
     except WebSocketDisconnect:
         logging.info("Client disconnected from prediction_agent WebSocket.")
-    except Exception as e: # Catch errors in the main WebSocket accept/while loop
+    except Exception as e:
         logging.error(f"Unhandled error in prediction_agent WebSocket main loop: {e}", exc_info=True)
         if websocket.client_state != WebSocketState.DISCONNECTED:
              try:
-                 # Try to inform client if possible
-                 await websocket.send_text(json.dumps({"type": "error", "content": "A critical server error occurred, disconnecting."}))
-                 await websocket.close(code=1011) # Internal Error code for WebSocket
-             except Exception as close_e: # If sending/closing also fails
+                 await websocket.send_json({"event_type": "error", "data": {"error": "A critical server error occurred, disconnecting."}})
+                 await websocket.close(code=1011)
+             except Exception as close_e:
                  logging.error(f"Error trying to inform client or close WebSocket: {close_e}")
     finally:
         logging.info("Ensuring prediction_agent WebSocket connection is closed after loop/exception.")

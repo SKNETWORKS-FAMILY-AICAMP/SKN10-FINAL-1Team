@@ -25,6 +25,13 @@ export interface ChatResponse {
   };
 }
 
+export interface ChatWebSocketControls {
+  sendMessage: (data: any) => boolean;
+  close: () => void;
+  ws: WebSocket;
+  threadId: string;
+}
+
 export interface StreamEvent {
   event_type: 'token' | 'agent_change' | 'tool_start' | 'tool_end' | 'error' | 'done';
   data: any;
@@ -76,18 +83,35 @@ export function createChatWebSocket(threadId: string = uuidv4(),
   onToolStart: (tool: any) => void,
   onToolEnd: (result: any) => void,
   onError: (error: string) => void,
-  onDone: () => void) {
+  onDone: () => void): ChatWebSocketControls | null {
   
-  let wsUrl = `${FASTAPI_WS_URL}/api/chat/ws/${threadId}`; // Default to supervisor
-  if (agentType === 'analytics') {
-    wsUrl = `${FASTAPI_WS_URL}/ws/analysis_agent/${threadId}`;
-  } else if (agentType === 'prediction') {
-    wsUrl = `${FASTAPI_WS_URL}/ws/prediction_agent/${threadId}`;
+  let path: string;
+  // If agent is 'auto', connect to the supervisor. Otherwise, connect to the specific agent's endpoint.
+  const agentToConnect = agentType === 'auto' ? 'supervisor' : agentType;
+
+  switch (agentToConnect) {
+    case 'prediction':
+      path = 'ws/prediction_agent';
+      break;
+    case 'supervisor':
+      path = 'ws/supervisor'; // The new supervisor endpoint
+      break;
+    // TODO: Add other cases for 'code', 'analytics' etc. when they have WebSocket endpoints
+    default:
+      // Fallback to supervisor if an unknown or unimplemented agent is selected in the UI
+      console.warn(`Unknown or unimplemented agentType '${agentType}', falling back to supervisor.`);
+      path = 'ws/supervisor';
   }
+
+  // Use URL constructor to safely join base URL and path, avoiding double slashes.
+  const wsUrl = new URL(path, FASTAPI_WS_URL).toString();
   // For 'code', 'rag', or 'auto', it will use the default supervisor wsUrl.
 
   console.log(`Creating WebSocket connection for thread ${threadId} with agentType ${agentType}`);
   console.log(`Selected FastAPI WebSocket URL: ${wsUrl}`);
+
+  let currentEffectiveAgentType: AgentType | "auto" = agentType;
+  console.log(`Initial effective agent type: ${currentEffectiveAgentType}`);
   
   try {
     // Close existing connection for this thread if any
@@ -130,17 +154,26 @@ export function createChatWebSocket(threadId: string = uuidv4(),
         
         switch (streamEvent.event_type) {
           case 'token':
-            // Clean the token to remove routing directives before passing to the callback
-            const token = streamEvent.data.token;
-            const cleanedToken = cleanStreamingToken(token);
-            
-            // Only send non-empty tokens
-            if (cleanedToken) {
-              onToken(cleanedToken);
+            // The token is nested inside the data object
+            const token = streamEvent.data?.token;
+            if (typeof token === 'string') {
+              let processedToken = token;
+              // Use currentEffectiveAgentType for the decision
+              if (currentEffectiveAgentType !== 'prediction') {
+                processedToken = cleanStreamingToken(token);
+              } else {
+                console.log(`Bypassing token cleaning for currentEffectiveAgentType '${currentEffectiveAgentType}':`, token.substring(0,100));
+              }
+
+              if (processedToken) {
+                onToken(processedToken);
+              }
             }
             break;
             
           case 'agent_change':
+            currentEffectiveAgentType = streamEvent.data.agent as AgentType | "auto";
+            console.log(`Agent changed by backend. New currentEffectiveAgentType: ${currentEffectiveAgentType}`);
             onAgentChange(streamEvent.data.agent);
             break;
             
@@ -188,36 +221,28 @@ export function createChatWebSocket(threadId: string = uuidv4(),
     
     // Return methods for interacting with the WebSocket
     return {
-      sendMessage: (data: any) => {
-        const send = () => {
+      sendMessage: (data: any): boolean => {
+        const sendPayload = () => {
           try {
             const payload = JSON.stringify(data);
             console.log(`Sending message over WebSocket: ${payload.substring(0, 100)}...`);
             ws.send(payload);
-          } catch (e) {
+          } catch (e: any) {
             console.error("Failed to stringify payload:", e);
-            onError("Internal error: Failed to prepare message for sending.");
+            onError(`Internal error: Failed to prepare message for sending. ${e.message}`);
           }
         };
 
         if (ws.readyState === WebSocket.OPEN) {
-          send();
+          sendPayload();
           return true;
         } else if (ws.readyState === WebSocket.CONNECTING) {
-          console.log("WebSocket is still connecting, waiting to send...");
-          setTimeout(() => {
-            if (ws.readyState === WebSocket.OPEN) {
-              console.log(`Retry sending message over WebSocket after connecting`);
-              send();
-            } else {
-              console.error("WebSocket failed to connect in time");
-              onError("Failed to establish connection with the AI assistant. Please try again.");
-            }
-          }, 1000);
-          return true;
+          console.log("WebSocket is connecting. Queuing message to be sent on 'open' event.");
+          ws.addEventListener('open', sendPayload, { once: true });
+          return true; // Assume it will be sent.
         } else {
-          console.error(`WebSocket is not open (readyState: ${ws.readyState})`);
-          onError("Connection to AI assistant lost. Please refresh and try again.");
+          console.error(`WebSocket is not open or connecting. ReadyState: ${ws.readyState}`);
+          onError(`Connection is not available (state: ${ws.readyState}). Please try again.`);
           return false;
         }
       },

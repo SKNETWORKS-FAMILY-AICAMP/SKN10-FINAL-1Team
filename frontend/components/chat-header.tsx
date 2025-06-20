@@ -16,7 +16,7 @@ interface ChatHeaderProps {
   onLogout: () => void;
   activeSession?: {
     id: string;
-    title: string;
+    title?: string;
   } | null;
   isEditingTitle?: boolean;
   editTitle?: string;

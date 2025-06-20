@@ -12,6 +12,8 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
+    "types": ["react", "react-dom", "node", "next"],
+    "typeRoots": ["./node_modules/@types", "./@types"],
     "incremental": true,
     "plugins": [
       {

@@ -7,7 +7,8 @@ import { Separator } from "@/components/ui/separator"
 import { CodeIcon, FileTextIcon, BarChart3Icon, HomeIcon, LogOutIcon, XIcon, PlusIcon, BrainCircuitIcon } from "lucide-react"
 import Link from "next/link"
 import { useState, useEffect } from "react"
-import { type ChatSession, type AgentType } from "@/lib/api/chat-service" 
+import { type ChatSession, type AgentType } from "@/lib/api/chat-service";
+import { type User } from "@/lib/api/auth-service"; 
 import { getUserChatSessions, createChatSessionInDB } from "@/lib/api/postgres-chat-service" // Import direct DB chat service
 
 // Helper function to format date
@@ -25,7 +26,7 @@ function formatDate(dateString: string): string {
 interface ChatSidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  user: any; // Replace with the actual User type
+  user: User | null;
   onLogout: () => void;
   onSessionChange: (sessionId: string) => void;
   activeSessionId: string | null;

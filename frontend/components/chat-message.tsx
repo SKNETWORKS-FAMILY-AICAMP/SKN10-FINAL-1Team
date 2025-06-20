@@ -173,7 +173,7 @@ const MermaidDiagram = memo(({ chart }: { chart: string }) => {
 
 MermaidDiagram.displayName = "MermaidDiagram"
 
-export function ChatMessage({ message, isStreaming }: ChatMessageProps) {
+export const ChatMessage: React.FC<ChatMessageProps> = ({ message, isStreaming }) => {
   const [copied, setCopied] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
 
