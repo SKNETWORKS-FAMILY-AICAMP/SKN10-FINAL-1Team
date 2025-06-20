@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 from typing import TypedDict, Dict, Sequence, Union, Optional, Any
 import asyncio
+from django.contrib import messages
 
 from asgiref.sync import sync_to_async
 from langchain_core.prompts import PromptTemplate, SystemMessagePromptTemplate,HumanMessagePromptTemplate,ChatPromptTemplate
@@ -92,7 +93,9 @@ def get_index_lists() :
         # describe_index_stats() : '해당' 인덱스 통계 정보 가져오기
         # pc.Index(name) : 해당 인덱스 객체 생성
         index_stats = pc.Index(name).describe_index_stats()
-        region = pc.describe_index(name=name).spec.serverless.region
+        idx_meta = pc.describe_index(name=name)
+        region = idx_meta.spec.serverless.region
+        cloud  = idx_meta.spec.serverless.cloud
         total_count = sum(
             ns.vector_count
             for ns in index_stats.namespaces.values()
@@ -102,12 +105,14 @@ def get_index_lists() :
         "dimension":    dim,
         "total_count":  total_count,
         "region" : region,
+        "cloud" : cloud
         })
     return results
 
-def make_index(name, metric='cosine', vector_type='dense', dimension=1532) : 
+def make_index(name, cloud, region, metric, vector_type, dimension) : 
     """Pinecone 인덱스를 생성하는 함수"""
     load_dotenv()
+
     # 1-1) OpenAI 클라이언트 생성
     openai_api_key = os.getenv("OPENAI_API_KEY")
     if not openai_api_key:
@@ -119,21 +124,34 @@ def make_index(name, metric='cosine', vector_type='dense', dimension=1532) :
     pinecone_env = os.getenv("PINECONE_ENVIRONMENT") # Pinecone 환경
     if not pinecone_api_key or not pinecone_env:
         raise ValueError("PINECONE_API_KEY 또는 PINECONE_ENVIRONMENT 환경 변수가 설정되어 있지 않습니다.")
+    
     pc = Pinecone(api_key=pinecone_api_key, environment=pinecone_env)
-    if name not in pc.list_indexes():
-        pc.create_index(
-            spec = ServerlessSpec(
-                cloud  = "aws",
-                region = "us-east-1"
-            ),
+    spec = ServerlessSpec(cloud  = cloud,region = region)
+
+    # 1-3) 인덱스 생성
+    if name not in pc.list_indexes().names():
+        # ⚠️벡터 타입이 sparse인 경우 dimension 인자를 전달하면 오류생김!
+        if vector_type == "sparse" :
+            pc.create_index(
+            spec=spec,
             name=name,
-            dimension=dimension,
             metric=metric,
             vector_type=vector_type
-        )
+            )
+        # ⚠️ 벡터 타입이 dense인 경우 모든 인자 전달
+        else : 
+            pc.create_index(
+                spec=spec,
+                name=name,
+                dimension=dimension,
+                metric=metric,
+                vector_type=vector_type
+            )
         print(f"✅ Pinecone 인덱스 생성: {name}")
+        return True
     else:
         print(f"ℹ️ Pinecone 인덱스 이미 존재: {name}")
+        return False
 
 def get_sessions() :
     """세션 목록을 가져오는 함수""" 
