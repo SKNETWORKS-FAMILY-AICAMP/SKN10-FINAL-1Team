@@ -94,8 +94,68 @@
 
     {% if db == 'pinecone' %}
     <section class="mt-6 rounded-lg bg-white p-6 shadow-md border border-gray-200">
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center mb-6">
         <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em]">Pinecone DB 인덱스</h3>
+        
+        <div class="flex items-center gap-4 ml-auto">
+        <!-- Alpine 컴포넌트 시작 -->
+        <div x-data="{ open: false }" class="relative">
+        <!-- 1) 인덱스 추가 버튼 -->
+        <button
+            @click="open = true"
+            class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
+        ><span class="material-icons-outlined font-bold">인덱스 삭제</span></button>
+
+        <!-- 2) 백그라운드 오버레이 -->
+        <div
+            x-show="open"
+            x-cloak
+            class="fixed inset-0 bg-black bg-opacity-50 z-40"
+            @click="open = false"
+        ></div>
+
+        <!-- 3) 모달 박스 -->
+        <div
+            x-show="open"
+            class="fixed inset-0 flex items-center justify-center z-50 p-4"
+            x-cloak
+        >
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 class="text-lg font-semibold">인덱스 삭제</h2>
+                <button @click="open = false" class="text-xl leading-none">&times;</button>
+            </div>
+
+            <form
+                action="{% url 'knowledge:delete_index' %}"
+                method="post"
+                class="px-6 py-4 space-y-4">
+                {% csrf_token %}
+
+                <div>
+                <label class="block text-sm font-medium"><span class="text-red-500">⚠️ 삭제할 인덱스 이름</span>을 입력하세요!</label>
+                <input name="name" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+
+                <div class="text-right space-x-2">
+                <button
+                    type="button"
+                    @click="open = false"
+                    class="px-4 py-2 rounded border hover:bg-gray-100"
+                >취소</button>
+
+                <button
+                    type="submit"
+                    class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white"
+                >삭제</button>
+                </div>
+                
+            </form>
+            </div>
+        </div>
+        </div>
+        <!-- Alpine 컴포넌트 끝 -->
+        
         <!-- Alpine 컴포넌트 시작 -->
         <div x-data="{ open: false, vector_type: 'dense', metric: 'cosine', dimension: null, cloud: 'aws', region: null,
             regionMap: {
@@ -104,7 +164,7 @@
                 azure: ['eastus2']
             },
             init() {this.region = this.regionMap[this.cloud][0]; }}"
-            x-init="init()" class="flex items-center gap-4">
+            x-init="init()" class="relative">
         <!-- 1) 인덱스 추가 버튼 -->
         <button
             @click="open = true"
@@ -144,7 +204,6 @@
 
                 <div>
                 <label class="block text-sm font-medium">벡터 타입</label>
-
                 <!-- vector type이 sparse라면 metric은 dotproduct, dimension은 0으로 선택되어 전달-->
                 <select id="vector_type" name="vector_type" class="w-full border rounded p-2"
                     x-model="vector_type"
@@ -202,7 +261,12 @@
                     </template>
                 </select>
                 </div>
-
+                
+                <!-- 주의사항 -->
+                <p class="text-red-500 text-sm italic mt-4">
+                    ⚠️ 참고: 벡터 타입으로 'sparse' 선택 시 거리함수는 'dotproduct', 차원 수는 0으로 고정됩니다! <br><br>
+                    ⚠️ 참고: 클라우드 선택에 따라 선택 가능한 지역이 달라집니다!
+                </p>
 
                 <div class="text-right space-x-2">
                 <button
@@ -215,11 +279,14 @@
                     class="px-4 py-2 rounded bg-orange-400 hover:bg-orange-600 text-white"
                 >추가</button>
                 </div>
+                
             </form>
             </div>
         </div>
         </div>
+        </div>
         <!-- Alpine 컴포넌트 끝 -->
+        
     </div>
     <div class="@container">
     <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
@@ -281,13 +348,11 @@
     </div>
     </section>
     {% endif %}
-    <!-- 인덱스 추가시 성공 메시지 출력-->
+    <!-- 인덱스 추가시 성공 메시지 출력 또는 에러 메시지 출력-->
     {% if messages %}
-    <script>
         {% for message in messages %}
-            alert("{{ message|escapejs }}");
+            <script>alert("{{ message|escapejs }}");</script>
         {% endfor %}
-    </script>
     {% endif %}
     </div>
     </div>
