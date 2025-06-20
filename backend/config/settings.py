@@ -15,6 +15,20 @@ from pathlib import Path
 
 load_dotenv()
 
+# AWS S3 설정
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+AWS_DEFAULT_REGION = os.environ.get('AWS_DEFAULT_REGION') # AWS S3 버킷이 위치한 리전
+AWS_STORAGE_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME') # .env에 S3_BUCKET_NAME으로 선언하셨다고 가정
+
+# Pinecone 설정
+PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
+PINECONE_ENVIRONMENT = os.environ.get('PINECONE_ENVIRONMENT')
+# PINECONE_INDEX_NAME = 'your-pinecone-index-name' # Pinecone 인덱스 이름도 .env에 넣고 로드하거나 여기에 직접 지정
+
+# OpenAI 설정
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 

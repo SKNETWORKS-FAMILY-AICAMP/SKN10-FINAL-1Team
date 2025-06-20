@@ -20,6 +20,11 @@ import tempfile # For creating temporary files and directories
 from django.contrib import messages
 import json # For JSON parsing
 import subprocess # For running background processes
+import boto3
+from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
+from django.conf import settings
+import shutil
+from git import Repo, GitCommandError
 
 # Adjust sys.path to include project root for main/flow imports
 import sys
@@ -316,6 +321,7 @@ def list_branches_for_url_view(request):
 
     user = request.user
     github_token = getattr(user, 'github_access_token', None)
+    print(f"DEBUG: User: {user.email}, GitHub Token available: {'YES' if github_token and github_token.strip() else 'NO'}")
 
     if not github_token:
         return JsonResponse({'status': 'error', 'message': 'GitHub token not found. Please connect your account.'}, status=403)
@@ -361,12 +367,63 @@ def list_branches_for_url_view(request):
 @require_POST
 @csrf_exempt
 def scan_selected_repositories_view(request):
+    print("\n!!! ENTERING scan_selected_repositories_view !!!")
     try:
         data = json.loads(request.body.decode('utf-8'))
         scan_type = data.get('scan_type')
+        print(f"DEBUG: scan_type received: '{scan_type}'")
         user = request.user
         github_token = getattr(user, 'github_access_token', None)
         scan_results = []
+        s3_client = None
+        print("DEBUG: BEFORE S3 CLIENT INITIALIZATION BLOCK (Corrected)")
+        
+        # Check for necessary S3 settings using getattr for safety
+        aws_access_key_id = getattr(settings, 'AWS_ACCESS_KEY_ID', None)
+        aws_secret_access_key = getattr(settings, 'AWS_SECRET_ACCESS_KEY', None)
+        s3_bucket_name_from_settings = getattr(settings, 'AWS_STORAGE_BUCKET_NAME', None) # Use the name defined in settings.py
+        aws_region_name = getattr(settings, 'AWS_DEFAULT_REGION', None)
+
+        print(f"DEBUG: S3 Config Check -> AWS_ACCESS_KEY_ID set: {bool(aws_access_key_id)}, AWS_SECRET_ACCESS_KEY set: {bool(aws_secret_access_key)}, S3_BUCKET_NAME set: {bool(s3_bucket_name_from_settings)}, AWS_DEFAULT_REGION set: {bool(aws_region_name)}")
+
+        if aws_access_key_id and aws_secret_access_key and s3_bucket_name_from_settings and aws_region_name:
+            print(f"DEBUG: Attempting to initialize S3 client with bucket: {s3_bucket_name_from_settings}, region: {aws_region_name}, access_key_id: {'*' * (len(aws_access_key_id) - 4) + aws_access_key_id[-4:] if aws_access_key_id else 'Not Set'}")
+            try:
+                s3_client = boto3.client(
+                    's3',
+                    aws_access_key_id=aws_access_key_id,
+                    aws_secret_access_key=aws_secret_access_key,
+                    region_name=aws_region_name
+                )
+                print(f"DEBUG: S3 client initialized successfully. Target Bucket: {s3_bucket_name_from_settings}")
+            except NoCredentialsError:
+                print("DEBUG: S3 client initialization failed: No AWS credentials found by Boto3.")
+                s3_client = None
+            except PartialCredentialsError:
+                print("DEBUG: S3 client initialization failed: Incomplete AWS credentials found by Boto3.")
+                s3_client = None
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code')
+                if error_code == 'InvalidClientTokenId' or error_code == 'SignatureDoesNotMatch':
+                    print(f"DEBUG: S3 client initialization failed: Invalid AWS credentials (Access Key ID or Secret Access Key). Error: {e}")
+                elif error_code == 'AccessDenied':
+                     print(f"DEBUG: S3 client initialization failed: Access Denied. Check IAM permissions for user and bucket. Error: {e}")
+                else:
+                    print(f"DEBUG: S3 client initialization failed with ClientError: {e}")
+                s3_client = None
+            except Exception as e:
+                print(f"DEBUG: An unexpected error occurred during S3 client initialization: {e}")
+                s3_client = None
+        else:
+            missing_s3_settings = []
+            if not aws_access_key_id: missing_s3_settings.append("AWS_ACCESS_KEY_ID")
+            if not aws_secret_access_key: missing_s3_settings.append("AWS_SECRET_ACCESS_KEY")
+            if not s3_bucket_name_from_settings: missing_s3_settings.append("S3_BUCKET_NAME")
+            if not aws_region_name: missing_s3_settings.append("AWS_DEFAULT_REGION")
+            print(f"DEBUG: S3 client NOT initialized. Missing S3 configurations in settings: {', '.join(missing_s3_settings)}")
+            s3_client = None 
+        
+        print("DEBUG: AFTER S3 CLIENT INITIALIZATION BLOCK (Corrected)")
 
         output_base_dir = os.path.join(PROJECT_ROOT, 'scanned_tutorials')
         os.makedirs(output_base_dir, exist_ok=True)
@@ -388,7 +445,93 @@ def scan_selected_repositories_view(request):
                         continue
 
                     repo_output_dir = os.path.join(output_base_dir, f"{owner}_{repo_name}")
-                    
+                    # --- S3 Upload Logic for Original Files (User Repos - Default Branch) ---
+                    if s3_client and s3_bucket_name_from_settings:
+                        current_branch_for_s3 = "default_branch" # Placeholder for S3 key, ideally detect actual default branch
+                        print(f"DEBUG: S3 Upload - User Repo '{repo_url}': Preparing to clone default branch and upload original files for repo {owner}/{repo_name}.")
+                        temp_clone_dir = tempfile.mkdtemp()
+                        print(f"DEBUG: S3 Upload - User Repo '{repo_url}': Created temp directory for cloning: {temp_clone_dir}")
+                        try:
+                            # 1. Construct the correct base .git URL using owner and repo_name
+                            correct_git_clone_url_base = f"https://github.com/{owner}/{repo_name}.git"
+
+                            # 2. Parse branch name from the input repo_url (which might be a /tree/ URL)
+                            parsed_branch_name_for_clone = None
+                            if "/tree/" in repo_url:
+                                try:
+                                    parts = repo_url.split("/tree/")
+                                    if len(parts) > 1:
+                                        branch_and_maybe_path = parts[1]
+                                        # Ensure branch name doesn't include .git if it was mistakenly appended to repo_url previously
+                                        parsed_branch_name_for_clone = branch_and_maybe_path.split('/')[0].replace('.git', '')
+                                        print(f"DEBUG: S3 Upload - Parsed branch '{parsed_branch_name_for_clone}' from repo_url '{repo_url}'")
+                                except Exception as e_parse_branch:
+                                    print(f"DEBUG: S3 Upload - Could not parse branch from repo_url '{repo_url}'. Error: {e_parse_branch}")
+                            
+                            # Update current_branch_for_s3 based on parsing result (this var is defined before this try block)
+                            if parsed_branch_name_for_clone:
+                                current_branch_for_s3 = parsed_branch_name_for_clone
+                            else:
+                                current_branch_for_s3 = "default_branch" # Fallback if no branch parsed or repo_url is base
+
+                            # 3. Prepare clone URL with token (using correct_git_clone_url_base)
+                            git_repo_url_for_clone_with_token = correct_git_clone_url_base
+                            if github_token:
+                                if correct_git_clone_url_base.startswith('https://github.com/'):
+                                    stripped_url = correct_git_clone_url_base[len('https://'):]
+                                    git_repo_url_for_clone_with_token = f"https://{github_token}@{stripped_url}"
+                                    print(f"DEBUG: S3 Upload - User Repo '{repo_url}': Using token for repo clone. Effective clone URL base: {git_repo_url_for_clone_with_token}")
+                                else:
+                                    print(f"WARNING: S3 Upload - User Repo '{repo_url}': Unexpected base repo URL format for token insertion: {correct_git_clone_url_base}")
+
+                            # 4. Perform clone
+                            clone_kwargs = {'depth': 1}
+                            if parsed_branch_name_for_clone:
+                                clone_kwargs['branch'] = parsed_branch_name_for_clone
+                            
+                            print(f"DEBUG: S3 Upload - User Repo '{repo_url}': Cloning from '{git_repo_url_for_clone_with_token}' (branch: {clone_kwargs.get('branch', 'default')}) into '{temp_clone_dir}'")
+                            Repo.clone_from(git_repo_url_for_clone_with_token, temp_clone_dir, **clone_kwargs)
+                            print(f"DEBUG: S3 Upload - User Repo '{repo_url}': Successfully cloned branch '{current_branch_for_s3}' of {owner}/{repo_name}.")
+
+                            user_identifier = str(user.id) if user.is_authenticated and hasattr(user, 'id') and user.id is not None else "unknown_user"
+
+                            for root_dir_walk, dirs_walk, files_in_dir_walk in os.walk(temp_clone_dir):
+                                if '.git' in dirs_walk:
+                                    dirs_walk.remove('.git')
+                                
+                                for file_name_walk in files_in_dir_walk:
+                                    local_file_path = os.path.join(root_dir_walk, file_name_walk)
+                                    relative_file_path_str = ''
+                                    if local_file_path.startswith(temp_clone_dir + os.sep):
+                                        relative_file_path_str = local_file_path[len(temp_clone_dir + os.sep):]
+                                    elif local_file_path == temp_clone_dir:
+                                        relative_file_path_str = ''
+                                    else:
+                                        relative_file_path_str = local_file_path # Fallback
+                                    
+                                    s3_object_key = f"original_sources/{user_identifier}/{owner}/{repo_name}/{current_branch_for_s3}/{relative_file_path_str.replace(os.sep, '/')}"
+                                    
+                                    print(f"DEBUG: S3 Upload - User Repo '{repo_url}': Attempting to upload '{local_file_path}' to S3 bucket '{s3_bucket_name_from_settings}' as '{s3_object_key}'")
+                                    try:
+                                        s3_client.upload_file(local_file_path, s3_bucket_name_from_settings, s3_object_key)
+                                        print(f"DEBUG: S3 Upload - User Repo '{repo_url}': Successfully uploaded '{s3_object_key}'")
+                                    except ClientError as e_s3_upload:
+                                        print(f"DEBUG: S3 Upload - User Repo '{repo_url}': FAILED to upload '{s3_object_key}'. ClientError: {e_s3_upload}")
+                                    except Exception as e_s3_upload_generic:
+                                        print(f"DEBUG: S3 Upload - User Repo '{repo_url}': FAILED to upload '{s3_object_key}'. Exception: {e_s3_upload_generic}")
+                        
+                        except GitCommandError as e_git:
+                            print(f"DEBUG: S3 Upload - User Repo '{repo_url}': Git clone FAILED for {owner}/{repo_name}. Error: {e_git}")
+                        except Exception as e_clone_general:
+                            print(f"DEBUG: S3 Upload - User Repo '{repo_url}': An unexpected error occurred during S3 prep/cloning for {owner}/{repo_name}. Error: {e_clone_general}")
+                        finally:
+                            if os.path.exists(temp_clone_dir):
+                                print(f"DEBUG: S3 Upload - User Repo '{repo_url}': Cleaning up temp directory: {temp_clone_dir} for {owner}/{repo_name}")
+                                # shutil.rmtree(temp_clone_dir) # Keep temp dir for LLM processing
+                                print(f"DEBUG: S3 Upload - User Repo '{repo_url}': Temp directory cleaned up for {owner}/{repo_name}.")
+                    else:
+                        print(f"DEBUG: S3 Upload - User Repo '{repo_url}': SKIPPED for {owner}/{repo_name} because S3 client or bucket name is not configured.")
+                    # --- End of S3 Upload Logic for User Repos ---
                     command = [
                         sys.executable,
                         main_script_path,
@@ -407,6 +550,7 @@ def scan_selected_repositories_view(request):
                     scan_results.append({'repo_url': repo_url, 'status': 'error', 'message': f'Failed to start scan: {str(e)}'})
         
         elif scan_type == 'public_branches':
+            print(f"DEBUG: Entered 'public_branches' block. Branches to scan: {{data.get('branches', [])}}, Repo base URL: {{data.get('public_repo_url')}}")
             public_repo_url_base = data.get('public_repo_url')
             branches_to_scan = data.get('branches', [])
 
@@ -418,10 +562,62 @@ def scan_selected_repositories_view(request):
                 return JsonResponse({'status': 'error', 'message': 'Invalid GitHub URL format.'}, status=400)
 
             for branch_name in branches_to_scan:
+                print(f"DEBUG: Processing branch: '{branch_name}' in 'public_branches' loop for repo {owner}/{repo_name}.")
                 repo_scan_url = f"https://github.com/{owner}/{repo_name}/tree/{branch_name}"
                 try:
                     repo_output_dir = os.path.join(output_base_dir, f"{owner}_{repo_name}_{branch_name}")
-                    
+                    # --- S3 Upload Logic for Original Files ---
+                    if s3_client and s3_bucket_name_from_settings:
+                        print(f"DEBUG: S3 Upload - Branch '{branch_name}': Preparing to clone and upload original files for repo {owner}/{repo_name}.")
+                        temp_clone_dir = tempfile.mkdtemp()
+                        print(f"DEBUG: S3 Upload - Branch '{branch_name}': Created temp directory for cloning: {temp_clone_dir}")
+                        try:
+                            git_repo_url_for_clone = f"https://github.com/{owner}/{repo_name}.git"
+                            print(f"DEBUG: S3 Upload - Branch '{branch_name}': Cloning from '{git_repo_url_for_clone}' (branch: {branch_name}) into '{temp_clone_dir}'")
+                            Repo.clone_from(git_repo_url_for_clone, temp_clone_dir, branch=branch_name, depth=1)
+                            print(f"DEBUG: S3 Upload - Branch '{branch_name}': Successfully cloned {owner}/{repo_name} branch {branch_name}.")
+
+                            user_identifier = str(user.id) if user.is_authenticated and hasattr(user, 'id') and user.id is not None else "public_scan_user"
+
+                            for root_dir_walk, dirs_walk, files_in_dir_walk in os.walk(temp_clone_dir):
+                                # Exclude .git directory from S3 upload
+                                if '.git' in dirs_walk:
+                                    dirs_walk.remove('.git') 
+                                
+                                for file_name_walk in files_in_dir_walk:
+                                    local_file_path = os.path.join(root_dir_walk, file_name_walk)
+                                    # Ensure relative_file_path is correctly stripping temp_clone_dir prefix
+                                    relative_file_path_str = ''
+                                    if local_file_path.startswith(temp_clone_dir + os.sep):
+                                        relative_file_path_str = local_file_path[len(temp_clone_dir + os.sep):]
+                                    elif local_file_path == temp_clone_dir: # Should not happen for files
+                                        relative_file_path_str = '' 
+                                    else:
+                                        relative_file_path_str = local_file_path # Fallback
+                                    
+                                    s3_object_key = f"original_sources/{user_identifier}/{owner}/{repo_name}/{branch_name}/{relative_file_path_str.replace(os.sep, '/')}"
+                                    
+                                    print(f"DEBUG: S3 Upload - Branch '{branch_name}': Attempting to upload '{local_file_path}' to S3 bucket '{s3_bucket_name_from_settings}' as '{s3_object_key}'")
+                                    try:
+                                        s3_client.upload_file(local_file_path, s3_bucket_name_from_settings, s3_object_key)
+                                        print(f"DEBUG: S3 Upload - Branch '{branch_name}': Successfully uploaded '{s3_object_key}'")
+                                    except ClientError as e_s3_upload:
+                                        print(f"DEBUG: S3 Upload - Branch '{branch_name}': FAILED to upload '{s3_object_key}'. ClientError: {e_s3_upload}")
+                                    except Exception as e_s3_upload_generic:
+                                        print(f"DEBUG: S3 Upload - Branch '{branch_name}': FAILED to upload '{s3_object_key}'. Exception: {e_s3_upload_generic}")
+                        
+                        except GitCommandError as e_git:
+                            print(f"DEBUG: S3 Upload - Branch '{branch_name}': Git clone FAILED for {owner}/{repo_name} branch {branch_name}. Error: {e_git}")
+                        except Exception as e_clone_general:
+                            print(f"DEBUG: S3 Upload - Branch '{branch_name}': An unexpected error occurred during S3 prep/cloning for {owner}/{repo_name} branch {branch_name}. Error: {e_clone_general}")
+                        finally:
+                            if os.path.exists(temp_clone_dir):
+                                print(f"DEBUG: S3 Upload - Branch '{branch_name}': Cleaning up temp directory: {temp_clone_dir} for {owner}/{repo_name} branch {branch_name}")
+                                # shutil.rmtree(temp_clone_dir) # Keep temp dir for LLM processing
+                                print(f"DEBUG: S3 Upload - Branch '{branch_name}': Temp directory cleaned up for {owner}/{repo_name} branch {branch_name}.")
+                    else:
+                        print(f"DEBUG: S3 Upload - Branch '{branch_name}': SKIPPED for {owner}/{repo_name} branch {branch_name} because S3 client or bucket name is not configured.")
+                    # --- End of S3 Upload Logic ---
                     command = [
                         sys.executable,
                         main_script_path,
