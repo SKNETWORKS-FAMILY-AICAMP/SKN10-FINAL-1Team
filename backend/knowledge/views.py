@@ -7,7 +7,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from .utils import get_index_lists,get_sessions, get_users, get_postgre_db, get_all_table, make_index, remove_index
+from .utils import get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table, make_index, remove_index
+from .models import User
 # Create your views here.
 
 def dashboard_view(request):
@@ -24,6 +25,8 @@ def dashboard_view(request):
             context['tables'] = get_all_table()
         elif db == "pinecone" :
             context['indexes'] = get_index_lists()
+        elif db == "s3" :
+            pass
 
     elif section == "log" :
         context['sessions'] = get_sessions() 
@@ -83,7 +86,23 @@ def delete_index(request):
     else : 
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
 
+def delete_user(request):
+    if request.method == 'POST':
+        email = request.POST.get('email') # 이메일
+        url = reverse('knowledge:dashboard') + '?section=user'
 
+        try : 
+            target = User.objects.get(email=email)
+            print(User.objects.all())
+        except : 
+            messages.error(request, '⚠️ 해당 이메일의 계정이 없습니다!')
+            return redirect(url)
+        
+        target.delete() # 완전 삭제
+        messages.success(request, f'✅ {email} 계정이 삭제되었습니다.')
+        return redirect(url)
+    else : 
+        return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
 
 # Placeholder API views to match knowledge/urls.py
 # These should be properly implemented later.

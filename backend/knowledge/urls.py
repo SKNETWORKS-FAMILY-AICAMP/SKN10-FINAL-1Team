@@ -29,6 +29,7 @@ urlpatterns = [
     path('dashboard/', views.dashboard_view, name='dashboard'), # New view for dashboard.html
     path('dashboard/create_index/', views.create_index, name='create_index'),
     path('dashboard/delete_index/', views.delete_index, name='delete_index'),
+    path('dashboard/delete_user/', views.delete_user, name='delete_user'),
     # Include API routes under 'api/' prefix
     path('api/', include(api_urlpatterns)),
 ]
