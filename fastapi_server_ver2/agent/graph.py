@@ -17,16 +17,14 @@ import os
 import sys
 from typing import List, Dict, Any # Added Type for Pinecone tools
 from pydantic import BaseModel, Field # For tool input schema
-from dotenv import load_dotenv
 from openai import OpenAI
 from pinecone import Pinecone as PineconeClient # Renamed to avoid conflict
 from langchain_core.tools import Tool
-from src.agent.tools import analyst_chart_tool, predict_churn_tool, sql_tools_for_analyst # Import chart, churn, and SQL tools
+from .tools import analyst_chart_tool, predict_churn_tool, sql_tools_for_analyst # Import chart, churn, and SQL tools
 
-from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
-# Load environment variables from .env file (expected in swarm_agent directory)
-load_dotenv()
+# Environment variables are loaded from the main.py entrypoint.
 
 # --- Pinecone/OpenAI Client Initialization ---
 def init_clients():
@@ -292,9 +290,11 @@ predict_assistant = create_react_agent(
 )
 
 
-graph = create_swarm(
-    agents=[doc_search_assistant, analyst_assistant, predict_assistant],
-    default_active_agent="doc_search_assistant"
-).compile()
 
 
+def get_swarm_graph(checkpointer: AsyncPostgresSaver):
+    """Compiles and returns the swarm graph with the given checkpointer."""
+    return create_swarm(
+        agents=[doc_search_assistant, analyst_assistant, predict_assistant],
+        default_active_agent="doc_search_assistant"
+    ).compile(checkpointer=checkpointer)
