@@ -111,13 +111,10 @@
             </div>
             <div id="session-list" class="flex-1 overflow-y-auto p-2">
                 {% for session in sessions %}
-                <div class="session-item flex items-center p-3 rounded-lg cursor-pointer mb-2 border-l-4 {% if session.id == active_session_id %}border-primary bg-blue-900/30{% else %}border-transparent hover:bg-gray-700/50{% endif %} group-[.is-collapsed]:justify-center" data-session-id="{{ session.id }}">
-                    <i class="fas fa-comment-dots text-gray-400"></i>
-                    <div class="ml-3 flex-1 truncate group-[.is-collapsed]:hidden">
-                        <h3 class="font-semibold truncate">{{ session.title }}</h3>
-                        <p class="text-xs text-gray-400">{{ session.started_at|date:"Y-m-d H:i" }}</p>
-                    </div>
-                </div>
+                <a href="{% url 'conversations:chatbot_session' session.id %}" id="session-link-{{ session.id }}" class="session-item flex items-center p-3 rounded-lg transition-colors {% if session.id|stringformat:'s' == active_session_id %}bg-blue-600/30 text-white{% else %}hover:bg-gray-700/50 text-gray-300{% endif %}">
+                    <i class="fas fa-comment-dots fa-fw text-gray-400"></i>
+                    <span id="session-title-{{ session.id }}" class="flex-1 truncate ml-3">{{ session.title|default:"새로운 채팅" }}</span>
+                </a>
                 {% empty %}
                 <p class="text-gray-500 text-sm text-center p-4">채팅 세션이 없습니다.</p>
                 {% endfor %}
@@ -127,7 +124,13 @@
         <!-- 채팅창 -->
         <main class="flex-1 flex flex-col bg-dark">
             <header class="bg-dark/80 backdrop-blur border-b border-gray-800 p-4 flex justify-between items-center">
-                <h1 class="text-xl font-bold">{% if active_session %}{{ active_session.title }}{% else %}WorkAssist AI{% endif %}</h1>
+                <h2 id="chat-header-title" class="text-lg font-semibold truncate">
+                    {% if active_session_id %}
+                        {{ sessions.first.title|default:"Chat" }}
+                    {% else %}
+                        WorkAssist AI
+                    {% endif %}
+                </h2>
                 <div class="flex items-center space-x-4">
                     <span class="text-sm text-gray-400">안녕하세요, {{ user.username }}님</span>
                                         <a href="{% url 'accounts:logout_page' %}" class="text-sm bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg transition-colors">로그아웃</a>
@@ -148,26 +151,23 @@
                         </div>
                         {% elif message.role == 'assistant' %}
                         <div class="flex items-start gap-3 mb-4">
-                            <img src="{% static 'images/logo_icon.png' %}" alt="AI" class="w-8 h-8 rounded-full bg-slate-700 mt-1">
+    
                             <div class="w-full max-w-xl">
-                                {% if message.tool_data %}
-                                <details class="tool-usage-container bg-slate-800 rounded-lg border border-slate-700 mb-2">
-                                    <summary class="p-2 cursor-pointer text-slate-400 hover:bg-slate-700 rounded-t-lg"><i class="fas fa-cogs fa-fw mr-2"></i>Tool Use</summary>
+                                {% if message.processed_tool_events %}
+                                <details class="tool-usage-container bg-slate-800 rounded-lg border border-slate-700 mb-2" open>
+                                    <summary class="p-2 cursor-pointer text-slate-400 hover:bg-slate-700 rounded-t-lg"><i class="fas fa-cogs fa-fw mr-2"></i>Tool Usage</summary>
                                     <div class="tool-usage-content p-3 border-t border-slate-700">
-                                        {% for tool_item in message.tool_data %}
-                                            {% if tool_item.type == 'tool_calls' %}
-                                                {% for tool_call in tool_item.tool_calls %}
-                                                <div class="tool-call-item mb-2 p-2 bg-slate-900 rounded">
-                                                    <div class="font-semibold"><i class="fas fa-wrench fa-fw mr-2"></i>{{ tool_call.name }}</div>
-                                                    <div class="text-xs text-slate-400 mt-1 pl-5">Args: {{ tool_call.args|safe }}</div>
-                                                </div>
-                                                {% endfor %}
-                                            {% elif tool_item.type == 'tool' %}
-                                                <div class="tool-output-item mt-2 p-2 bg-slate-900 rounded">
-                                                    <div class="font-semibold text-green-400"><i class="fas fa-clipboard-check fa-fw mr-2"></i>Output from {{ tool_item.name }}</div>
-                                                    <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 pl-5">{{ tool_item.content }}</pre>
-                                                </div>
-                                            {% endif %}
+                                        {% for event in message.processed_tool_events %}
+                                        <div class="mb-2">
+                                            <div class="tool-call-item">
+                                                <div class="font-semibold text-amber-400"><i class="fas fa-wrench fa-fw mr-2"></i>{{ event.call.name }}</div>
+                                                <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 bg-slate-950 p-2 rounded">{{ event.call.args_pretty }}</pre>
+                                            </div>
+                                            <div class="tool-output-item mt-1">
+                                                <div class="font-semibold text-green-400"><i class="fas fa-clipboard-check fa-fw mr-2"></i>Output</div>
+                                                <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 bg-slate-950 p-2 rounded">{{ event.output }}</pre>
+                                            </div>
+                                        </div>
                                         {% endfor %}
                                     </div>
                                 </details>
@@ -220,19 +220,93 @@
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Element selections
+        const chatMessages = document.getElementById('chat-messages');
         const chatForm = document.getElementById('chat-form');
         const messageInput = document.getElementById('message-input');
-        const sendButton = document.getElementById('send-button');
-        const chatMessages = document.getElementById('chat-messages');
         const newSessionBtn = document.getElementById('new-session-btn');
         const sessionList = document.getElementById('session-list');
-        const typingIndicator = document.getElementById('typing-indicator');
-        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        let activeSessionId = document.body.dataset.activeSessionId || null;
-
         const sidebar = document.getElementById('sidebar');
         const sidebarToggle = document.getElementById('sidebar-toggle');
+        const body = document.body;
 
+        // --- Helper Functions ---
+        function getActiveSessionId() {
+            return body.dataset.activeSessionId;
+        }
+
+        function getCsrfToken() {
+            const csrfCookie = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+            return csrfCookie ? csrfCookie.split('=')[1] : document.querySelector('[name=csrfmiddlewaretoken]').value;
+        }
+
+        function scrollToBottom() {
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+
+        // --- UI Update Functions ---
+        function updateToolUI(toolData, toolContainer) {
+            if (!toolContainer) return;
+            const toolContentDiv = toolContainer.querySelector('.tool-usage-content');
+            if (!toolContentDiv) return;
+
+            toolContainer.style.display = 'block';
+            toolContentDiv.innerHTML = ''; // Clear previous content as we get full updates
+
+            for (const agentName in toolData) {
+                const agentState = toolData[agentName];
+                if (agentState.messages) {
+                    const toolEvents = {}; // Store calls and their outputs
+
+                    agentState.messages.forEach(msg => {
+                        if (msg.type === 'ai' && msg.tool_calls && msg.tool_calls.length > 0) {
+                            msg.tool_calls.forEach(tc => {
+                                if (tc.id) {
+                                    toolEvents[tc.id] = { call: tc, output: 'Pending...' };
+                                }
+                            });
+                        }
+                    });
+
+                    agentState.messages.forEach(msg => {
+                        if (msg.type === 'tool' && msg.tool_call_id && toolEvents[msg.tool_call_id]) {
+                            let outputContent = msg.content;
+                            try {
+                                const parsedContent = JSON.parse(outputContent);
+                                outputContent = JSON.stringify(parsedContent, null, 2);
+                            } catch (e) { /* Not a JSON string, leave as is */ }
+                            toolEvents[msg.tool_call_id].output = outputContent;
+                        }
+                    });
+                    
+                    for (const id in toolEvents) {
+                        const { call, output } = toolEvents[id];
+                        const toolCallElement = document.createElement('div');
+                        toolCallElement.id = `tool-${id}`;
+                        toolCallElement.classList.add('mb-2');
+                        
+                        const argsString = JSON.stringify(call.args, null, 2);
+                        const outputString = (typeof output === 'string') ? output : JSON.stringify(output, null, 2);
+
+                        toolCallElement.innerHTML = `
+                            <div class="tool-call-item">
+                                <div class="font-semibold text-amber-400"><i class="fas fa-wrench fa-fw mr-2"></i>${call.name}</div>
+                                <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 bg-slate-950 p-2 rounded">${argsString}</pre>
+                            </div>
+                            <div class="tool-output-item mt-1">
+                                <div class="font-semibold text-green-400"><i class="fas fa-clipboard-check fa-fw mr-2"></i>Output</div>
+                                <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 bg-slate-950 p-2 rounded">${outputString}</pre>
+                            </div>
+                        `;
+                        toolContentDiv.appendChild(toolCallElement);
+                    }
+                }
+            }
+        }
+
+        // --- Event Listeners ---
         if (sidebar && sidebarToggle) {
             sidebarToggle.addEventListener('click', () => {
                 sidebar.classList.toggle('w-80');
@@ -242,193 +316,183 @@
             });
         }
 
-        function scrollToBottom() {
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-        scrollToBottom();
-
-        newSessionBtn.addEventListener('click', async (e) => {
-            e.preventDefault();
-            try {
-                const response = await fetch("{% url 'conversations:api:session_create' %}", {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': csrfToken,
-                        'Content-Type': 'application/json'
+        if (newSessionBtn) {
+            newSessionBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                try {
+                    const response = await fetch("{% url 'conversations:api:session_create' %}", {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': getCsrfToken(),
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    const data = await response.json();
+                    if (data.session_id) {
+                        window.location.href = `/conversations/chat/${data.session_id}/`;
                     }
-                });
-                const data = await response.json();
-                if (data.session_id) {
-                    window.location.href = `/conversations/chat/${data.session_id}/`;
+                } catch (error) {
+                    console.error('Error creating new session:', error);
                 }
-            } catch (error) {
-                console.error('Error creating new session:', error);
-            }
-        });
-
-        sessionList.addEventListener('click', (e) => {
-            const sessionItem = e.target.closest('.session-item');
-            if (sessionItem) {
-                const sessionId = sessionItem.dataset.sessionId;
-                if (sessionId) {
-                    window.location.href = `/conversations/chat/${sessionId}/`;
-                }
-            }
-        });
-
-        function appendMessage(text, role) {
-            const messageWrapper = document.createElement('div');
-            let messageContent;
-
-            if (role === 'user') {
-                messageWrapper.className = 'flex justify-end';
-                messageContent = `
-                    <div class="max-w-xl">
-                        <div class="chat-bubble-user text-white p-4 rounded-lg rounded-br-none shadow-lg">
-                            <p>${text.replace(/\n/g, '<br>')}</p>
-                        </div>
-                        <p class="text-xs text-gray-500 text-right mt-1">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                    </div>`;
-            } else { // assistant
-                // This is a placeholder for the AI message container, which will be built dynamically.
-                // The actual AI message bubble is constructed in the event listener.
-                messageWrapper.className = 'flex justify-start';
-                messageContent = `
-                    <div class="w-8 h-8 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center flex-shrink-0 mr-3">
-                        <i class="fas fa-robot text-white text-sm"></i>
-                    </div>
-                    <div class="max-w-xl">
-                        <div class="chat-bubble-ai text-gray-200 p-4 rounded-lg rounded-bl-none shadow-lg">
-                            <p>${text ? text.replace(/\n/g, '<br>') : ''}</p>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-1">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                    </div>`;
-            }
-            
-            messageWrapper.innerHTML = messageContent;
-            chatMessages.appendChild(messageWrapper);
-            return messageWrapper;
+            });
         }
 
-        chatForm.addEventListener('submit', async function(event) {
-            event.preventDefault();
-            
-            const messageText = messageInput.value.trim();
-            if (!messageText) return;
+        if (sessionList) {
+            sessionList.addEventListener('click', (e) => {
+                const sessionItem = e.target.closest('.session-item');
+                if (sessionItem) {
+                    const sessionId = sessionItem.dataset.sessionId;
+                    if (sessionId) {
+                        window.location.href = `/conversations/chat/${sessionId}/`;
+                    }
+                }
+            });
+        }
+        
+        if (chatForm) {
+            chatForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const messageText = messageInput.value.trim();
+                if (!messageText) return;
 
-            if (!activeSessionId) {
-                appendMessage('새로운 대화를 시작하려면 왼쪽 상단의 "새 세션 시작하기" 버튼을 눌러주세요.', 'assistant');
+                const sessionId = getActiveSessionId();
+                if (!sessionId) {
+                    alert('Please start a new session first.');
+                    return;
+                }
+
+                // Append user message
+                const userMessageHtml = `
+                    <div class="flex justify-end">
+                        <div class="max-w-xl">
+                            <div class="chat-bubble-user text-white p-4 rounded-lg shadow-md">
+                                ${messageText.replace(/\n/g, '<br>')}
+                            </div>
+                            <p class="text-xs text-gray-500 text-right mt-1">Now</p>
+                        </div>
+                    </div>`;
+                chatMessages.innerHTML += userMessageHtml;
+                messageInput.value = '';
+                messageInput.style.height = 'auto';
                 scrollToBottom();
-                return;
-            }
-            
-            appendMessage(messageText, 'user');
-            messageInput.value = '';
-            scrollToBottom();
 
-            const assistantMessageDiv = document.createElement('div');
-            assistantMessageDiv.classList.add('flex', 'items-start', 'gap-3', 'mb-4');
-            
-            const assistantAvatar = document.createElement('img');
-            assistantAvatar.src = "{% static 'images/logo_icon.png' %}";
-            assistantAvatar.alt = 'AI';
-            assistantAvatar.classList.add('w-8', 'h-8', 'rounded-full', 'bg-slate-700', 'mt-1');
+                // Prepare assistant message container
+                const assistantMessageId = `assistant-message-${Date.now()}`;
+                const assistantMessageHtml = `
+                    <div class="flex items-start gap-3 mb-4">
 
-            const assistantContentContainer = document.createElement('div');
-            assistantContentContainer.classList.add('w-full', 'max-w-xl');
+                        <div class="w-full max-w-xl">
+                            <div id="${assistantMessageId}-container">
+                                <details class="tool-usage-container bg-slate-800 rounded-lg border border-slate-700 mb-2" style="display: none;">
+                                    <summary class="p-2 cursor-pointer text-slate-400 hover:bg-slate-700 rounded-t-lg"><i class="fas fa-cogs fa-fw mr-2"></i>Tool Usage</summary>
+                                    <div class="tool-usage-content p-3 border-t border-slate-700"></div>
+                                </details>
+                                <div class="chat-bubble-ai text-white p-4 rounded-lg shadow-md">
+                                    <p id="${assistantMessageId}"><span class="typing-indicator"><span></span><span></span><span></span></span></p>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Just now</p>
+                        </div>
+                    </div>`;
+                chatMessages.innerHTML += assistantMessageHtml;
+                scrollToBottom();
 
-            const toolUsageDetails = document.createElement('details');
-            toolUsageDetails.classList.add('tool-usage-container', 'bg-slate-800', 'rounded-lg', 'border', 'border-slate-700');
-            toolUsageDetails.style.display = 'none';
-            toolUsageDetails.innerHTML = `
-                <summary class="p-2 cursor-pointer text-slate-400 hover:bg-slate-700 rounded-t-lg"><i class="fas fa-cogs fa-fw mr-2"></i>Tool Use</summary>
-                <div class="tool-usage-content p-3 border-t border-slate-700"></div>
-            `;
-            
-            const assistantMessageBubble = document.createElement('div');
-            assistantMessageBubble.classList.add('chat-bubble-ai', 'text-gray-200', 'p-4', 'rounded-lg', 'rounded-bl-none', 'shadow-lg', 'bg-slate-700');
-            const assistantMessageP = document.createElement('p');
-            assistantMessageP.classList.add('leading-relaxed');
-            assistantMessageP.innerHTML = '<i class="fas fa-spinner fa-pulse"></i>';
-            assistantMessageBubble.appendChild(assistantMessageP);
+                const assistantMessageP = document.getElementById(assistantMessageId);
+                const toolContainer = document.querySelector(`#${assistantMessageId}-container .tool-usage-container`);
 
-            assistantContentContainer.appendChild(toolUsageDetails);
-            assistantContentContainer.appendChild(assistantMessageBubble);
-            assistantMessageDiv.appendChild(assistantAvatar);
-            assistantMessageDiv.appendChild(assistantContentContainer);
-            chatMessages.appendChild(assistantMessageDiv);
-            scrollToBottom();
+                // Fetch stream
+                try {
+                    const response = await fetch(`/conversations/api/chat/stream/${sessionId}/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken()
+                        },
+                        body: JSON.stringify({ message: messageText })
+                    });
 
-            try {
-                const response = await fetch(`/conversations/api/chat/stream/${activeSessionId}/`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrfToken
-                    },
-                    body: JSON.stringify({ message: messageText })
-                });
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    let isFirstChunk = true;
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop(); 
 
-                    buffer += decoder.decode(value, { stream: true });
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop();
-
-                    for (const line of lines) {
-                        if (!line.startsWith('data: ')) continue;
-                        try {
-                            const jsonData = JSON.parse(line.substring(6));
-                            const lastMessage = jsonData.data?.[jsonData.data.length - 1];
-                            const toolContentDiv = toolUsageDetails.querySelector('.tool-usage-content');
-
-                            if (jsonData.event === 'messages/partial' && lastMessage?.tool_calls?.length > 0) {
-                                toolUsageDetails.style.display = 'block';
-                                lastMessage.tool_calls.forEach(toolCall => {
-                                    if (toolContentDiv.querySelector(`#${toolCall.id}`)) return;
-                                    const toolCallElement = document.createElement('div');
-                                    toolCallElement.id = toolCall.id;
-                                    toolCallElement.classList.add('tool-call-item', 'mb-2', 'p-2', 'bg-slate-900', 'rounded');
-                                    toolCallElement.innerHTML = `
-                                        <div class="font-semibold"><i class="fas fa-wrench fa-fw mr-2"></i>${toolCall.name}</div>
-                                        <div class="text-xs text-slate-400 mt-1 pl-5">Args: ${JSON.stringify(toolCall.args)}</div>
-                                    `;
-                                    toolContentDiv.appendChild(toolCallElement);
-                                });
-                            } else if (jsonData.event === 'messages/complete' && lastMessage?.type === 'tool') {
-                                toolUsageDetails.style.display = 'block';
-                                const toolOutputElement = document.createElement('div');
-                                toolOutputElement.classList.add('tool-output-item', 'mt-2', 'p-2', 'bg-slate-900', 'rounded');
-                                toolOutputElement.innerHTML = `
-                                    <div class="font-semibold text-green-400"><i class="fas fa-clipboard-check fa-fw mr-2"></i>Output from ${lastMessage.name}</div>
-                                    <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 pl-5">${lastMessage.content}</pre>
-                                `;
-                                toolContentDiv.appendChild(toolOutputElement);
-                            } else if (jsonData.event === 'messages/partial' && lastMessage?.type === 'ai' && typeof lastMessage.content === 'string' && lastMessage.content) {
-                                if (assistantMessageP.innerHTML.includes('fa-spinner')) {
+                        for (const line of lines) {
+                            if (!line.startsWith('data: ')) continue;
+                            try {
+                                const rawJson = line.substring(6).trim();
+                                if (!rawJson) continue;
+                                const payload = JSON.parse(rawJson);
+                                
+                                if (isFirstChunk && assistantMessageP) {
                                     assistantMessageP.innerHTML = '';
+                                    isFirstChunk = false;
                                 }
-                                assistantMessageP.innerText = lastMessage.content;
+
+                                if (payload.event === 'title_start') {
+                                    const headerTitle = document.getElementById('chat-header-title');
+                                    const sidebarTitle = document.getElementById(`session-title-${sessionId}`);
+                                    if (headerTitle) headerTitle.textContent = '';
+                                    if (sidebarTitle) sidebarTitle.textContent = '';
+                                } else if (payload.event === 'title_chunk') {
+                                    const headerTitle = document.getElementById('chat-header-title');
+                                    const sidebarTitle = document.getElementById(`session-title-${sessionId}`);
+                                    if (headerTitle) headerTitle.textContent += payload.data;
+                                    if (sidebarTitle) sidebarTitle.textContent += payload.data;
+                                } else if (payload.event === 'title_end') {
+                                    const finalTitle = payload.data;
+                                    const headerTitle = document.getElementById('chat-header-title');
+                                    const sidebarTitle = document.getElementById(`session-title-${sessionId}`);
+                                    if (headerTitle) headerTitle.textContent = finalTitle;
+                                    if (sidebarTitle) sidebarTitle.textContent = finalTitle;
+                                    document.title = `${finalTitle} - WorkAssist`;
+                                } else if (payload.event === 'message_chunk') {
+                                    if (assistantMessageP) assistantMessageP.innerHTML += payload.data.replace(/\n/g, '<br>');
+                                } else if (payload.event === 'tool_use_started') {
+                                    if (toolContainer) {
+                                        toolContainer.style.display = 'block';
+                                        const toolContentDiv = toolContainer.querySelector('.tool-usage-content');
+                                        if (toolContentDiv && toolContentDiv.innerHTML === '') {
+                                            toolContentDiv.innerHTML = '<p class="text-slate-400 text-xs"><i>Agent is using tools...</i></p>';
+                                        }
+                                    }
+                                } else if (payload.event === 'tool_update') {
+                                    updateToolUI(payload.data, toolContainer);
+                                } else if (payload.event === 'error') {
+                                    if (assistantMessageP) assistantMessageP.innerHTML = `<span class="text-red-400">Error: ${payload.data}</span>`;
+                                    break;
+                                }
+                                scrollToBottom();
+                            } catch (e) {
+                                console.error('Error parsing stream data:', e, 'line:', line);
                             }
-                            scrollToBottom();
-                        } catch (e) {
-                            console.error('Error parsing stream data:', e, 'line:', line);
                         }
                     }
+                } catch (error) {
+                    console.error('Fetch error:', error);
+                    if (assistantMessageP) assistantMessageP.innerHTML = '<span class="text-red-400">Sorry, an error occurred while connecting to the server.</span>';
                 }
-            } catch (error) {
-                console.error('Fetch error:', error);
-                assistantMessageP.innerText = 'Sorry, something went wrong.';
-            }
-        });
+            });
+        }
+
+        if (messageInput) {
+            messageInput.addEventListener('input', () => {
+                messageInput.style.height = 'auto';
+                messageInput.style.height = (messageInput.scrollHeight) + 'px';
+            });
+        }
+        
+        // Initial scroll to bottom
+        scrollToBottom();
     });
     </script>
 </body>
