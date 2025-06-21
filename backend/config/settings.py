@@ -31,6 +31,10 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 
+# LangGraph API settings
+LANGGRAPH_API_URL = os.getenv("LANGGRAPH_API_URL", "http://127.0.0.1:2024")
+LANGGRAPH_API_KEY = os.getenv("LANGGRAPH_API_KEY", "")
+print(LANGGRAPH_API_KEY,"LANGGRAPH_API_KEY    ",LANGGRAPH_API_URL,"LANGGRAPH_API_URL")
 # Application definition
 
 INSTALLED_APPS = [

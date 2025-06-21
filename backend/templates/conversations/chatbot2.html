@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WorkAssist - 사내업무 보조 챗봇</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb',
+                        secondary: '#3b82f6',
+                        dark: '#0f172a',
+                        light: '#f8fafc',
+                        'sidebar-bg': '#141c2d',
+                        'sidebar-hover': '#20304a',
+                        'header-bg': '#111827',
+                        'input-bg': '#1f2937',
+                        'message-ai': '#1e2a47',
+                        'message-user': '#1a3a5f',
+                        'border-dark': '#2d3748',
+                        'tool-header': '#253350'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * { font-family: 'Inter', 'Noto Sans KR', sans-serif; }
+        
+        body {
+            background: radial-gradient(ellipse at top, #0c121f 0%, #090c15 100%);
+            background-attachment: fixed;
+            color: #e5e7eb;
+        }
+        
+        .sidebar {
+            background: linear-gradient(160deg, #141c2d 0%, #0f172a 100%);
+            box-shadow: 10px 0 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        .main-chat-area {
+            background: linear-gradient(to bottom, rgba(17, 24, 39, 0.6), rgba(15, 23, 42, 0.8)), 
+                        radial-gradient(ellipse at top, rgba(37, 99, 235, 0.05), transparent 70%);
+        }
+        
+        .chat-bubble-user {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            border-radius: 18px 18px 4px 18px;
+        }
+        
+        .chat-bubble-ai {
+            background: linear-gradient(135deg, #1e2a47 0%, #111d38 100%);
+            border-radius: 18px 18px 18px 4px;
+        }
+        
+        .tool-usage-container {
+            background: linear-gradient(to bottom, rgba(37, 51, 80, 0.8), rgba(27, 37, 59, 0.95));
+            border: 1px solid #2d4477;
+            border-radius: 12px;
+        }
+        
+        .tool-call-item {
+            background: linear-gradient(135deg, #172747 0%, #111d38 100%);
+            border-left: 3px solid #f59e0b;
+        }
+        
+        .tool-output-item {
+            background: linear-gradient(135deg, #132e3a 0%, #0b2129 100%);
+            border-left: 3px solid #10b981;
+        }
+        
+        .session-item.active {
+            background: linear-gradient(to right, rgba(37, 99, 235, 0.2), transparent);
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .session-item:hover {
+            background: linear-gradient(to right, rgba(37, 99, 235, 0.15), transparent);
+        }
+        
+        .growing-shadow {
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .growing-shadow:hover {
+            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.35);
+            transform: translateY(-2px);
+        }
+        
+        .sidebar-toggle-btn {
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+        }
+        
+        .sidebar-toggle-btn:hover { background: rgba(59, 130, 246, 0.25); }
+        
+        .pulse-avatar { animation: pulse 2s infinite; }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        
+        .typing-indicator span {
+            display: inline-block; width: 8px; height: 8px;
+            background-color: #94a3b8; border-radius: 50%;
+            margin: 0 2px; animation: typing 1.4s infinite ease-in-out;
+        }
+        
+        .typing-indicator span:nth-child(1) { animation-delay: 0s; }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typing {
+            0%, 100% { transform: translateY(0); opacity: 0.5; }
+            50% { transform: translateY(-5px); opacity: 1; }
+        }
+        
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .chat-input {
+            backdrop-filter: blur(10px); background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+        
+        .chat-input:focus {
+            border-color: rgba(59, 130, 246, 0.5);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+        
+        .send-btn {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+            transition: all 0.2s ease;
+        }
+        
+        .send-btn:hover {
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="h-screen overflow-hidden text-gray-100" data-active-session-id="">
+    <div class="flex justify-between items-center py-3 px-6 bg-header-bg border-b border-border-dark">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-lg bg-gradient-to-r from-primary to-secondary flex items-center justify-center">
+                <i class="fas fa-robot text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-xl bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">WorkAssist AI</h1>
+                <p class="text-xs text-gray-400">사내업무 보조 챗봇 서비스</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2 bg-gray-800/50 py-1 px-3 rounded-full">
+                <div class="bg-gradient-to-r from-amber-500 to-amber-600 w-7 h-7 rounded-full flex items-center justify-center">
+                    <span class="text-xs font-bold">U</span>
+                </div>
+                <span id="username" class="font-medium text-sm">사용자이름</span>
+            </div>
+            <button class="py-1.5 px-4 text-sm bg-red-600 hover:bg-red-700 rounded-lg transition-colors">
+                <i class="fas fa-sign-out-alt mr-1.5"></i>로그아웃
+            </button>
+        </div>
+    </div>
+
+    <div class="flex h-[calc(100vh-65px)]">
+        <div id="sidebar" class="sidebar w-64 flex flex-col h-full transition-all duration-300 ease-in-out relative">
+            <button id="sidebarToggle" class="sidebar-toggle-btn absolute -right-4 top-4 w-8 h-8 rounded-full flex items-center justify-center z-10">
+                <i class="fas fa-chevron-left text-gray-300"></i>
+            </button>
+            
+            <div class="p-4 border-b border-border-dark">
+                <h2 class="text-lg font-bold mb-4 flex items-center justify-between">
+                    <span>채팅 세션</span>
+                    <span id="session-count" class="text-xs text-gray-400 bg-gray-800 px-2 py-0.5 rounded">0개</span>
+                </h2>
+                <button id="newSessionBtn" class="growing-shadow w-full bg-gradient-to-r from-primary to-secondary text-white font-medium py-2.5 px-4 rounded-xl flex items-center justify-center">
+                    <i class="fas fa-plus mr-2"></i> 새 세션 시작
+                </button>
+            </div>
+            
+            <div id="session-list" class="flex-1 overflow-y-auto py-2 px-3 space-y-2">
+                 <p id="no-session-placeholder" class="text-gray-500 text-sm text-center p-4">채팅 세션이 없습니다.</p>
+            </div>
+            
+            <div class="p-4 border-t border-border-dark">
+                <div class="flex items-center justify-center space-x-2">
+                    <i class="fas fa-shield-alt text-cyan-400"></i>
+                    <p class="text-xs text-gray-400">보안 인증된 연결 · <span class="text-cyan-400">안전함</span></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="main-chat-area flex-1 flex flex-col">
+            <div class="p-4 border-b border-border-dark">
+                <div class="max-w-5xl mx-auto flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="bg-gradient-to-r from-primary to-secondary w-9 h-9 rounded-xl flex items-center justify-center mr-3 pulse-avatar">
+                            <i class="fas fa-comments text-white"></i>
+                        </div>
+                        <div>
+                            <h2 id="chat-title" class="font-bold text-lg">WorkAssist AI</h2>
+                            <p id="chat-status" class="text-xs text-gray-400">대화를 시작해주세요.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="chat-messages" class="flex-1 overflow-y-auto p-6">
+                <div id="initial-placeholder" class="flex flex-col items-center justify-center h-full text-center">
+                    <div class="bg-gradient-to-r from-blue-500 to-blue-600 w-24 h-24 rounded-2xl flex items-center justify-center mb-6">
+                        <i class="fas fa-comments text-white text-3xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-100">새로운 대화 세션</h2>
+                    <p class="mt-3 text-gray-400 max-w-md">
+                        WorkAssist AI가 업무를 도와드립니다. 왼쪽의 '새 세션 시작' 버튼을 누르거나 기존 세션을 선택하여 대화를 시작하세요.
+                    </p>
+                </div>
+                </div>
+            
+            <div class="border-t border-border-dark py-4 px-6">
+                <div class="max-w-5xl mx-auto">
+                    <form id="chat-form" class="flex items-center">
+                        <div class="flex-1 relative">
+                            <input type="text" id="message-input" class="chat-input w-full py-3 pl-5 pr-20 rounded-xl focus:outline-none" placeholder="업무 관련 문의 사항 입력..." disabled>
+                        </div>
+                        <button id="send-button" class="send-btn w-14 h-14 rounded-xl flex items-center justify-center ml-3 flex-shrink-0" disabled>
+                            <i class="fas fa-paper-plane text-white text-xl"></i>
+                        </button>
+                    </form>
+                    <div class="mt-3 text-xs text-gray-500 flex items-center">
+                        <i class="fas fa-info-circle mr-1.5"></i>
+                        WorkAssist AI는 회사의 업무 지식 기반을 학습했습니다. 보안 정책에 따라 민감 정보는 자동으로 삭제됩니다.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- DOM 요소 ---
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const chatMessages = document.getElementById('chat-messages');
+        const newSessionBtn = document.getElementById('newSessionBtn');
+        const sessionList = document.getElementById('session-list');
+        const initialPlaceholder = document.getElementById('initial-placeholder');
+        const noSessionPlaceholder = document.getElementById('no-session-placeholder');
+        const sessionCountSpan = document.getElementById('session-count');
+        const chatTitle = document.getElementById('chat-title');
+        const chatStatus = document.getElementById('chat-status');
+        
+        let activeSessionId = null;
+
+        // --- 유틸리티 함수 ---
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function updateSessionCount() {
+            const count = sessionList.querySelectorAll('.session-item').length;
+            sessionCountSpan.textContent = `${count}개`;
+            noSessionPlaceholder.style.display = count > 0 ? 'none' : 'block';
+        }
+        
+        function setChatUIEnabled(enabled) {
+            messageInput.disabled = !enabled;
+            sendButton.disabled = !enabled;
+            if (enabled) {
+                messageInput.placeholder = "업무 관련 문의 사항 입력...";
+            } else {
+                messageInput.placeholder = "세션을 선택해주세요.";
+            }
+        }
+
+        // --- 사이드바 토글 ---
+        sidebarToggle.addEventListener('click', function() {
+            sidebar.classList.toggle('w-64');
+            sidebar.classList.toggle('w-0');
+            sidebar.classList.toggle('overflow-hidden');
+            const icon = sidebarToggle.querySelector('i');
+            icon.classList.toggle('fa-chevron-left');
+            icon.classList.toggle('fa-chevron-right');
+        });
+
+        // --- 세션 관리 ---
+        newSessionBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            // TODO: 백엔드 API와 연동하세요.
+            // const response = await fetch('여기에_세션_생성_API_URL', { method: 'POST', headers: { 'X-CSRFToken': '...' } });
+            // const data = await response.json();
+            // if (data.session_id) {
+            //     window.location.href = `/chat/${data.session_id}/`;
+            // }
+
+            // --- API 연동 전 임시 클라이언트 측 로직 ---
+            const newSessionId = `session_${Date.now()}`;
+            const newSessionTitle = `새로운 세션 ${sessionList.children.length}`;
+            addSessionToList({ id: newSessionId, title: newSessionTitle, created_at: new Date() });
+            switchSession(newSessionId);
+            // --- 임시 로직 끝 ---
+        });
+        
+        function addSessionToList(session) {
+             const sessionItem = document.createElement('div');
+             sessionItem.className = 'p-3 rounded-xl cursor-pointer group session-item transition-all fade-in';
+             sessionItem.dataset.sessionId = session.id;
+             sessionItem.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <h3 class="font-medium truncate">${session.title}</h3>
+                    <span class="text-xs text-gray-500">${new Date(session.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                </div>
+                <p class="text-xs text-gray-400 mt-1 truncate">새 대화를 시작해보세요</p>
+             `;
+             sessionList.prepend(sessionItem);
+             updateSessionCount();
+
+             sessionItem.addEventListener('click', () => switchSession(session.id));
+        }
+
+        function switchSession(sessionId) {
+            activeSessionId = sessionId;
+            document.querySelectorAll('.session-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.sessionId === sessionId);
+            });
+            
+            const activeSessionElement = sessionList.querySelector(`.session-item[data-session-id="${sessionId}"]`);
+            const title = activeSessionElement.querySelector('h3').textContent;
+
+            chatTitle.textContent = title;
+            chatStatus.textContent = "온라인";
+            chatMessages.innerHTML = ''; // 이전 메시지 클리어
+            initialPlaceholder.style.display = 'none';
+            setChatUIEnabled(true);
+            messageInput.focus();
+            
+            // TODO: 해당 세션의 이전 대화 기록을 불러오는 API 호출
+            // loadMessagesForSession(sessionId);
+        }
+
+        // --- 메시지 전송 및 스트리밍 처리 ---
+        chatForm.addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const messageText = messageInput.value.trim();
+            if (!messageText || !activeSessionId) return;
+
+            appendMessage(messageText, 'user');
+            messageInput.value = '';
+            scrollToBottom();
+            
+            const { assistantMessageDiv, toolUsageDetails, assistantMessageP } = createAssistantMessageShell();
+            chatMessages.appendChild(assistantMessageDiv);
+            scrollToBottom();
+
+            try {
+                // TODO: 실제 스트리밍 API 엔드포인트로 변경하세요.
+                const response = await fetch(`여기에_스트리밍_API_URL/${activeSessionId}/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' /*, 'X-CSRFToken': '...' */ },
+                    body: JSON.stringify({ message: messageText })
+                });
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let fullResponseText = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); 
+
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        try {
+                            const jsonData = JSON.parse(line.substring(6));
+                            
+                            if (jsonData.event === 'tool_call') {
+                                toolUsageDetails.style.display = 'block';
+                                appendToolCall(toolUsageDetails.querySelector('.tool-usage-content'), jsonData.data);
+                            } else if (jsonData.event === 'tool_output') {
+                                appendToolOutput(toolUsageDetails.querySelector('.tool-usage-content'), jsonData.data);
+                            } else if (jsonData.event === 'text_delta') {
+                                fullResponseText += jsonData.data;
+                                assistantMessageP.innerText = fullResponseText;
+                            }
+                            scrollToBottom();
+                        } catch (e) {
+                            console.error('Error parsing stream data:', e, 'line:', line);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                assistantMessageP.innerHTML = '오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+            }
+        });
+        
+        // --- 동적 UI 생성 함수 ---
+        function createAssistantMessageShell() {
+            const assistantMessageDiv = document.createElement('div');
+            assistantMessageDiv.className = 'flex items-start gap-4 mb-8 fade-in';
+            
+            const avatar = `
+                <div class="flex-shrink-0">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-r from-gray-700 to-gray-800 flex items-center justify-center">
+                        <img src="https://cdn-icons-png.flaticon.com/512/4712/4712139.png" class="w-6 h-6">
+                    </div>
+                </div>`;
+
+            const contentContainer = document.createElement('div');
+            contentContainer.className = 'flex-1 max-w-3xl';
+            contentContainer.innerHTML = `
+                <h3 class="font-medium text-sm">WorkAssist AI</h3>
+                <details class="tool-usage-container mt-3 cursor-pointer" style="display: none;">
+                    <summary class="p-3 flex items-center rounded-t-lg">
+                        <i class="fas fa-cogs fa-fw mr-2 text-blue-300"></i>
+                        <span class="font-medium">Tool 사용 내역</span>
+                    </summary>
+                    <div class="tool-usage-content p-3"></div>
+                </details>
+                <div class="mt-3">
+                    <div class="chat-bubble-ai p-4">
+                        <p class="typing-indicator"><span></span><span></span><span></span></p>
+                    </div>
+                    <div class="mt-1 text-xs text-gray-500">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                </div>`;
+            
+            assistantMessageDiv.innerHTML = avatar;
+            assistantMessageDiv.appendChild(contentContainer);
+
+            return {
+                assistantMessageDiv,
+                toolUsageDetails: contentContainer.querySelector('details'),
+                assistantMessageP: contentContainer.querySelector('.chat-bubble-ai p')
+            };
+        }
+
+        function appendMessage(text, role) {
+            const msgDiv = document.createElement('div');
+            if (role === 'user') {
+                msgDiv.className = 'flex flex-row-reverse items-end gap-4 mb-8 fade-in';
+                msgDiv.innerHTML = `
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 flex items-center justify-center">
+                            <span class="font-medium text-sm">U</span>
+                        </div>
+                    </div>
+                    <div class="flex-1 max-w-3xl flex flex-col items-end">
+                        <div>
+                            <div class="chat-bubble-user text-white p-4">
+                                <p>${text.replace(/\n/g, '<br>')}</p>
+                            </div>
+                            <div class="mt-1 text-xs text-gray-500">${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                        </div>
+                    </div>`;
+            }
+            if(initialPlaceholder) initialPlaceholder.style.display = 'none';
+            chatMessages.appendChild(msgDiv);
+        }
+
+        function appendToolCall(container, toolCall) {
+            const item = document.createElement('div');
+            item.className = 'tool-call-item p-3 mb-3';
+            item.innerHTML = `
+                <div class="font-medium flex items-center">
+                    <i class="fas fa-wrench fa-fw mr-2 text-amber-300"></i> ${toolCall.name}
+                </div>
+                <div class="text-xs text-gray-300 mt-1 ml-6 pl-1">
+                    <pre class="whitespace-pre-wrap">Args: ${JSON.stringify(toolCall.args, null, 2)}</pre>
+                </div>`;
+            container.appendChild(item);
+        }
+
+        function appendToolOutput(container, toolOutput) {
+            const item = document.createElement('div');
+            item.className = 'tool-output-item p-3';
+            item.innerHTML = `
+                <div class="font-medium flex items-center text-emerald-300">
+                    <i class="fas fa-clipboard-check fa-fw mr-2"></i> Output from ${toolOutput.name}
+                </div>
+                <pre class="text-xs mt-2 p-3 bg-gray-900/60 rounded-lg whitespace-pre-wrap max-h-40 overflow-y-auto">${toolOutput.content}</pre>`;
+            container.appendChild(item);
+        }
+
+        // --- 초기화 ---
+        updateSessionCount();
+        setChatUIEnabled(false);
+        scrollToBottom();
+    });
+    </script>
+</body>
+</html>

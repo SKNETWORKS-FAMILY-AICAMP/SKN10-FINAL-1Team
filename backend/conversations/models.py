@@ -10,12 +10,14 @@ class AgentType(models.TextChoices):
     RAG = "rag", "RAG"
     ANALYTICS = "analytics", "Analytics"
     AUTO = "auto", "Auto"
+    DEFAULT = "default", "Default"
 
 
 class ChatSession(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chat_sessions")
     agent_type = models.CharField(max_length=20, choices=AgentType.choices)
+    thread_id = models.UUIDField(null=True, blank=True, help_text="LangGraph thread ID")
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     title = models.CharField(max_length=60, default="새 세션")
@@ -29,6 +31,7 @@ class ChatMessage(models.Model):
     session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="messages")
     role = models.CharField(max_length=20)  # user | assistant | system
     content = models.TextField()
+    tool_data = models.JSONField(null=True, blank=True, help_text="Tool calls and outputs data")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
