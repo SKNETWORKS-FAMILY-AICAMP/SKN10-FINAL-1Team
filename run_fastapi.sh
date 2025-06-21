@@ -14,7 +14,7 @@ echo "$(date) - Starting FastAPI application restart process for $FASTAPI_APP_DI
 # 기존 FastAPI 프로세스가 있다면 종료
 if [ -f "$PID_FILE" ]; then
     OLD_PID=$(cat "$PID_FILE")
-    if ps -p $OLD_PID > /dev/null; then
+    if ps -p $OLD_PID > /develop/null; then
         echo "$(date) - Killing existing FastAPI process with PID $OLD_PID" >> $LOG_FILE
         kill -9 $OLD_PID # 강제 종료 (SIGKILL)
         sleep 2 # 종료될 때까지 잠시 대기
@@ -23,7 +23,7 @@ if [ -f "$PID_FILE" ]; then
 fi
 
 # 특정 FastAPI 프로젝트 폴더로 이동하여 최신 코드 가져오기 (!!! dev 브랜치 지정 !!!)
-echo "$(date) - Moving to $FASTAPI_APP_DIR and pulling latest code from Git (dev branch)..." >> $LOG_FILE
+echo "$(date) - Moving to $FASTAPI_APP_DIR and pulling latest code from Git (develop branch)..." >> $LOG_FILE
 cd "$FASTAPI_APP_DIR"
 git pull origin develop >> $LOG_FILE 2>&1
 
