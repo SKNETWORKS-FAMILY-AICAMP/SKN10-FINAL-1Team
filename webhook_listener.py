@@ -41,7 +41,7 @@ def github_webhook():
         # dev 브랜치에 대한 푸시인지 확인
         payload_data = request.json
         ref = payload_data.get('ref', '')
-        if ref != 'refs/heads/dev':
+        if ref != 'refs/heads/develop':
             print(f"Push to non-dev branch ({ref}) ignored.")
             return jsonify({"message": f"Push to branch {ref} ignored"}), 200
 
