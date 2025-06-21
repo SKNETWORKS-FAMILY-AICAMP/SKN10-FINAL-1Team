@@ -54,7 +54,7 @@ def get_all_table():
             sql = f"""
                 SELECT COUNT(*) AS cnt, pg_size_pretty(
                     pg_total_relation_size('public.{table}')
-                  )                           AS size
+                )                           AS size
                 FROM "{table}";
             """
             cursor.execute(sql)
@@ -154,6 +154,7 @@ def make_index(name, cloud, region, metric, vector_type, dimension) :
         return False
 
 def remove_index(name) : 
+    """Pinecone 인덱스를 삭제하는 함수"""
     load_dotenv()
 
     # 1-1) OpenAI 클라이언트 생성

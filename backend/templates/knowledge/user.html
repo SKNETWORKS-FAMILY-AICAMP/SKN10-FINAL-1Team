@@ -1,14 +1,180 @@
 <div class="p-8">
     <div class="mx-auto max-w-4xl">
-        
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>    
     <section class="rounded-lg bg-white p-6 shadow-md border border-gray-200">
     <div class="flex items-center justify-between mb-6">
-        <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em]">사용자</h3>
-        <button class="flex items-center gap-3 rounded-full px-6 py-1.5 text-black bg-orange-400 hover:bg-orange-600 transition-colors duration-150"
-        id="create-user-button">
-            <span class="material-icons-outlined font-bold">계정 추가</span>
-        </button>
+        <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em]">사용자 목록</h3>
+        <div class="flex items-center gap-4 ml-auto">
+        
+        <!-- Alpine 컴포넌트 시작 -->
+        <div x-data="{ open: false }" class="relative">
+        <!-- 1) 계정 삭제 버튼 -->
+
+        <button
+            @click="open = true"
+            class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
+        ><span class="material-icons-outlined font-bold">계정 삭제</span></button>
+
+        <!-- 2) 백그라운드 오버레이 -->
+        <div
+            x-show="open"
+            x-cloak
+            class="fixed inset-0 bg-black bg-opacity-50 z-40"
+            @click="open = false"
+        ></div>
+
+        <!-- 3) 모달 박스 -->
+        <div
+            x-show="open"
+            class="fixed inset-0 flex items-center justify-center z-50 p-4"
+            x-cloak
+        >
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 class="text-lg font-semibold">계정 삭제</h2>
+                <button @click="open = false" class="text-xl leading-none">&times;</button>
+            </div>
+
+            <form
+                action="{% url 'knowledge:delete_user' %}"
+                method="post"
+                class="px-6 py-4 space-y-4"
+                @submit.prevent=" 
+                    if (confirm('⚠️ 정말 해당 계정을 삭제하시겠습니까?')) {
+                        $event.target.submit()
+                    }">
+                {% csrf_token %}
+
+                <div>
+                <label class="block text-sm font-medium">🆔<span class="text-red-500"> 삭제할 이메일</span>을 입력하세요! </label>
+                <input type="email" name="email" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+    
+
+                <div class="text-right space-x-2">
+                <button
+                    type="button"
+                    @click="open = false"
+                    class="px-4 py-2 rounded border hover:bg-gray-100"
+                >취소</button>
+
+                <button
+                    type="submit"
+                    class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white"
+                >삭제</button>
+                </div>
+                
+            </form>
+            </div>
+        </div>
+        </div>
+        <!-- Alpine 컴포넌트 끝 -->
+
+        
+        <!-- Alpine 컴포넌트 시작 -->
+        <div x-data="{ open: false }" class="relative">
+        <!-- 1) 계정 추가 버튼 -->
+
+        <button
+            @click="open = true"
+            class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
+        ><span class="material-icons-outlined font-bold">계정 추가</span></button>
+
+        <!-- 2) 백그라운드 오버레이 -->
+        <div
+            x-show="open"
+            x-cloak
+            class="fixed inset-0 bg-black bg-opacity-50 z-40"
+            @click="open = false"
+        ></div>
+
+        <!-- 3) 모달 박스 -->
+        <div
+            x-show="open"
+            class="fixed inset-0 flex items-center justify-center z-50 p-4"
+            x-cloak
+        >
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 class="text-lg font-semibold">계정 추가</h2>
+                <button @click="open = false" class="text-xl leading-none">&times;</button>
+            </div>
+
+            <form
+                action="{% url 'knowledge:create_index' %}"
+                method="post"
+                class="px-6 py-4 space-y-4">
+                {% csrf_token %}
+
+                <div>
+                <label class="block text-sm font-medium">이메일</label>
+                <input type="email" name="email" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">비밀번호</label>
+                <input type="password" name="pw" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">비밀번호 확인</label>
+                <input type="password" name="pw_confirm" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">사용자명</label>
+                <input name="username" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">권한</label>
+                <!-- vector type이 sparse라면 metric은 dotproduct, dimension은 0으로 선택되어 전달-->
+                <select id="role" name="role" class="w-full border rounded p-2">
+                    <option value="admin">admin</option>
+                    <option value="employee">employee</option>
+                    <option value="guest">guest</option>
+                </select>
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">부서</label>
+                <!-- vector type이 sparse라면 metric은 dotproduct, dimension은 0으로 선택되어 전달-->
+                <select id="department" name="department" class="w-full border rounded p-2">
+                    <option value="development">development</option>
+                    <option value="business_strategy">business_strategy</option>
+                    <option value="customer_management">customer_management</option>
+                    <option value="administrator">administrator</option>
+                </select>
+                </div>
+
+
+
+
+                <div class="text-right space-x-2">
+                <button
+                    type="button"
+                    @click="open = false"
+                    class="px-4 py-2 rounded border hover:bg-gray-100"
+                >취소</button>
+
+                <button
+                    type="submit"
+                    class="px-4 py-2 rounded bg-orange-400 hover:bg-orange-600 text-white"
+                >추가</button>
+                </div>
+                
+            </form>
+            </div>
+        </div>
+        </div>
+        <!-- Alpine 컴포넌트 끝 -->
+        
+        </div>
     </div>
+    
     <div class="@container">
     <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
     <table class="min-w-full divide-y divide-[var(--border-color)]">
@@ -68,5 +234,11 @@
                     </style>
     </div>
     </section>
+    <!-- 성공 메시지 출력 또는 에러 메시지 출력-->
+    {% if messages %}
+        {% for message in messages %}
+            <script>alert("{{ message|escapejs }}");</script>
+        {% endfor %}
+    {% endif %}
     </div>
     </div>

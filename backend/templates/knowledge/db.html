@@ -4,6 +4,7 @@
         [x-cloak] { display: none !important; }
     </style>
     <div class="mx-auto max-w-4xl">
+    <!-- 탭 버튼들-->
     <div class="flex w-full bg-gray-100 rounded-lg p-1">
         <button class="{% if db == 'postgre' %}flex-1 text-center py-2 rounded-lg bg-white text-gray-900 font-medium
             {% else %}flex-1 text-center py-2 rounded-lg text-gray-600 hover:bg-white hover:text-gray-900{% endif %}"
@@ -12,6 +13,10 @@
         <button class="{% if db == 'pinecone' %}flex-1 text-center py-2 rounded-lg bg-white text-gray-900 font-medium
             {% else %}flex-1 text-center py-2 rounded-lg text-gray-600 hover:bg-white hover:text-gray-900{% endif %}"
             onclick="location.href=`{% url 'knowledge:dashboard' %}?section=db&db=pinecone`">Pinecone</button>
+
+        <button class="{% if db == 's3' %}flex-1 text-center py-2 rounded-lg bg-white text-gray-900 font-medium
+            {% else %}flex-1 text-center py-2 rounded-lg text-gray-600 hover:bg-white hover:text-gray-900{% endif %}"
+            onclick="location.href=`{% url 'knowledge:dashboard' %}?section=db&db=s3`">S3</button>
     </div>
     {% if db == 'postgre' %}
         <section class="mt-6 mb-10 rounded-lg bg-white p-6 shadow-md border border-gray-200">
@@ -100,7 +105,7 @@
         <div class="flex items-center gap-4 ml-auto">
         <!-- Alpine 컴포넌트 시작 -->
         <div x-data="{ open: false }" class="relative">
-        <!-- 1) 인덱스 추가 버튼 -->
+        <!-- 1) 인덱스 삭제 버튼 -->
         <button
             @click="open = true"
             class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
@@ -129,7 +134,11 @@
             <form
                 action="{% url 'knowledge:delete_index' %}"
                 method="post"
-                class="px-6 py-4 space-y-4">
+                class="px-6 py-4 space-y-4"
+                @submit.prevent=" 
+                    if (confirm('⚠️ 정말 해당 인덱스를 삭제하시겠습니까?')) {
+                        $event.target.submit()
+                    }">
                 {% csrf_token %}
 
                 <div>
@@ -194,7 +203,11 @@
             <form
                 action="{% url 'knowledge:create_index' %}"
                 method="post"
-                class="px-6 py-4 space-y-4">
+                class="px-6 py-4 space-y-4"
+                @submit.prevent=" 
+                    if (confirm('✅ 정말 인덱스를 추가하시겠습니까?')) {
+                        $event.target.submit()
+                    }">
                 {% csrf_token %}
 
                 <div>
@@ -348,7 +361,12 @@
     </div>
     </section>
     {% endif %}
-    <!-- 인덱스 추가시 성공 메시지 출력 또는 에러 메시지 출력-->
+
+    {% if db == 's3' %}
+
+
+    {% endif %}
+    <!-- 성공 메시지 출력 또는 에러 메시지 출력-->
     {% if messages %}
         {% for message in messages %}
             <script>alert("{{ message|escapejs }}");</script>
