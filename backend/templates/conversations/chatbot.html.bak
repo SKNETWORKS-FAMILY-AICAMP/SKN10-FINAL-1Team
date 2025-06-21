@@ -96,27 +96,18 @@
 <body class="min-h-screen text-gray-100 overflow-hidden" data-active-session-id="{{ active_session_id|default:'' }}">
     <div id="app-container" class="flex h-screen">
         <!-- 세션 사이드바 -->
-        <aside id="sidebar" class="sidebar-gradient w-80 flex-shrink-0 border-r border-gray-800 flex flex-col transition-all duration-300 ease-in-out group">
-            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
-                <h2 class="text-xl font-bold group-[.is-collapsed]:hidden">채팅 세션</h2>
-                <button id="sidebar-toggle" class="text-gray-400 hover:text-white focus:outline-none">
-                    <i class="fas fa-chevron-left transform transition-transform duration-300"></i>
-                </button>
-            </div>
+        <aside id="sidebar" class="sidebar-gradient w-80 flex-shrink-0 border-r border-gray-800 flex flex-col transition-all duration-300 ease-in-out">
             <div class="p-4 border-b border-gray-700">
-                <a href="#" id="new-session-btn" class="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors growing-shadow group-[.is-collapsed]:w-12 group-[.is-collapsed]:h-12">
-                    <i class="fas fa-plus-circle"></i>
-                    <span class="ml-2 group-[.is-collapsed]:hidden">새 세션 시작하기</span>
+                <h2 class="text-xl font-bold">채팅 세션</h2>
+                <a href="#" id="new-session-btn" class="block text-center mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors growing-shadow">
+                    <i class="fas fa-plus-circle mr-2"></i> 새 세션 시작하기
                 </a>
             </div>
             <div id="session-list" class="flex-1 overflow-y-auto p-2">
                 {% for session in sessions %}
-                <div class="session-item flex items-center p-3 rounded-lg cursor-pointer mb-2 border-l-4 {% if session.id == active_session_id %}border-primary bg-blue-900/30{% else %}border-transparent hover:bg-gray-700/50{% endif %} group-[.is-collapsed]:justify-center" data-session-id="{{ session.id }}">
-                    <i class="fas fa-comment-dots text-gray-400"></i>
-                    <div class="ml-3 flex-1 truncate group-[.is-collapsed]:hidden">
-                        <h3 class="font-semibold truncate">{{ session.title }}</h3>
-                        <p class="text-xs text-gray-400">{{ session.started_at|date:"Y-m-d H:i" }}</p>
-                    </div>
+                <div class="session-item p-3 rounded-lg cursor-pointer mb-2 border-l-4 {% if session.id == active_session_id %}border-primary bg-blue-900/30{% else %}border-transparent hover:bg-gray-700/50{% endif %}" data-session-id="{{ session.id }}">
+                    <h3 class="font-semibold truncate">{{ session.title }}</h3>
+                    <p class="text-xs text-gray-400">{{ session.started_at|date:"Y-m-d H:i" }}</p>
                 </div>
                 {% empty %}
                 <p class="text-gray-500 text-sm text-center p-4">채팅 세션이 없습니다.</p>
@@ -229,18 +220,6 @@
         const typingIndicator = document.getElementById('typing-indicator');
         const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
         let activeSessionId = document.body.dataset.activeSessionId || null;
-
-        const sidebar = document.getElementById('sidebar');
-        const sidebarToggle = document.getElementById('sidebar-toggle');
-
-        if (sidebar && sidebarToggle) {
-            sidebarToggle.addEventListener('click', () => {
-                sidebar.classList.toggle('w-80');
-                sidebar.classList.toggle('w-20');
-                sidebar.classList.toggle('is-collapsed');
-                sidebarToggle.querySelector('i').classList.toggle('rotate-180');
-            });
-        }
 
         function scrollToBottom() {
             chatMessages.scrollTop = chatMessages.scrollHeight;
