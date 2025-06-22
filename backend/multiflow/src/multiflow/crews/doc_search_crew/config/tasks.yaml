@@ -1,7 +1,0 @@
-search_task:
-  agent: doc_retriever
-  description: >
-    "{query}" 에 답하려면 관련 문서를 찾아 요약해라
-  expected_output: >
-    - 관련 문서 인용 3~5개
-    - 한글로 작성
