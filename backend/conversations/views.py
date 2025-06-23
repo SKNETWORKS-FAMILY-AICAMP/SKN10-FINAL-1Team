@@ -55,7 +55,7 @@ def chatbot_view(request, session_id=None):
         initial_messages = []
         active_session_id = None
     
-    sessions = ChatSession.objects.filter(user=user).order_by('-started_at')
+    sessions = ChatSession.objects.filter(user=user, deleted_check=False).order_by('-started_at')
 
     return render(request, 'conversations/chatbot.html', {
         'sessions': sessions,
@@ -300,4 +300,17 @@ async def _stream_and_save_title(session, user_message):
         # Silently fail, maybe yield an end event with a default title
         yield f"data: {json.dumps({'event': 'title_end', 'data': 'New Chat'})}\n\n"
 
+
+@login_required
+@require_POST
+async def session_delete_view(request, session_id):
+    try:
+        session = await ChatSession.objects.aget(id=session_id, user=request.user)
+        session.deleted_check = True
+        await session.asave(update_fields=['deleted_check'])
+        return JsonResponse({'status': 'success', 'message': 'Session marked as deleted.'})
+    except ChatSession.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Session not found.'}, status=404)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
