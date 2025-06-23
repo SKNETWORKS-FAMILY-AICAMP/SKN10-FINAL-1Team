@@ -99,8 +99,14 @@ def update_profile(request):
 
 @login_required
 def profile_view(request):
-    """Renders the user profile page."""
-    return render(request, 'accounts/profile.html')
+    """Renders the user profile page and handles profile updates."""
+    if request.method == 'POST':
+        user = request.user
+        user.name = request.POST.get('name', user.name)
+        user.save()
+        return redirect('accounts:profile')
+    
+    return render(request, 'accounts/profile.html', {'user': request.user})
 
 @login_required
 def settings_view(request):

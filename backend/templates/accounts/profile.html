@@ -40,19 +40,22 @@
     </button>
     </div>
     <div class="flex flex-col justify-center">
-    <p class="text-[var(--text-primary)] text-2xl font-bold leading-tight tracking-[-0.015em]">Sophia Clark</p>
-    <p class="text-[var(--text-secondary)] text-base font-normal leading-normal">sophia.clark@email.com</p>
+        {% if user.name %}
+        <p class="text-[var(--text-primary)] text-2xl font-bold leading-tight tracking-[-0.015em]">{{ user.name }}</p>
+        {% endif %}
+        <p class="text-[var(--text-secondary)] text-base font-normal leading-normal">{{ user.email }}</p>
     </div>
     </div>
     </div>
     </section>
-    <form class="space-y-6 px-4">
+    <form class="space-y-6 px-4" method="POST">
+        {% csrf_token %}
     <div>
     <h3 class="text-[var(--text-primary)] text-xl font-semibold leading-tight tracking-[-0.015em] mb-4">Profile Information</h3>
     <div class="grid grid-cols-1 gap-6">
     <label class="flex flex-col">
     <p class="text-[var(--text-primary)] text-sm font-medium leading-normal pb-2">Nickname</p>
-    <input class="form-input flex w-full max-w-md min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] border border-[#dbe1e6] bg-white focus:border-transparent h-12 placeholder:text-[var(--text-secondary)] p-3 text-base font-normal leading-normal transition-colors" placeholder="Enter your nickname" value=""/>
+    <input class="form-input flex w-full max-w-md min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] border border-[#dbe1e6] bg-white focus:border-transparent h-12 placeholder:text-[var(--text-secondary)] p-3 text-base font-normal leading-normal transition-colors" placeholder="Enter your nickname" value="{{ user.name }}" name="name"/>
     </label>
     <label class="flex flex-col">
     <p class="text-[var(--text-primary)] text-sm font-medium leading-normal pb-2">Profile Photo URL</p>
