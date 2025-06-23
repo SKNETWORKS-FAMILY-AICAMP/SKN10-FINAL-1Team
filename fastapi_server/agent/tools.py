@@ -39,6 +39,7 @@ from langchain_community.utilities.sql_database import SQLDatabase
 from sqlalchemy import create_engine
 from langchain_community.agent_toolkits.sql.toolkit import SQLDatabaseToolkit
 from langchain_openai import ChatOpenAI
+from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
 from openai import OpenAI as OpenAIClient # For embeddings
 from pinecone import Pinecone as PineconeClient # For vector search
 
@@ -238,86 +239,135 @@ def _load_churn_model():
                 if hasattr(main_module, 'ThresholdWrapper'): 
                     del main_module.ThresholdWrapper
 
-class ChurnPredictionInputArgs(BaseModel):
-    csv_data_string: str = Field(description="A string containing customer data in CSV format. Must include headers.")
+# --- Customer Churn Prediction & Analysis Tool ---
 
-def predict_customer_churn(csv_data_string: str) -> str:
+def _predict_churn_and_create_df(csv_data_string: str) -> pd.DataFrame:
+    """
+    Internal function to run churn prediction and return an enhanced DataFrame.
+    This function is not a tool itself.
+    """
     try:
-        pipeline = _load_churn_model() # Raises FileNotFoundError or RuntimeError on failure
-        
+        pipeline = _load_churn_model()
         data_io = StringIO(csv_data_string)
         df = pd.read_csv(data_io)
 
-        # --- Data Normalization ---
-        # Try to find a customer ID column, being flexible with naming, and store the IDs
+        if df.empty:
+            raise ValueError("Input CSV data is empty.")
+
+        # Store original df to join with later, and find CustomerID
+        original_df = df.copy()
         id_col_found = None
         for col in df.columns:
-            if col.lower().replace('_', '') in ['customerid', 'customer_id']:
+            if col.lower().replace('_', '').replace(' ', '') == 'customerid':
                 id_col_found = col
                 break
-        
-        customer_ids = df[id_col_found].tolist() if id_col_found else [f"Row {i+1}" for i in range(len(df))]
+        if id_col_found:
+            original_df.rename(columns={id_col_found: 'CustomerID'}, inplace=True)
+        else:
+            # If no ID, create a temporary one for joining
+            original_df['temp_id_for_join'] = range(len(original_df))
 
-        # Normalize column names: lowercase, remove underscores, fix typos
+
+        # --- Data Normalization & Column Ordering (same as before) ---
         df.columns = [col.lower().replace('_', '') for col in df.columns]
         rename_map = {'internetserivce': 'internetservice'}
         df.rename(columns=rename_map, inplace=True)
 
-        if df.empty:
-            return "Error: Input CSV data is empty or resulted in an empty DataFrame."
-
-        # --- Column Ordering ---
         expected_cols_in_order = [
-            'gender', 'seniorcitizen', 'partner', 'dependents', 'tenure', 
-            'phoneservice', 'multiplelines', 'internetservice', 'onlinesecurity', 
-            'onlinebackup', 'deviceprotection', 'techsupport', 'streamingtv', 
-            'streamingmovies', 'contract', 'paperlessbilling', 'paymentmethod', 
+            'gender', 'seniorcitizen', 'partner', 'dependents', 'tenure',
+            'phoneservice', 'multiplelines', 'internetservice', 'onlinesecurity',
+            'onlinebackup', 'deviceprotection', 'techsupport', 'streamingtv',
+            'streamingmovies', 'contract', 'paperlessbilling', 'paymentmethod',
             'monthlycharges', 'totalcharges'
         ]
-        
+
         df_for_prediction = pd.DataFrame()
         for col in expected_cols_in_order:
             if col in df.columns:
                 df_for_prediction[col] = df[col]
             else:
                 df_for_prediction[col] = np.nan
-
         df_for_prediction = df_for_prediction[expected_cols_in_order]
 
         # --- Prediction ---
         predictions = pipeline.predict(df_for_prediction)
         probabilities = pipeline.predict_proba(df_for_prediction)[:, 1]
+
+        # --- Combine results with original data ---
+        result_df = original_df
+        result_df['ChurnPrediction'] = ["Yes" if p == 1 else "No" for p in predictions]
+        result_df['ChurnProbability'] = probabilities
         
-        if len(predictions) == 0:
-            return "Error: Prediction could not be made. The model did not return any results."
+        if 'temp_id_for_join' in result_df.columns:
+            result_df = result_df.drop(columns=['temp_id_for_join'])
 
-        # --- Format Output for All Customers ---
-        results = []
-        for i, cust_id in enumerate(customer_ids):
-            prediction_label = "Likely to Churn" if predictions[i] == 1 else "Unlikely to Churn"
-            probability = probabilities[i]
-            results.append(f"Customer ID {cust_id}: Prediction: {prediction_label} (Probability: {probability:.2%})")
-            
-        return "\n".join(results)
+        return result_df
+    except (FileNotFoundError, RuntimeError, ValueError, pd.errors.EmptyDataError, KeyError, IndexError) as e:
+        # Re-raise to be caught by the main tool function
+        raise e
 
-    except FileNotFoundError as e: 
-        return str(e) 
-    except RuntimeError as e: 
-        return str(e) 
-    except pd.errors.EmptyDataError:
-        return "Error: Input CSV data is empty or invalid (could not be parsed)."
-    except KeyError as e:
-        return f"Error: Missing expected column in CSV data for prediction - {str(e)}"
-    except IndexError: 
-        return "Error: Prediction could not be made, possibly due to empty or invalid input data after processing leading to no output."
+
+class ChurnAnalysisInputArgs(BaseModel):
+    """Input schema for the CustomerChurnDataAnalyzer tool."""
+    csv_data_string: str = Field(
+        description="A string containing the full customer data in CSV format, including headers."
+    )
+    user_query: str = Field(
+        description="The user's natural language question about the CSV data. This can be a general question or a specific one about churn predictions (e.g., 'Show me the top 5 customers most likely to churn')."
+    )
+
+def analyze_csv_with_churn_prediction(csv_data_string: str, user_query: str) -> str:
+    """
+    Performs churn prediction on the provided CSV data and then answers a user's question
+    about the data (including the prediction results) using a powerful language model agent.
+    """
+    try:
+        # Step 1: Run prediction and get the enhanced DataFrame
+        predicted_df = _predict_churn_and_create_df(csv_data_string)
+
+        # Step 2: Create a pandas DataFrame agent to answer the query
+        llm = ChatOpenAI(model="gpt-4o", temperature=0)
+        pandas_agent = create_pandas_dataframe_agent(
+            llm=llm,
+            df=predicted_df,
+            verbose=True,
+            agent_executor_kwargs={"handle_parsing_errors": True},
+            allow_caching=False, # Disable caching to ensure fresh answers
+        )
+
+        # Step 3: Invoke the agent with the user's query
+        # Use a structured prompt for better results
+        prompt = f"""
+        You are a data analyst. You are given a pandas DataFrame with customer data, which includes churn predictions.
+        Your task is to answer the following user question based on the data.
+        
+        User Question: \"{user_query}\"
+        
+        Analyze the DataFrame and provide a clear, concise answer.
+        If you are asked to show data, present it in a readable format.
+        """
+        response = pandas_agent.invoke({"input": prompt})
+
+        if isinstance(response, dict) and 'output' in response:
+            return response['output']
+        return str(response)
+
+    except (FileNotFoundError, RuntimeError, ValueError, pd.errors.EmptyDataError, KeyError, IndexError) as e:
+        return f"Error during data processing or prediction: {str(e)}"
     except Exception as e:
-        return f"An unexpected error occurred during churn prediction: {str(e)}"
+        # This will catch errors from the agent execution as well
+        return f"An unexpected error occurred during analysis: {str(e)}"
 
-predict_churn_tool = Tool(
-    name="CustomerChurnPredictor",
-    func=predict_customer_churn,
-    description="Predicts customer churn based on CSV data. Input must be a string containing CSV data with a header row.",
-    args_schema=ChurnPredictionInputArgs
+csv_churn_analyzer_tool = Tool(
+    name="CustomerChurnDataAnalyzer",
+    func=analyze_csv_with_churn_prediction,
+    description=(
+        "Use this tool when you need to answer questions about customer data from a CSV file. "
+        "This tool first runs a churn prediction model on the data, adding 'ChurnPrediction' and 'ChurnProbability' columns, "
+        "and then uses this enhanced data to answer the user's specific question. "
+        "You MUST provide both the full CSV content as a string and the user's question."
+    ),
+    args_schema=ChurnAnalysisInputArgs
 )
 
 # --- Document Search Tools (Pinecone) ---
@@ -427,7 +477,7 @@ else:
 
 __all__ = [
     "analyst_chart_tool", 
-    "predict_churn_tool", 
+    "csv_churn_analyzer_tool",
     "sql_tools_for_analyst", 
     "Preprocessor", 
     "ThresholdWrapper",
