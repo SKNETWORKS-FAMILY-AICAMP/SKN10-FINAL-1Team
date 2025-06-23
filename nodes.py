@@ -6,6 +6,7 @@ from pocketflow import Node, BatchNode
 from crawl_github_files import crawl_github_files
 from call_llm import call_llm
 from dotenv import load_dotenv
+import shutil
 
 
 # Helper to get content for specific file indices
@@ -1025,3 +1026,13 @@ class UploadToPinecone(Node):
 
     def post(self, shared, prep_res, exec_res):
         print(exec_res)
+
+        # Delete local tutorial files after successful upload
+        if isinstance(exec_res, str) and exec_res.startswith("Successfully uploaded"):
+            final_output_dir = prep_res.get("final_output_dir")
+            if final_output_dir and os.path.exists(final_output_dir):
+                try:
+                    shutil.rmtree(final_output_dir)
+                    print(f"Successfully deleted local tutorial directory: {final_output_dir}")
+                except Exception as e:
+                    print(f"Error deleting local tutorial directory {final_output_dir}: {e}")
