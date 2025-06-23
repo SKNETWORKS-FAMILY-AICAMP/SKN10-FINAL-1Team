@@ -5,6 +5,7 @@ import boto3
 from pocketflow import Node, BatchNode
 from crawl_github_files import crawl_github_files
 from call_llm import call_llm
+from dotenv import load_dotenv
 
 
 # Helper to get content for specific file indices
@@ -890,3 +891,137 @@ class CombineTutorial(Node):
     def post(self, shared, prep_res, exec_res):
         shared["final_output_dir"] = exec_res  # Store the output path
         print(f"\nTutorial generation complete! Files are in: {exec_res}")
+
+
+class UploadToPinecone(Node):
+    def prep(self, shared):
+        print("--- RUNNING UploadToPinecone.prep ---")
+        # Load environment variables from .env file
+        load_dotenv()
+
+        final_output_dir = shared.get("final_output_dir")
+        repo_url = shared.get("repo_url")
+        project_name = shared.get("project_name")
+        github_user_name = shared.get("github_user_name")
+
+        pinecone_api_key = os.getenv("PINECONE_API_KEY")
+        pinecone_environment = os.getenv("PINECONE_ENVIRONMENT")
+
+        if not all([final_output_dir, repo_url, project_name, github_user_name, pinecone_api_key, pinecone_environment]):
+            print("Skipping Pinecone upload due to missing configuration or data.")
+            return None
+
+        # Extract branch name from repo_url
+        branch_name = 'main'  # Default
+        if '/tree/' in repo_url:
+            branch_name = repo_url.split('/tree/')[-1]
+
+        return {
+            "final_output_dir": final_output_dir,
+            "repo_url": repo_url,
+            "project_name": project_name,
+            "github_user_name": github_user_name,
+            "branch_name": branch_name,
+            "pinecone_api_key": pinecone_api_key,
+            "pinecone_environment": pinecone_environment,
+        }
+
+    def exec(self, prep_res):
+        if prep_res is None:
+            return "Pinecone upload skipped."
+
+        from pinecone import Pinecone, ServerlessSpec
+        from openai import OpenAI
+        import uuid
+        import urllib.parse
+
+        # Unpack prep results
+        final_output_dir = prep_res["final_output_dir"]
+        project_name = prep_res["project_name"]
+        github_user_name = prep_res["github_user_name"]
+        branch_name = prep_res["branch_name"]
+        pinecone_api_key = prep_res["pinecone_api_key"]
+        pinecone_environment = prep_res["pinecone_environment"]
+
+        try:
+            # 1. Initialize Pinecone
+            pc = Pinecone(api_key=pinecone_api_key)
+            index_name = github_user_name.lower()
+
+            # Correct common region name typos
+            if pinecone_environment == "us-east1":
+                print("Correcting pinecone_environment from 'us-east1' to 'us-east-1'")
+                pinecone_environment = "us-east-1"
+
+            # 2. Check if index exists, create if not
+            if index_name not in pc.list_indexes().names():
+                print(f"Creating Pinecone index: {index_name}")
+                pc.create_index(
+                    name=index_name,
+                    dimension=3072,  # Dimension for 'text-embedding-3-large'
+                    metric='cosine',
+                    spec=ServerlessSpec(cloud='aws', region=pinecone_environment)
+                )
+            
+            index = pc.Index(index_name)
+
+            # 3. Initialize OpenAI client
+            # The client will automatically use the OPENAI_API_KEY from your environment
+            client = OpenAI()
+            embedding_model = "text-embedding-3-large"
+
+            # 4. Read generated tutorial files
+            md_files = [f for f in os.listdir(final_output_dir) if f.endswith('.md')]
+            
+            vectors_to_upsert = []
+            namespace = f"{project_name}/{branch_name}"
+
+            for filename in md_files:
+                file_path = os.path.join(final_output_dir, filename)
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+
+                # 5. Create metadata
+                original_document_id = f"{project_name}_{uuid.uuid4().hex}"
+                metadata = {
+                    'chunk_index': 1,
+                    'namespace': namespace,
+                    'branch_name': branch_name,
+                    'original_document_id': original_document_id,
+                    'original_filename': filename,
+                    'text': content
+                }
+
+                # 6. Embed content using OpenAI
+                response = client.embeddings.create(
+                    input=content,
+                    model=embedding_model
+                )
+                embedding = response.data[0].embedding
+
+                # 7. Prepare vector for upsert by encoding the filename to be ASCII-safe
+                safe_filename = urllib.parse.quote(filename)
+                vector_id = f"{safe_filename}_{uuid.uuid4().hex}"
+                vectors_to_upsert.append({
+                    'id': vector_id,
+                    'values': embedding,
+                    'metadata': metadata
+                })
+
+            # 8. Upsert to Pinecone
+            if vectors_to_upsert:
+                print(f"Upserting {len(vectors_to_upsert)} vectors to Pinecone index '{index_name}' with namespace '{namespace}'...")
+                index.upsert(vectors=vectors_to_upsert, namespace=namespace)
+                print("Upsert complete.")
+            else:
+                print("No documents to upsert.")
+
+            return f"Successfully uploaded {len(vectors_to_upsert)} documents to Pinecone."
+
+        except Exception as e:
+            print(f"An error occurred during Pinecone upload: {e}")
+            # Potentially re-raise or handle the error as needed
+            raise e
+
+    def post(self, shared, prep_res, exec_res):
+        print(exec_res)

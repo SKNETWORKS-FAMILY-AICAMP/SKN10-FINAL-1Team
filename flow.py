@@ -6,7 +6,8 @@ from nodes import (
     AnalyzeRelationships,
     OrderChapters,
     WriteChapters,
-    CombineTutorial
+    CombineTutorial,
+    UploadToPinecone
 )
 
 def create_tutorial_flow():
@@ -19,6 +20,7 @@ def create_tutorial_flow():
     order_chapters = OrderChapters(max_retries=5, wait=20)
     write_chapters = WriteChapters(max_retries=5, wait=20) # This is a BatchNode
     combine_tutorial = CombineTutorial()
+    upload_to_pinecone = UploadToPinecone()
 
     # Connect nodes in sequence based on the design
     fetch_repo >> identify_abstractions
@@ -26,6 +28,7 @@ def create_tutorial_flow():
     analyze_relationships >> order_chapters
     order_chapters >> write_chapters
     write_chapters >> combine_tutorial
+    combine_tutorial >> upload_to_pinecone
 
     # Create the flow starting with FetchRepo
     tutorial_flow = Flow(start=fetch_repo)
