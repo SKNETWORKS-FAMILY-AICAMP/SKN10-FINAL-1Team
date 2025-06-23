@@ -28,7 +28,14 @@ class FetchRepo(Node):
         if not project_name:
             # Basic name derivation from URL or directory
             if repo_url:
-                project_name = repo_url.split("/")[-1].replace(".git", "")
+                from urllib.parse import urlparse
+                from pathlib import Path
+                path_parts = Path(urlparse(repo_url).path.strip('/')).parts
+                if len(path_parts) >= 2:
+                    project_name = path_parts[1].replace(".git", "")
+                else:
+                    # Fallback for unexpected URL formats
+                    project_name = repo_url.split("/")[-1].replace(".git", "")
             else:
                 project_name = os.path.basename(os.path.abspath(local_dir))
             shared["project_name"] = project_name

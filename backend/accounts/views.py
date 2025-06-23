@@ -639,12 +639,13 @@ def scan_selected_repositories_view(request):
                             print(f"DEBUG: S3 Upload - Branch '{branch_name}': An unexpected error occurred during S3 prep/cloning for {owner}/{repo_name} branch {branch_name}. Error: {e_clone_general}")
                         finally:
                             if os.path.exists(temp_clone_dir):
-                                print(f"DEBUG: S3 Upload - Branch '{branch_name}': Cleaning up temp directory: {temp_clone_dir} for {owner}/{repo_name} branch {branch_name}")
-                                # shutil.rmtree(temp_clone_dir) # Keep temp dir for LLM processing
-                                print(f"DEBUG: S3 Upload - Branch '{branch_name}': Temp directory cleaned up for {owner}/{repo_name} branch {branch_name}.")
+                                print(f"DEBUG: S3 Upload - Branch '{branch_name}': Cleaning up temp directory: {temp_clone_dir} for {owner}/{repo_name}")
+                                # shutil.rmtree(temp_clone_dir)
+                                print(f"DEBUG: S3 Upload - Branch '{branch_name}': Temp directory cleaned up for {owner}/{repo_name}.")
                     else:
                         print(f"DEBUG: S3 Upload - Branch '{branch_name}': SKIPPED for {owner}/{repo_name} branch {branch_name} because S3 client or bucket name is not configured.")
                     # --- End of S3 Upload Logic ---
+                    
                     command = [
                         sys.executable,
                         main_script_path,
@@ -652,8 +653,11 @@ def scan_selected_repositories_view(request):
                         '--output', repo_output_dir,
                         '--language', 'korean'
                     ]
+                    if github_token:
+                        command.extend(['--token', github_token])
                     if github_user_name:
                         command.extend(['--github-user-name', github_user_name])
+
                     # Add S3 parameters if the client was initialized
                     if s3_client and s3_bucket_name_from_settings:
                         command.extend([
@@ -681,12 +685,6 @@ def scan_selected_repositories_view(request):
     except Exception as e:
         print(f"Unexpected error in scan_selected_repositories_view: {e}")
         return JsonResponse({'status': 'error', 'message': 'An unexpected server error occurred.'}, status=500)
-
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON in request body.'}, status=400)
-    except Exception as e:
-        print(f"Unexpected error in scan_selected_repositories_view: {str(e)}") # 개발 중 임시 로깅
-        return JsonResponse({'error': f'An unexpected server error occurred.'}, status=500)
 
 
 @login_required
