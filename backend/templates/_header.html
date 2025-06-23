@@ -16,11 +16,16 @@
     <div class="flex items-center gap-3">
     <a class="rounded-md px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--secondary-color)]" href="{% url 'knowledge:dashboard' %}" data-navlink="dashboard">Admin</a>
     <button class="p-1.5 rounded-full hover:bg-[var(--secondary-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
-    <span class="material-icons-outlined text-2xl">notifications</span>
+        <span class="material-icons-outlined text-2xl">notifications</span>
     </button>
-    <a href="{% url 'accounts:profile' %}" class="group relative">
-    <img alt="User Avatar" class="h-9 w-9 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCGDW97QSiZwxM9Me-8V5O61K83ngPtyq8TlNAGgTxBOaOHyWifGO7AU4goqbfftnDL4SedgJEQHzAAbFA_h_pgC5QhLfV_3xfR9fWi-eis9AJA5VtwpjVGCcV2SlRmRRQbZlFd5vFxpwaamrOvRXVWr8a9IDaZoaskCVYq9M5ZgEGR_m8e9BTD5COvBi9sfaipHxCb2BMmXWDJXhGI1VwSQpE5eZaGgncyaRDLkvyuX5x7zvD_NFDTA1AiK6ZkpcRBDjgs9O9GcEP"/>
-    <span class="absolute -bottom-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full border-2 border-white bg-green-500"></span>
-    </a>
+    {% if user.is_authenticated %}
+        <a href="{% url 'accounts:profile' %}" class="group relative">
+            <img alt="User Avatar" class="h-9 w-9 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCGDW97QSiZwxM9Me-8V5O61K83ngPtyq8TlNAGgTxBOaOHyWifGO7AU4goqbfftnDL4SedgJEQHzAAbFA_h_pgC5QhLfV_3xfR9fWi-eis9AJA5VtwpjVGCcV2SlRmRRQbZlFd5vFxpwaamrOvRXVWr8a9IDaZoaskCVYq9M5ZgEGR_m8e9BTD5COvBi9sfaipHxCb2BMmXWDJXhGI1VwSQpE5eZaGgncyaRDLkvyuX5x7zvD_NFDTA1AiK6ZkpcRBDjgs9O9GcEP"/>
+            <span class="absolute -bottom-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full border-2 border-white bg-green-500"></span>
+        </a>
+        <a href="{% url 'accounts:logout_page' %}" class="rounded-md px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--secondary-color)]">Logout</a>
+    {% else %}
+        <a href="{% url 'accounts:login_page' %}" class="rounded-md px-3 py-2 text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--secondary-color)]">Login</a>
+    {% endif %}
     </div>
 </header>

@@ -1,0 +1,55 @@
+name: Build and Push Docker Image to GHCR
+
+on:
+  push:
+    branches:
+      - develop
+
+env:
+  REGISTRY: ghcr.io
+
+
+jobs:
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    # Required permissions for the GITHUB_TOKEN to push to GHCR
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set Image Name to Lowercase
+        run: echo "IMAGE_NAME=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: Log in to the GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          # The context is the directory where the Dockerfile is located
+          context: ./fastapi_server
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Trigger RunPod Deployment
+        if: success()
+        run: |
+          curl -f -X POST \
+            -H "X-Internal-Secret: ${{ secrets.FASTAPI_INTERNAL_SECRET }}" \
+            ${{ secrets.RUNPOD_POD_URL }}/redeploy-webhook
+

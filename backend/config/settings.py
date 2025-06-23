@@ -31,6 +31,10 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 
+# LangGraph API settings
+LANGGRAPH_API_URL = os.getenv("LANGGRAPH_API_URL", "http://127.0.0.1:2024")
+LANGGRAPH_API_KEY = os.getenv("LANGGRAPH_API_KEY", "")
+print(LANGGRAPH_API_KEY,"LANGGRAPH_API_KEY    ",LANGGRAPH_API_URL,"LANGGRAPH_API_URL")
 # Application definition
 
 INSTALLED_APPS = [
@@ -165,9 +169,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # REST Framework settings
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
+    ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
@@ -195,3 +201,8 @@ SIMPLE_JWT = {
 #     'http://localhost:3000',  # Next.js frontend
 # ]
 # CORS_ALLOW_CREDENTIALS = True
+
+# Login and Logout URLs for session-based authentication
+LOGIN_URL = 'accounts:login_page'
+LOGOUT_REDIRECT_URL = 'home'
+
