@@ -1,22 +1,19 @@
-from django.urls import path, re_path, include # Added include
+from django.urls import path, include
 from . import views
 
-app_name = 'conversations'  # Define the application namespace
+app_name = 'conversations'
 
-# Define API URL patterns separately for clarity
+# API routes are grouped under 'api/'
 api_urlpatterns = [
-    # 채팅 세션 관련 URL
-    re_path(r'^sessions/?$', views.ChatSessionViewSet.as_view(), name='api-chat-sessions'), # Renamed
-    re_path(r'^sessions/(?P<pk>[0-9a-f-]+)/?$', views.ChatSessionDetailView.as_view(), name='api-chat-session-detail'), # Renamed
-    
-    # 채팅 메시지 관련 URL
-    re_path(r'^sessions/(?P<session_pk>[0-9a-f-]+)/messages/?$', views.ChatMessageView.as_view(), name='api-chat-messages'), # Renamed
+    path('chat/stream/<uuid:session_id>/', views.chat_stream, name='chat_stream'),
+    path('session/create/', views.session_create_view, name='session_create'),
 ]
 
 urlpatterns = [
-    # Web page route for chatbot
-    path('chatbot/', views.chatbot_view, name='chatbot'), # New view for chatbot.html
+    # Web page routes
+    path('chat/', views.chatbot_view, name='chatbot'),
+    path('chat/<uuid:session_id>/', views.chatbot_view, name='chatbot_session'),
 
-    # Include API routes under 'api/' prefix
-    path('api/', include(api_urlpatterns)),
+    # Include API routes
+    path('api/', include((api_urlpatterns, 'api'), namespace='api')),
 ]

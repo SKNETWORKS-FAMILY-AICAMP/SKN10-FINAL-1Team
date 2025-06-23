@@ -1,169 +1,126 @@
-
-from fastapi import FastAPI, WebSocket, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import uvicorn
-import asyncio
-import os
-import sys
-from typing import List, Dict, Any, Optional
-from dotenv import load_dotenv
+from typing import List, Dict, Any
+from fastapi.responses import StreamingResponse
 import json
-import uuid
-from datetime import datetime
-import logging
+from dotenv import load_dotenv
+import subprocess
 
-# Add project root to sys.path to enable imports
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+# .env 파일에서 환경 변수를 로드합니다.
+load_dotenv()
 
-# Import agent module
-from fastapi_server.agent_service import AgentService, get_agent_service
-from fastapi_server.models import ChatRequest, ChatResponse, ChatMessage
+import os
+from contextlib import asynccontextmanager
+from collections import ChainMap
+from agent.graph import get_swarm_graph
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, 
-                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-# Load environment variables
-dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
-if not os.path.exists(dotenv_path):
-    dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
-load_dotenv(dotenv_path=dotenv_path)
-
-# Check OpenAI API Key
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
-if not OPENAI_API_KEY or len(OPENAI_API_KEY) < 10:
-    raise ValueError("OPENAI_API_KEY is not set or invalid. Please check your .env file.")
-
-# Initialize FastAPI app
 app = FastAPI(
-    title="LangGraph Agent API",
-    description="API for interacting with a multi-agent system built with LangGraph",
-    version="1.0.0",
+    title="LangGraph Swarm Agent Server",
+    description="A server for running a LangGraph swarm agent.",
+    version="1.0.0"
 )
 
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# --- Security Middleware ---
+INTERNAL_SECRET = os.getenv("FASTAPI_INTERNAL_SECRET")
 
-# Active websocket connections and their associated thread IDs
-active_connections = {}
+@app.middleware("http")
+async def verify_internal_secret(request: Request, call_next):
+    # Allow access to docs and openapi.json without the secret header for convenience
+    if request.url.path in ["/docs", "/openapi.json", "/redoc"]:
+        return await call_next(request)
 
-@app.on_event("startup")
-async def startup_event():
-    """Initialize agent service on startup."""
-    logger.info("Starting up FastAPI server and initializing LangGraph agent...")
-    # Agent service is lazily initialized using dependency
+    # For all other paths, require the secret header
+    secret_header = request.headers.get("X-Internal-Secret")
+    if not INTERNAL_SECRET or secret_header != INTERNAL_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing internal secret key")
 
+    response = await call_next(request)
+    return response
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up resources on shutdown."""
-    logger.info("Shutting down FastAPI server...")
+# --- Pydantic Models for API ---
+class UserInput(BaseModel):
+    content: str
 
+class RequestBody(BaseModel):
+    messages: List[UserInput]
 
-@app.get("/")
-async def root():
-    """Health check endpoint."""
-    return {"status": "online", "message": "LangGraph Agent API is running"}
+class InvocationRequest(BaseModel):
+    input: RequestBody
+    config: Dict[str, Any] = {}
 
-
-@app.post("/api/chat", response_model=ChatResponse)
-async def chat_endpoint(
-    request: ChatRequest,
-    background_tasks: BackgroundTasks,
-    agent_service: AgentService = Depends(get_agent_service)
-):
+# --- API Endpoints ---
+def make_serializable(data):
     """
-    Process a chat message through the LangGraph agent system.
+    Recursively converts objects into a JSON-serializable format.
+    Handles objects with a .dict() method (like Pydantic models) by calling it.
+    Also handles ChainMap objects.
     """
+    if isinstance(data, ChainMap):
+        return dict(data)
+    if isinstance(data, (list, tuple)):
+        return type(data)(make_serializable(item) for item in data)
+    if isinstance(data, dict):
+        return {key: make_serializable(value) for key, value in data.items()}
+    if hasattr(data, 'dict') and callable(getattr(data, 'dict')):
+        return data.dict()
+    return data
+
+
+@app.post("/invoke")
+async def invoke_agent(invocation_request: InvocationRequest):
+    """
+    Invokes the agent swarm with a user request and streams both message and debug events.
+    """
+    messages = [("user", msg.content) for msg in invocation_request.input.messages]
+
+    async def event_stream():
+        # Create the checkpointer and graph for each request to isolate lifecycles.
+        async with AsyncPostgresSaver.from_conn_string(os.environ["DB_URI"]) as checkpointer:
+            graph = get_swarm_graph(checkpointer)
+            async for chunk in graph.astream(
+                {"messages": messages},
+                config=invocation_request.config,
+                stream_mode=["messages"]
+            ):
+                try:
+                    serializable_chunk = make_serializable(chunk)
+                    yield f"data: {json.dumps(serializable_chunk, ensure_ascii=False)}\n\n"
+                except Exception as e:
+                    print(f"---[FASTAPI-SERVER-ERROR] Failed to serialize chunk: {e}")
+                    error_payload = {
+                        "event": "error",
+                        "data": {"message": "An unexpected error occurred during stream serialization."}
+                    }
+                    yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+@app.post("/redeploy-webhook", summary="Redeploy Webhook", description="Triggers a redeployment of the pod.")
+async def redeploy(request: Request):
+    # Secure the endpoint with the same internal secret
+    secret_header = request.headers.get("X-Internal-Secret")
+    if not INTERNAL_SECRET or secret_header != INTERNAL_SECRET:
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing internal secret key")
+
     try:
-        # Generate a thread ID if not provided
-        thread_id = request.thread_id or f"thread_{uuid.uuid4()}"
-        
-        # Process the request through the agent service
-        response = await agent_service.process_message(
-            request.message, 
-            thread_id=thread_id
-        )
-        
-        return ChatResponse(
-            thread_id=thread_id,
-            message_id=str(uuid.uuid4()),
-            content=response["content"],
-            created_at=datetime.now().isoformat(),
-            role="assistant",
-            agent=response.get("agent", "system")
-        )
+        # Run the redeploy script in the background without blocking
+        subprocess.Popen(["/bin/sh", "./redeploy.sh"])
+        return {"message": "Redeployment process initiated."}
     except Exception as e:
-        logger.error(f"Error processing chat request: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Agent processing error: {str(e)}")
+        print(f"---[FASTAPI-SERVER-ERROR] Failed to start redeploy script: {e}")
+        raise HTTPException(status_code=500, detail="Failed to initiate redeployment.")
 
 
-@app.websocket("/api/chat/ws/{thread_id}")
-async def websocket_endpoint(websocket: WebSocket, thread_id: str, agent_service: AgentService = Depends(get_agent_service)):
-    """
-    WebSocket endpoint for streaming chat interactions with the LangGraph agent.
-    """
-    await websocket.accept()
-    
-    # Register this connection
-    connection_id = str(uuid.uuid4())
-    active_connections[connection_id] = {"websocket": websocket, "thread_id": thread_id}
-    
-    try:
-        logger.info(f"WebSocket connection established: {connection_id} for thread {thread_id}")
-        
-        while True:
-            # Receive and parse the message
-            data = await websocket.receive_text()
-            try:
-                message_data = json.loads(data)
-                user_message = message_data.get("message", "")
-                
-                if not user_message:
-                    await websocket.send_json({
-                        "type": "error",
-                        "content": "Invalid message format. Expected 'message' field."
-                    })
-                    continue
-                
-                # Process through agent with streaming
-                await agent_service.process_message_stream(
-                    user_message,
-                    thread_id=thread_id,
-                    websocket=websocket
-                )
-                
-            except json.JSONDecodeError:
-                await websocket.send_json({
-                    "type": "error",
-                    "content": "Invalid JSON format"
-                })
-                
-    except Exception as e:
-        logger.error(f"WebSocket error: {str(e)}", exc_info=True)
-        try:
-            await websocket.send_json({
-                "type": "error",
-                "content": f"Server error: {str(e)}"
-            })
-        except:
-            pass
-    finally:
-        # Clean up on disconnect
-        if connection_id in active_connections:
-            del active_connections[connection_id]
-        logger.info(f"WebSocket connection closed: {connection_id}")
+@app.get("/", summary="Root endpoint", description="Provides a welcome message.")
+def read_root():
+    return {"message": "Welcome to the LangGraph Agent API"}
 
-
+# --- Uvicorn Runner ---
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+

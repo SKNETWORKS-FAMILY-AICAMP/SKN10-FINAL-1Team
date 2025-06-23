@@ -1,351 +1,499 @@
-<html><head>
-    <meta charset="utf-8"/>
-    <link crossorigin="" href="https://fonts.gstatic.com/" rel="preconnect"/>
-    <link as="style" href="https://fonts.googleapis.com/css2?display=swap&amp;family=Inter%3Awght%40400%3B500%3B700%3B900&amp;family=Noto+Sans%3Awght%40400%3B500%3B700%3B900" onload="this.rel='stylesheet'" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet"/>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
-    <title>Stitch Design</title>
-    <link href="data:image/x-icon;base64," rel="icon" type="image/x-icon"/>
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <style type="text/tailwindcss">
-        :root {
-          --primary-color: #0b80ee;
-          --secondary-color: #f0f2f5;
-          --text-primary: #111518;
-          --text-secondary: #60768a;
-          --border-color: #dbe1e6;
-        }
-        body {
-          font-family: Inter, "Noto Sans", sans-serif;
-        }
-        .sidebar-item:hover {
-          background-color: var(--secondary-color);
-        }
-        .sidebar-item.active {
-          background-color: var(--secondary-color);
-        }
-        .dropdown:hover .dropdown-menu {
-          display: block;
-        }
-        .dropdown-menu.show {
-            display: block;
-        }
-        /* Styles for closed sidebar */
-        .sidebar-closed {
-            width: 0 !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-            border-right-width: 0 !important;
-            overflow: hidden !important; /* Ensure overflow is hidden */
-        }
-        /* Hide direct children of .sidebar-closed, EXCEPT for #sidebar-top-panel */
-        .sidebar-closed > *:not(#sidebar-top-panel) {
-            display: none !important;
-        }
-        /* Specific styles for #sidebar-top-panel when sidebar is closed */
-        .sidebar-closed > #sidebar-top-panel {
-            padding: 0.25rem !important; /* Minimal padding around the button */
-            border-bottom-width: 0 !important; /* Hide border if any */
-        }
-        /* Hide the H1 title within the top panel when sidebar is closed */
-        .sidebar-closed > #sidebar-top-panel h1 {
-            display: none !important;
-        }
-        /* Ensure the toggle button within the top panel is visible and centered */
-        .sidebar-closed > #sidebar-top-panel #toggle-sidebar {
-            display: flex !important; 
-            justify-content: center;
-            align-items: center;
-            margin: 0 !important; /* Remove any margins */ 
-            padding: 0.25rem !important; /* Consistent padding */
-            width: auto; /* Allow button to size to its icon */
-        }
-        /* Ensure the icon inside the toggle button is visible */
-        .sidebar-closed > #sidebar-top-panel #toggle-sidebar > .material-icons-outlined {
-            display: inline-block !important;
-        }
-      </style>
-    </head>
-    <body>
-    <div class="relative flex size-full min-h-screen flex-col bg-white group/design-root overflow-x-hidden">
-    <div id="header-placeholder"></div>
-    <div class="flex h-full grow">
-    <aside class="w-80 bg-slate-50 border-r border-[var(--border-color)] flex flex-col transition-all duration-300 ease-in-out shrink-0 max-h-[calc(100vh-4rem)] md:sticky md:top-16">
-    <div class="p-4 border-b border-[var(--border-color)]" id="sidebar-top-panel">
-    <div class="flex items-center justify-between">
-    <h1 class="text-[var(--text-primary)] text-xl font-semibold">Chatbot</h1>
-    <button class="p-1 rounded-md hover:bg-[var(--secondary-color)] text-[var(--text-secondary)]" id="toggle-sidebar">
-    <span class="material-icons-outlined">menu_open</span>
-    </button>
-    </div>
-    </div>
-    <div class="flex flex-col gap-2 p-4 overflow-y-auto flex-grow">
-    <button class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150">
-    <span class="material-icons text-[var(--primary-color)]">add_circle</span>
-    <p class="text-sm font-medium">New chat</p>
-    </button>
-    <div class="flex items-center justify-between mt-4 mb-1 px-3">
-    <h2 class="text-xs text-[var(--text-secondary)] font-semibold uppercase">Recent Chats</h2>
-    <div class="relative">
-    <button class="p-1 rounded-md hover:bg-slate-200 text-[var(--text-secondary)]" id="sort-button">
-    <span class="material-icons-outlined text-base">sort</span>
-    </button>
-    <ul class="absolute hidden right-0 mt-1 w-40 bg-white border border-[var(--border-color)] rounded-md shadow-lg z-10" id="sort-menu">
-    <li><a class="block px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--secondary-color)]" data-sort="recent" href="#">최신순</a></li>
-    <li><a class="block px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--secondary-color)]" data-sort="oldest" href="#">오래된순</a></li>
-    <li><a class="block px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--secondary-color)]" data-sort="name_asc" href="#">이름 오름차순</a></li>
-    <li><a class="block px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--secondary-color)]" data-sort="name_desc" href="#">이름 내림차순</a></li>
-    </ul>
-    </div>
-    </div>
-    <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
-    <span class="material-icons-outlined text-blue-500">code</span>
-    <p class="text-sm font-medium">코딩 세션</p>
-    </a>
-    <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] active bg-[var(--secondary-color)] transition-colors duration-150" href="#">
-    <span class="material-icons-outlined text-green-500">analytics</span>
-    <p class="text-sm font-medium">분석 세션</p>
-    </a>
-    <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
-    <span class="material-icons-outlined text-purple-500">description</span>
-    <p class="text-sm font-medium">문서 세션</p>
-    </a>
-    <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
-    <span class="material-icons-outlined text-orange-500">model_training</span>
-    <p class="text-sm font-medium">예측 세션</p>
-    </a>
-    <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
-    <span class="material-icons-outlined text-gray-500">smart_toy</span>
-    <p class="text-sm font-medium">Auto 세션</p>
-    </a>
-    </div>
-    <div class="p-4 border-t border-[var(--border-color)]">
-    <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
-    <span class="material-icons-outlined text-[var(--text-secondary)]">help_outline</span>
-    <p class="text-sm font-medium">FAQ</p>
-    </a>
-    <a class="sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="{% url 'accounts:settings' %}">
-    <span class="material-icons-outlined text-[var(--text-secondary)]">settings</span>
-    <p class="text-sm font-medium">Settings</p>
-    </a>
-    </div>
-    </aside>
-    <main class="flex flex-1 flex-col bg-white max-h-[calc(100vh-4rem)]">
-    <div class="flex-grow flex flex-col items-center p-6 pb-0 overflow-y-auto">
-    <div class="flex-grow flex flex-col items-center px-6 overflow-y-auto w-full">
-    <div class="w-full max-w-3xl flex flex-col justify-end flex-grow">
-    <div class="flex mb-2">
-    <div class="bg-[var(--secondary-color)] p-3 rounded-lg max-w-[70%]">
-    <p class="text-[var(--text-primary)] text-sm">안녕하세요! 무엇을 도와드릴까요?</p>
-    </div>
-    </div>
-    <div class="flex items-center gap-2 self-start mb-4">
-    <button class="p-1.5 rounded-md hover:bg-gray-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-    <span class="material-icons-outlined text-sm">content_copy</span>
-    </button>
-    <button class="p-1.5 rounded-md hover:bg-gray-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-    <span class="material-icons-outlined text-sm">thumb_up</span>
-    </button>
-    <button class="p-1.5 rounded-md hover:bg-gray-200 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-    <span class="material-icons-outlined text-sm">thumb_down</span>
-    </button>
-    </div>
-    <div class="flex justify-end mb-4">
-    <div class="bg-[var(--primary-color)] text-white p-3 rounded-lg max-w-[70%]">
-    <p class="text-sm">오늘 날씨 어때?</p>
-    </div>
-    </div>
-    <div class="text-center mb-12 mt-auto pt-12">
-    <span class="material-icons text-6xl text-[var(--primary-color)] mb-4">smart_toy</span>
-    <h2 class="text-[var(--text-primary)] tracking-light text-3xl font-bold leading-tight">How can I help you today?</h2>
-    </div>
-    </div>
-    </div>
-    </div>
-    <div class="sticky bottom-0 bg-white/80 backdrop-blur-md border-t border-[var(--border-color)] p-4 md:p-6">
-    <div class="max-w-3xl mx-auto">
-    <div class="relative flex items-end gap-2">
-    <div class="dropdown relative">
-    <button class="bg-white text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-medium p-2.5 rounded-lg border border-[var(--border-color)] hover:border-[var(--primary-color)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] flex items-center justify-center size-11">
-    <span class="material-icons-outlined text-gray-500 text-xl">smart_toy</span>
-    </button>
-    <ul class="dropdown-menu absolute hidden text-[var(--text-primary)] pt-1 min-w-[180px] bg-white border border-[var(--border-color)] rounded-lg shadow-lg z-10 bottom-full mb-2">
-    <li><a class="rounded-t-lg hover:bg-[var(--secondary-color)] py-2 px-4 block whitespace-no-wrap flex items-center gap-2 text-sm" href="#"><span class="material-icons-outlined text-blue-500">code</span> 코딩 세션</a></li>
-    <li><a class="hover:bg-[var(--secondary-color)] py-2 px-4 block whitespace-no-wrap flex items-center gap-2 text-sm" href="#"><span class="material-icons-outlined text-green-500">analytics</span> 분석 세션</a></li>
-    <li><a class="hover:bg-[var(--secondary-color)] py-2 px-4 block whitespace-no-wrap flex items-center gap-2 text-sm" href="#"><span class="material-icons-outlined text-purple-500">description</span> 문서 세션</a></li>
-    <li><a class="hover:bg-[var(--secondary-color)] py-2 px-4 block whitespace-no-wrap flex items-center gap-2 text-sm" href="#"><span class="material-icons-outlined text-orange-500">model_training</span> 예측 세션</a></li>
-    <li><a class="rounded-b-lg hover:bg-[var(--secondary-color)] py-2 px-4 block whitespace-no-wrap flex items-center gap-2 text-sm" href="#"><span class="material-icons-outlined text-gray-500">smart_toy</span> Auto 세션</a></li>
-    </ul>
-    </div>
-    <textarea class="form-input flex-1 resize-none overflow-hidden rounded-xl text-[var(--text-primary)] focus:outline-0 focus:ring-2 focus:ring-[var(--primary-color)] border border-[var(--border-color)] bg-white focus:border-[var(--primary-color)] min-h-12 max-h-48 placeholder:text-[var(--text-secondary)] p-3 pr-20 text-sm font-normal leading-normal" placeholder="Type your message here..." rows="1" style="padding-right: 5.5rem;"></textarea>
-    <div class="absolute right-2 bottom-2 flex items-center gap-2">
-    <button aria-label="Attach file" class="flex items-center justify-center size-9 rounded-lg hover:bg-[var(--secondary-color)] text-[var(--text-secondary)] hover:text-[var(--primary-color)] transition-colors duration-150">
-    <span class="material-icons-outlined text-xl">attach_file</span>
-    </button>
-    <button aria-label="Send message" class="flex items-center justify-center size-9 rounded-lg bg-[var(--primary-color)] text-white hover:bg-opacity-90 transition-colors duration-150">
-    <span class="material-icons text-xl">send</span>
-    </button>
-    </div>
-    </div>
-    <p class="text-xs text-[var(--text-secondary)] text-center mt-2">Chatbot may produce inaccurate information.</p>
-    </div>
-    </div>
-    </main>
-    </div>
-    </div>
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WorkAssist - 사내업무 보조 챗봇</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
-        const toggleSidebarButton = document.getElementById('toggle-sidebar');
-        const openSidebarMobileButton = document.getElementById('open-sidebar-mobile'); // Kept for loadHeader logic
-        const sidebar = document.querySelector('aside');
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb',
+                        secondary: '#3b82f6',
+                        dark: '#0f172a',
+                        light: '#f8fafc'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Roboto:wght@300;400;500;700&display=swap');
+        body { font-family: 'Roboto', 'Noto Sans KR', sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
+        .sidebar-gradient { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); }
+                .tool-usage-container {
+            background-color: #1e293b; /* slate-800 */
+            border: 1px solid #475569; /* slate-600 */
+            border-radius: 8px;
+            margin-bottom: 8px; /* Space between tool usage and AI message */
+        }
+        .tool-usage-container summary {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-weight: 500;
+            color: #94a3b8; /* slate-400 */
+            outline: none;
+            transition: background-color 0.2s;
+        }
+        .tool-usage-container summary:hover {
+            background-color: #334155; /* slate-700 */
+        }
+        .tool-usage-container summary .fa-fw {
+            margin-right: 8px;
+        }
+        .tool-usage-content {
+            padding: 12px;
+            border-top: 1px solid #475569; /* slate-600 */
+        }
+        .tool-call-item, .tool-output-item {
+            background-color: #0f172a; /* slate-900 */
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.85rem;
+            border-left: 3px solid #f59e0b; /* amber-500 for tool call */
+        }
+        .tool-output-item {
+             border-left-color: #22c55e; /* green-500 for tool output */
+        }
+        .tool-output-item pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #020617; /* slate-950 */
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 6px;
+        }
+        .chat-bubble-user { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+        .chat-bubble-ai { background: linear-gradient(135deg, #334155 0%, #1e293b 100%); }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        .typing-indicator span { display: inline-block; width: 8px; height: 8px; background-color: #94a3b8; border-radius: 50%; margin: 0 2px; animation: typing 1.4s infinite ease-in-out; }
+        .typing-indicator span:nth-child(1) { animation-delay: 0s; }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing {
+            0%, 100% { transform: translateY(0); opacity: 0.5; }
+            50% { transform: translateY(-5px); opacity: 1; }
+        }
+        .session-item { transition: all 0.3s ease; }
+        .session-item:hover { transform: translateX(5px); background: rgba(59, 130, 246, 0.1); }
+        .growing-shadow { transition: box-shadow 0.3s ease; }
+        .growing-shadow:hover { box-shadow: 0 10px 25px rgba(37, 99, 235, 0.25); }
+    </style>
+</head>
+<body class="min-h-screen text-gray-100 overflow-hidden" data-active-session-id="{{ active_session_id|default:'' }}">
+    <div id="app-container" class="flex h-screen">
+        <!-- 세션 사이드바 -->
+        <aside id="sidebar" class="sidebar-gradient w-80 flex-shrink-0 border-r border-gray-800 flex flex-col transition-all duration-300 ease-in-out group">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h2 class="text-xl font-bold group-[.is-collapsed]:hidden">채팅 세션</h2>
+                <button id="sidebar-toggle" class="text-gray-400 hover:text-white focus:outline-none">
+                    <i class="fas fa-chevron-left transform transition-transform duration-300"></i>
+                </button>
+            </div>
+            <div class="p-4 border-b border-gray-700">
+                <a href="#" id="new-session-btn" class="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors growing-shadow group-[.is-collapsed]:w-12 group-[.is-collapsed]:h-12">
+                    <i class="fas fa-plus-circle"></i>
+                    <span class="ml-2 group-[.is-collapsed]:hidden">새 세션 시작하기</span>
+                </a>
+            </div>
+            <div id="session-list" class="flex-1 overflow-y-auto p-2">
+                {% for session in sessions %}
+                <a href="{% url 'conversations:chatbot_session' session.id %}" id="session-link-{{ session.id }}" class="session-item flex items-center p-3 rounded-lg transition-colors {% if session.id|stringformat:'s' == active_session_id %}bg-blue-600/30 text-white{% else %}hover:bg-gray-700/50 text-gray-300{% endif %}">
+                    <i class="fas fa-comment-dots fa-fw text-gray-400"></i>
+                    <span id="session-title-{{ session.id }}" class="flex-1 truncate ml-3">{{ session.title|default:"새로운 채팅" }}</span>
+                </a>
+                {% empty %}
+                <p class="text-gray-500 text-sm text-center p-4">채팅 세션이 없습니다.</p>
+                {% endfor %}
+            </div>
+        </aside>
 
-        function toggleSidebar() {
-            const isCurrentlyClosed = sidebar.classList.contains('sidebar-closed');
-            const toggleIcon = toggleSidebarButton.querySelector('.material-icons-outlined');
+        <!-- 채팅창 -->
+        <main class="flex-1 flex flex-col bg-dark">
+            <header class="bg-dark/80 backdrop-blur border-b border-gray-800 p-4 flex justify-between items-center">
+                <h2 id="chat-header-title" class="text-lg font-semibold truncate">
+                    {% if active_session_id %}
+                        {{ sessions.first.title|default:"Chat" }}
+                    {% else %}
+                        WorkAssist AI
+                    {% endif %}
+                </h2>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-400">안녕하세요, {{ user.username }}님</span>
+                                        <a href="{% url 'accounts:logout_page' %}" class="text-sm bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg transition-colors">로그아웃</a>
+                </div>
+            </header>
 
-            if (isCurrentlyClosed) { // Action: OPEN sidebar
-                sidebar.classList.remove('sidebar-closed');
-                if (toggleIcon) toggleIcon.textContent = 'menu_open';
-                
-                if (window.innerWidth < 768) {
-                    // Mobile: Apply overlay and specific layout for open mobile sidebar
-                    sidebar.classList.add('absolute', 'z-20', 'bg-slate-50', 'h-full', 'max-h-full', 'top-0');
-                    sidebar.classList.remove('max-h-[calc(100vh-4rem)]', 'md:sticky', 'md:top-16');
-                    
-                    const overlay = document.createElement('div');
-                    overlay.classList.add('fixed', 'inset-0', 'bg-black/30', 'z-10', 'md:hidden');
-                    overlay.id = 'sidebar-overlay';
-                    document.body.appendChild(overlay);
-                    overlay.addEventListener('click', () => {
-                        toggleSidebar(); // This will call close logic
-                        overlay.remove();
+            <div id="chat-messages" class="flex-1 overflow-y-auto p-6 space-y-6">
+                {% if active_session_id %}
+                    {% for message in initial_messages %}
+                        {% if message.role == 'user' %}
+                        <div class="flex justify-end">
+                            <div class="max-w-xl">
+                                <div class="chat-bubble-user text-white p-4 rounded-lg rounded-br-none shadow-lg">
+                                    <p>{{ message.content|linebreaksbr }}</p>
+                                </div>
+                                <p class="text-xs text-gray-500 text-right mt-1">{{ message.created_at|date:"H:i" }}</p>
+                            </div>
+                        </div>
+                        {% elif message.role == 'assistant' %}
+                        <div class="flex items-start gap-3 mb-4">
+    
+                            <div class="w-full max-w-xl">
+                                {% if message.processed_tool_events %}
+                                <details class="tool-usage-container bg-slate-800 rounded-lg border border-slate-700 mb-2" open>
+                                    <summary class="p-2 cursor-pointer text-slate-400 hover:bg-slate-700 rounded-t-lg"><i class="fas fa-cogs fa-fw mr-2"></i>Tool Usage</summary>
+                                    <div class="tool-usage-content p-3 border-t border-slate-700">
+                                        {% for event in message.processed_tool_events %}
+                                        <div class="mb-2">
+                                            <div class="tool-call-item">
+                                                <div class="font-semibold text-amber-400"><i class="fas fa-wrench fa-fw mr-2"></i>{{ event.call.name }}</div>
+                                                <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 bg-slate-950 p-2 rounded">{{ event.call.args_pretty }}</pre>
+                                            </div>
+                                            <div class="tool-output-item mt-1">
+                                                <div class="font-semibold text-green-400"><i class="fas fa-clipboard-check fa-fw mr-2"></i>Output</div>
+                                                <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 bg-slate-950 p-2 rounded">{{ event.output }}</pre>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </details>
+                                {% endif %}
+                                <div class="chat-bubble-ai text-gray-200 p-4 rounded-lg rounded-bl-none shadow-lg bg-slate-700">
+                                    <p>{{ message.content|linebreaksbr }}</p>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">{{ message.created_at|date:"H:i" }}</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                <div class="flex flex-col items-center justify-center h-full text-center text-gray-400">
+                    <i class="fas fa-comments text-6xl mb-4"></i>
+                    <h2 class="text-2xl font-bold">WorkAssist AI</h2>
+                    <p class="max-w-md mt-2">새로운 세션을 시작하거나 왼쪽 목록에서 기존 세션을 선택하여 대화를 시작하세요.</p>
+                </div>
+                {% endif %}
+            </div>
+            
+            <div id="typing-indicator" class="px-6 pb-2" style="display: none;">
+                <div class="flex items-start">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center flex-shrink-0 mr-3">
+                        <i class="fas fa-robot text-white text-sm"></i>
+                    </div>
+                    <div class="ml-3 flex items-center">
+                        <div class="typing-indicator">
+                            <span></span><span></span><span></span>
+                        </div>
+                        <span class="ml-2 text-gray-400">생성 중...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 입력 영역 -->
+            <div class="bg-dark/80 backdrop-blur border-t border-gray-800 p-4">
+                <div class="max-w-4xl mx-auto">
+                    <form id="chat-form" class="flex items-center">
+                        {% csrf_token %}
+                        <input type="text" id="message-input" name="message" placeholder="업무 내용을 입력하세요..." class="flex-1 bg-gray-800 border border-gray-700 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50" {% if not active_session_id %}disabled{% endif %}>
+                        <button type="submit" id="send-button" class="bg-gradient-to-r from-primary to-secondary hover:from-blue-500 hover:to-blue-600 w-14 h-14 rounded-lg flex items-center justify-center ml-3 flex-shrink-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed" {% if not active_session_id %}disabled{% endif %}>
+                            <i class="fas fa-paper-plane text-white text-xl"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Element selections
+        const chatMessages = document.getElementById('chat-messages');
+        const chatForm = document.getElementById('chat-form');
+        const messageInput = document.getElementById('message-input');
+        const newSessionBtn = document.getElementById('new-session-btn');
+        const sessionList = document.getElementById('session-list');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const body = document.body;
+
+        // --- Helper Functions ---
+        function getActiveSessionId() {
+            return body.dataset.activeSessionId;
+        }
+
+        function getCsrfToken() {
+            const csrfCookie = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+            return csrfCookie ? csrfCookie.split('=')[1] : document.querySelector('[name=csrfmiddlewaretoken]').value;
+        }
+
+        function scrollToBottom() {
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+
+        // --- UI Update Functions ---
+        function updateToolUI(toolData, toolContainer) {
+            if (!toolContainer) return;
+            const toolContentDiv = toolContainer.querySelector('.tool-usage-content');
+            if (!toolContentDiv) return;
+
+            toolContainer.style.display = 'block';
+            toolContentDiv.innerHTML = ''; // Clear previous content as we get full updates
+
+            for (const agentName in toolData) {
+                const agentState = toolData[agentName];
+                if (agentState.messages) {
+                    const toolEvents = {}; // Store calls and their outputs
+
+                    agentState.messages.forEach(msg => {
+                        if (msg.type === 'ai' && msg.tool_calls && msg.tool_calls.length > 0) {
+                            msg.tool_calls.forEach(tc => {
+                                if (tc.id) {
+                                    toolEvents[tc.id] = { call: tc, output: 'Pending...' };
+                                }
+                            });
+                        }
                     });
-                }
-            } else { // Action: CLOSE sidebar
-                sidebar.classList.add('sidebar-closed');
-                if (toggleIcon) toggleIcon.textContent = 'menu';
-                
-                if (window.innerWidth < 768) {
-                    // Mobile: Remove overlay and restore default/desktop-like layout classes before hiding
-                    const overlay = document.getElementById('sidebar-overlay');
-                    if (overlay) overlay.remove();
+
+                    agentState.messages.forEach(msg => {
+                        if (msg.type === 'tool' && msg.tool_call_id && toolEvents[msg.tool_call_id]) {
+                            let outputContent = msg.content;
+                            try {
+                                const parsedContent = JSON.parse(outputContent);
+                                outputContent = JSON.stringify(parsedContent, null, 2);
+                            } catch (e) { /* Not a JSON string, leave as is */ }
+                            toolEvents[msg.tool_call_id].output = outputContent;
+                        }
+                    });
                     
-                    sidebar.classList.remove('absolute', 'z-20', 'bg-slate-50', 'h-full', 'max-h-full', 'top-0');
-                    sidebar.classList.add('max-h-[calc(100vh-4rem)]', 'md:sticky', 'md:top-16');
+                    for (const id in toolEvents) {
+                        const { call, output } = toolEvents[id];
+                        const toolCallElement = document.createElement('div');
+                        toolCallElement.id = `tool-${id}`;
+                        toolCallElement.classList.add('mb-2');
+                        
+                        const argsString = JSON.stringify(call.args, null, 2);
+                        const outputString = (typeof output === 'string') ? output : JSON.stringify(output, null, 2);
+
+                        toolCallElement.innerHTML = `
+                            <div class="tool-call-item">
+                                <div class="font-semibold text-amber-400"><i class="fas fa-wrench fa-fw mr-2"></i>${call.name}</div>
+                                <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 bg-slate-950 p-2 rounded">${argsString}</pre>
+                            </div>
+                            <div class="tool-output-item mt-1">
+                                <div class="font-semibold text-green-400"><i class="fas fa-clipboard-check fa-fw mr-2"></i>Output</div>
+                                <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 bg-slate-950 p-2 rounded">${outputString}</pre>
+                            </div>
+                        `;
+                        toolContentDiv.appendChild(toolCallElement);
+                    }
                 }
             }
         }
 
-        if (toggleSidebarButton) {
-            toggleSidebarButton.addEventListener('click', toggleSidebar);
-        }
-
-        const textarea = document.querySelector('textarea');
-        if (textarea) {
-            textarea.addEventListener('input', () => {
-              textarea.style.height = 'auto';
-              textarea.style.height = textarea.scrollHeight + 'px';
+        // --- Event Listeners ---
+        if (sidebar && sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('w-80');
+                sidebar.classList.toggle('w-20');
+                sidebar.classList.toggle('is-collapsed');
+                sidebarToggle.querySelector('i').classList.toggle('rotate-180');
             });
         }
 
-        // Initial sidebar state on page load for mobile
-        if (window.innerWidth < 768) {
-          if (!sidebar.classList.contains('sidebar-closed')) {
-            // If not already closed by default (e.g. via HTML class), close it
-            toggleSidebar(); 
-          }
-        } else {
-            // Ensure sidebar is not closed by default on desktop if it was previously left in mobile closed state
-            // And also ensure the icon is correct if it starts open
-            if (sidebar.classList.contains('sidebar-closed')) {
-                // If it has sidebar-closed, remove it for desktop initial view
-                // sidebar.classList.remove('sidebar-closed'); 
-                // Decided against auto-opening on desktop load if class is present.
-                // Instead, ensure icon is correct if it IS closed.
-                const toggleIcon = toggleSidebarButton.querySelector('.material-icons-outlined');
-                if (toggleIcon) toggleIcon.textContent = 'menu';
-            } else {
-                const toggleIcon = toggleSidebarButton.querySelector('.material-icons-outlined');
-                if (toggleIcon) toggleIcon.textContent = 'menu_open';
-            }
-        }
-
-        // Dropdown logic
-        const dropdownButton = document.querySelector('.dropdown button');
-        const dropdownMenu = document.querySelector('.dropdown-menu');
-        if (dropdownButton && dropdownMenu) {
-            const dropdownItems = dropdownMenu.querySelectorAll('a');
-            const selectedSessionIcon = dropdownButton.querySelector('span.material-icons-outlined');
-            
-            dropdownItems.forEach(item => {
-              item.addEventListener('click', function(e) {
+        if (newSessionBtn) {
+            newSessionBtn.addEventListener('click', async (e) => {
                 e.preventDefault();
-                const icon = this.querySelector('.material-icons-outlined');
-                if (selectedSessionIcon && icon) {
-                    selectedSessionIcon.textContent = icon.textContent;
-                    selectedSessionIcon.className = icon.className + ' text-xl'; 
+                try {
+                    const response = await fetch("{% url 'conversations:api:session_create' %}", {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': getCsrfToken(),
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    const data = await response.json();
+                    if (data.session_id) {
+                        window.location.href = `/conversations/chat/${data.session_id}/`;
+                    }
+                } catch (error) {
+                    console.error('Error creating new session:', error);
                 }
-                dropdownMenu.classList.add('hidden');
-              });
-            });
-            
-            document.addEventListener('click', function(event) {
-              if (!dropdownButton.contains(event.target) && !dropdownMenu.contains(event.target)) {
-                dropdownMenu.classList.add('hidden');
-              }
-            });
-            
-            dropdownButton.addEventListener('click', () => {
-                dropdownMenu.classList.toggle('hidden');
             });
         }
 
-        // Sort button logic
-        const sortButton = document.getElementById('sort-button');
-        const sortMenu = document.getElementById('sort-menu');
-        if (sortButton && sortMenu) {
-            sortButton.addEventListener('click', (event) => {
-                event.stopPropagation();
-                sortMenu.classList.toggle('hidden');
-            });
-            document.addEventListener('click', (event) => {
-                if (!sortMenu.contains(event.target) && !sortButton.contains(event.target)) {
-                    sortMenu.classList.add('hidden');
+        if (sessionList) {
+            sessionList.addEventListener('click', (e) => {
+                const sessionItem = e.target.closest('.session-item');
+                if (sessionItem) {
+                    const sessionId = sessionItem.dataset.sessionId;
+                    if (sessionId) {
+                        window.location.href = `/conversations/chat/${sessionId}/`;
+                    }
                 }
             });
-            sortMenu.querySelectorAll('a').forEach(item => {
-                item.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    console.log('Sort by:', e.target.dataset.sort);
-                    sortMenu.classList.add('hidden');
-                });
+        }
+        
+        if (chatForm) {
+            chatForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const messageText = messageInput.value.trim();
+                if (!messageText) return;
+
+                const sessionId = getActiveSessionId();
+                if (!sessionId) {
+                    alert('Please start a new session first.');
+                    return;
+                }
+
+                // Append user message
+                const userMessageHtml = `
+                    <div class="flex justify-end">
+                        <div class="max-w-xl">
+                            <div class="chat-bubble-user text-white p-4 rounded-lg shadow-md">
+                                ${messageText.replace(/\n/g, '<br>')}
+                            </div>
+                            <p class="text-xs text-gray-500 text-right mt-1">Now</p>
+                        </div>
+                    </div>`;
+                chatMessages.innerHTML += userMessageHtml;
+                messageInput.value = '';
+                messageInput.style.height = 'auto';
+                scrollToBottom();
+
+                // Prepare assistant message container
+                const assistantMessageId = `assistant-message-${Date.now()}`;
+                const assistantMessageHtml = `
+                    <div class="flex items-start gap-3 mb-4">
+
+                        <div class="w-full max-w-xl">
+                            <div id="${assistantMessageId}-container">
+                                <details class="tool-usage-container bg-slate-800 rounded-lg border border-slate-700 mb-2" style="display: none;">
+                                    <summary class="p-2 cursor-pointer text-slate-400 hover:bg-slate-700 rounded-t-lg"><i class="fas fa-cogs fa-fw mr-2"></i>Tool Usage</summary>
+                                    <div class="tool-usage-content p-3 border-t border-slate-700"></div>
+                                </details>
+                                <div class="chat-bubble-ai text-white p-4 rounded-lg shadow-md">
+                                    <p id="${assistantMessageId}"><span class="typing-indicator"><span></span><span></span><span></span></span></p>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">Just now</p>
+                        </div>
+                    </div>`;
+                chatMessages.innerHTML += assistantMessageHtml;
+                scrollToBottom();
+
+                const assistantMessageP = document.getElementById(assistantMessageId);
+                const toolContainer = document.querySelector(`#${assistantMessageId}-container .tool-usage-container`);
+
+                // Fetch stream
+                try {
+                    const response = await fetch(`/conversations/api/chat/stream/${sessionId}/`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCsrfToken()
+                        },
+                        body: JSON.stringify({ message: messageText })
+                    });
+
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    let isFirstChunk = true;
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop(); 
+
+                        for (const line of lines) {
+                            if (!line.startsWith('data: ')) continue;
+                            try {
+                                const rawJson = line.substring(6).trim();
+                                if (!rawJson) continue;
+                                const payload = JSON.parse(rawJson);
+                                
+                                if (isFirstChunk && assistantMessageP) {
+                                    assistantMessageP.innerHTML = '';
+                                    isFirstChunk = false;
+                                }
+
+                                if (payload.event === 'title_start') {
+                                    const headerTitle = document.getElementById('chat-header-title');
+                                    const sidebarTitle = document.getElementById(`session-title-${sessionId}`);
+                                    if (headerTitle) headerTitle.textContent = '';
+                                    if (sidebarTitle) sidebarTitle.textContent = '';
+                                } else if (payload.event === 'title_chunk') {
+                                    const headerTitle = document.getElementById('chat-header-title');
+                                    const sidebarTitle = document.getElementById(`session-title-${sessionId}`);
+                                    if (headerTitle) headerTitle.textContent += payload.data;
+                                    if (sidebarTitle) sidebarTitle.textContent += payload.data;
+                                } else if (payload.event === 'title_end') {
+                                    const finalTitle = payload.data;
+                                    const headerTitle = document.getElementById('chat-header-title');
+                                    const sidebarTitle = document.getElementById(`session-title-${sessionId}`);
+                                    if (headerTitle) headerTitle.textContent = finalTitle;
+                                    if (sidebarTitle) sidebarTitle.textContent = finalTitle;
+                                    document.title = `${finalTitle} - WorkAssist`;
+                                } else if (payload.event === 'message_chunk') {
+                                    if (assistantMessageP) assistantMessageP.innerHTML += payload.data.replace(/\n/g, '<br>');
+                                } else if (payload.event === 'tool_use_started') {
+                                    if (toolContainer) {
+                                        toolContainer.style.display = 'block';
+                                        const toolContentDiv = toolContainer.querySelector('.tool-usage-content');
+                                        if (toolContentDiv && toolContentDiv.innerHTML === '') {
+                                            toolContentDiv.innerHTML = '<p class="text-slate-400 text-xs"><i>Agent is using tools...</i></p>';
+                                        }
+                                    }
+                                } else if (payload.event === 'tool_update') {
+                                    updateToolUI(payload.data, toolContainer);
+                                } else if (payload.event === 'error') {
+                                    if (assistantMessageP) assistantMessageP.innerHTML = `<span class="text-red-400">Error: ${payload.data}</span>`;
+                                    break;
+                                }
+                                scrollToBottom();
+                            } catch (e) {
+                                console.error('Error parsing stream data:', e, 'line:', line);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Fetch error:', error);
+                    if (assistantMessageP) assistantMessageP.innerHTML = '<span class="text-red-400">Sorry, an error occurred while connecting to the server.</span>';
+                }
             });
         }
-    </script>
-    <script>
-        function loadHeader() {
-            fetch('/_header.html') // Adjusted path for templates in subdirectories
-                .then(response => response.text())
-                .then(data => {
-                    document.getElementById('header-placeholder').innerHTML = data;
-                    // Set active link
-                    const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
-                    const navLink = document.querySelector(`nav a[data-navlink='${currentPage || 'chatbot'}']`);
-                    if (navLink) {
-                        navLink.classList.add('text-[var(--text-primary)]', 'bg-[var(--secondary-color)]');
-                        navLink.classList.remove('text-[var(--text-secondary)]');
-                    }
 
-                    // Re-attach event listener for mobile sidebar toggle if it's defined in this page's main script
-                    const openSidebarMobileButton = document.getElementById('open-sidebar-mobile');
-                    if (typeof openMobileSidebar === 'function' && openSidebarMobileButton) { // Check if openMobileSidebar is defined
-                         openSidebarMobileButton.addEventListener('click', openMobileSidebar);
-                    } else if (typeof toggleSidebar === 'function' && openSidebarMobileButton) {
-                        // When on a page with toggleSidebar (like chatbot.html), make the header's mobile toggle button use it.
-                        openSidebarMobileButton.addEventListener('click', toggleSidebar);
-                    }
-                })
-                .catch(error => console.error('Error loading header:', error));
+        if (messageInput) {
+            messageInput.addEventListener('input', () => {
+                messageInput.style.height = 'auto';
+                messageInput.style.height = (messageInput.scrollHeight) + 'px';
+            });
         }
-        document.addEventListener('DOMContentLoaded', loadHeader);
+        
+        // Initial scroll to bottom
+        scrollToBottom();
+    });
     </script>
-    </body></html>
+</body>
+</html>

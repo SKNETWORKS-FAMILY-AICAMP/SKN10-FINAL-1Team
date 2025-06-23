@@ -15,6 +15,10 @@ api_urlpatterns = [
 ]
 
 urlpatterns = [
+    # User-facing authentication pages
+    path('login_page/', views.login_page_view, name='login_page'),
+    path('logout_page/', views.logout_page_view, name='logout_page'),
+
     # Web page routes
     path('profile/', views.profile_view, name='profile'), # New view for profile.html
     path('settings/', views.settings_view, name='settings'), # New view for setting.html
