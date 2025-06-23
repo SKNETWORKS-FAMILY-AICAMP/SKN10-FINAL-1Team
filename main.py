@@ -55,6 +55,13 @@ def main():
     parser.add_argument("--max-abstractions", type=int, default=10, help="Maximum number of abstractions to identify (default: 10)")
     parser.add_argument("--max-context-chars", type=int, default=100000, help="Maximum number of characters for the LLM context (default: 100000).")
 
+    # Add S3 upload arguments (optional)
+    parser.add_argument("--s3-bucket", help="S3 bucket name for uploading the generated tutorial.")
+    parser.add_argument("--s3-access-key", help="AWS Access Key ID for S3 upload.")
+    parser.add_argument("--s3-secret-key", help="AWS Secret Access Key for S3 upload.")
+    parser.add_argument("--s3-region", help="AWS region for the S3 bucket.")
+    parser.add_argument("--user-id", help="User identifier for constructing S3 path.")
+
     args = parser.parse_args()
 
     # Get GitHub token from argument or environment variable
@@ -85,6 +92,13 @@ def main():
 
         # Add context character limit
         "max_context_chars": args.max_context_chars,
+
+        # Add S3 details to shared context if provided
+        "s3_bucket_name": args.s3_bucket,
+        "aws_access_key_id": args.s3_access_key,
+        "aws_secret_access_key": args.s3_secret_key,
+        "aws_region_name": args.s3_region,
+        "user_id": args.user_id,
 
         # Outputs will be populated by the nodes
         "files": [],

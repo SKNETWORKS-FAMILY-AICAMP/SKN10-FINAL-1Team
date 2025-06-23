@@ -1,6 +1,7 @@
 import os
 import re
 import yaml
+import boto3
 from pocketflow import Node, BatchNode
 from crawl_github_files import crawl_github_files
 from call_llm import call_llm
@@ -834,6 +835,13 @@ class CombineTutorial(Node):
             "output_path": output_path,
             "index_content": index_content,
             "chapter_files": chapter_files,  # List of {"filename": str, "content": str}
+            # Pass S3 info to exec method
+            "s3_bucket_name": shared.get("s3_bucket_name"),
+            "aws_access_key_id": shared.get("aws_access_key_id"),
+            "aws_secret_access_key": shared.get("aws_secret_access_key"),
+            "aws_region_name": shared.get("aws_region_name"),
+            "user_id": shared.get("user_id"),
+            "project_name": project_name
         }
 
     def exec(self, prep_res):
@@ -857,6 +865,38 @@ class CombineTutorial(Node):
             with open(chapter_filepath, "w", encoding="utf-8") as f:
                 f.write(chapter_info["content"])
             print(f"  - Wrote {chapter_filepath}")
+
+        # --- S3 Upload Logic for Generated Tutorial --- #
+        s3_bucket_name = prep_res.get("s3_bucket_name")
+        aws_access_key_id = prep_res.get("aws_access_key_id")
+        aws_secret_access_key = prep_res.get("aws_secret_access_key")
+        aws_region_name = prep_res.get("aws_region_name")
+        user_id = prep_res.get("user_id", "anonymous")
+        project_name = prep_res.get("project_name", "unknown_project")
+
+        if s3_bucket_name and aws_access_key_id and aws_secret_access_key and aws_region_name:
+            print(f"S3에 튜토리얼 업로드 시작: {s3_bucket_name}")
+            try:
+                s3_client = boto3.client(
+                    's3',
+                    aws_access_key_id=aws_access_key_id,
+                    aws_secret_access_key=aws_secret_access_key,
+                    region_name=aws_region_name
+                )
+
+                # Upload index and chapter files
+                all_files_to_upload = [index_filepath] + [os.path.join(output_path, chapter['filename']) for chapter in chapter_files]
+
+                for local_path in all_files_to_upload:
+                    file_name = os.path.basename(local_path)
+                    s3_object_key = f"generated_tutorials/{user_id}/{project_name}/{file_name}"
+                    
+                    print(f"Uploading '{file_name}' to S3 -> {s3_object_key}")
+                    s3_client.upload_file(local_path, s3_bucket_name, s3_object_key)
+                
+                print(f"Tutorial S3 upload complete.")
+            except Exception as e:
+                print(f"S3 upload failed: {e}")
 
         return output_path  # Return the final path
 

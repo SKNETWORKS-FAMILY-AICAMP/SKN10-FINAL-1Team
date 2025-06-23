@@ -540,6 +540,15 @@ def scan_selected_repositories_view(request):
                         '--token', github_token,
                         '--language', 'korean'
                     ]
+                    # Add S3 parameters if the client was initialized
+                    if s3_client and s3_bucket_name_from_settings:
+                        command.extend([
+                            '--s3-bucket', s3_bucket_name_from_settings,
+                            '--s3-access-key', aws_access_key_id,
+                            '--s3-secret-key', aws_secret_access_key,
+                            '--s3-region', aws_region_name,
+                            '--user-id', str(user.id) if user.is_authenticated else 'anonymous'
+                        ])
                     
                     subprocess.Popen(command, cwd=PROJECT_ROOT)
                     
@@ -625,6 +634,15 @@ def scan_selected_repositories_view(request):
                         '--output', repo_output_dir,
                         '--language', 'korean'
                     ]
+                    # Add S3 parameters if the client was initialized
+                    if s3_client and s3_bucket_name_from_settings:
+                        command.extend([
+                            '--s3-bucket', s3_bucket_name_from_settings,
+                            '--s3-access-key', aws_access_key_id,
+                            '--s3-secret-key', aws_secret_access_key,
+                            '--s3-region', aws_region_name,
+                            '--user-id', str(user.id) if user.is_authenticated else 'anonymous'
+                        ])
                     
                     subprocess.Popen(command, cwd=PROJECT_ROOT)
                     
