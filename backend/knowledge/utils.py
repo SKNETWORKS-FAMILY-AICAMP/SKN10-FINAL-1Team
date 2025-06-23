@@ -20,7 +20,8 @@ from conversations.models import ChatSession, ChatMessage, LlmCall
 from accounts.models import User
 from django.conf import settings
 from django.db import connection
-
+from functools import lru_cache
+                    
 def get_postgre_db() : 
     """PostgreSQL 데이터베이스 연결 정보 가져오는 함수"""
     db = settings.DATABASES['default']
@@ -66,9 +67,9 @@ def get_all_table():
             })
     return result
 
-
-def get_index_lists() :
-    """Pinecone 인덱스 목록을 가져오는 함수"""
+@lru_cache(maxsize=1)
+def connect_pinecone() :
+    """Pinecone 클라이언트를 반환하는 헬퍼 함수"""
     load_dotenv()
     # 1-1) OpenAI 클라이언트 생성
     openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -81,7 +82,12 @@ def get_index_lists() :
     pinecone_env = os.getenv("PINECONE_ENVIRONMENT") # Pinecone 환경
     if not pinecone_api_key or not pinecone_env:
         raise ValueError("PINECONE_API_KEY 또는 PINECONE_ENVIRONMENT 환경 변수가 설정되어 있지 않습니다.")
-    pc = Pinecone(api_key=pinecone_api_key, environment=pinecone_env)
+    
+    return Pinecone(api_key=pinecone_api_key, environment=pinecone_env)
+
+def get_index_lists() :
+    """Pinecone Index 정보들을 가져오는 함수"""
+    pc = connect_pinecone()
 
     # 1-3) 인덱스 목록 정보 가져오기
     results = []
@@ -111,21 +117,7 @@ def get_index_lists() :
 
 def make_index(name, cloud, region, metric, vector_type, dimension) : 
     """Pinecone 인덱스를 생성하는 함수"""
-    load_dotenv()
-
-    # 1-1) OpenAI 클라이언트 생성
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    if not openai_api_key:
-        raise ValueError("OPENAI_API_KEY 환경 변수가 설정되어 있지 않습니다.")
-    openai_client = OpenAI(api_key=openai_api_key)
-    
-    # 1-2) Pinecone 인스턴스 생성
-    pinecone_api_key = os.getenv("PINECONE_API_KEY") # Pinecone API 키
-    pinecone_env = os.getenv("PINECONE_ENVIRONMENT") # Pinecone 환경
-    if not pinecone_api_key or not pinecone_env:
-        raise ValueError("PINECONE_API_KEY 또는 PINECONE_ENVIRONMENT 환경 변수가 설정되어 있지 않습니다.")
-    
-    pc = Pinecone(api_key=pinecone_api_key, environment=pinecone_env)
+    pc = connect_pinecone()
     spec = ServerlessSpec(cloud  = cloud,region = region)
 
     # 1-3) 인덱스 생성
@@ -155,20 +147,7 @@ def make_index(name, cloud, region, metric, vector_type, dimension) :
 
 def remove_index(name) : 
     """Pinecone 인덱스를 삭제하는 함수"""
-    load_dotenv()
-
-    # 1-1) OpenAI 클라이언트 생성
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    if not openai_api_key:
-        raise ValueError("OPENAI_API_KEY 환경 변수가 설정되어 있지 않습니다.")
-    openai_client = OpenAI(api_key=openai_api_key)
-    
-    # 1-2) Pinecone 인스턴스 생성
-    pinecone_api_key = os.getenv("PINECONE_API_KEY") # Pinecone API 키
-    pinecone_env = os.getenv("PINECONE_ENVIRONMENT") # Pinecone 환경
-    if not pinecone_api_key or not pinecone_env:
-        raise ValueError("PINECONE_API_KEY 또는 PINECONE_ENVIRONMENT 환경 변수가 설정되어 있지 않습니다.")
-    pc = Pinecone(api_key=pinecone_api_key, environment=pinecone_env)
+    pc = connect_pinecone()
 
     # 1-3) 해당 인덱스가 Pinecone index에 있는지 확인 후 인덱스 삭제 
     if name not in pc.list_indexes().names():
@@ -178,8 +157,28 @@ def remove_index(name) :
         pc.delete_index(name=name)
         print(f"✅ 해당 {name} 인덱스를 성공적으로 삭제함!")
         return True
-    
 
+def get_namespaces(index_name) :
+    """Pinecone 해당 인덱스의 네임스페이스들을 가져오는 함수"""
+    pc = connect_pinecone()
+
+    # 1. 인덱스 존재 여부 확인
+    existing_indexes = pc.list_indexes().names()
+    if index_name not in existing_indexes :
+        raise ValueError(f"⚠️ 인덱스 '{index_name}'가 Pinecone에 존재하지 않습니다. 현재 인덱스 목록: {existing_indexes}")
+    
+    # 2. 인덱스 연결
+    index = pc.Index(index_name)
+    namespaces = index.describe_index_stats().namespaces
+    print(f"✅ Pinecone 인덱스 '{index_name}' 연결 완료 (Namespaces: {len(namespaces)})")
+    print(namespaces)
+
+    # 3. 네임스페이스 전처리
+    flatten_namespaces = {
+        (name if name != '' else 'unknown'): info['vector_count']
+        for name, info in namespaces.items()
+    }
+    return flatten_namespaces
 
 
 def get_sessions() :
@@ -189,7 +188,5 @@ def get_sessions() :
 
 def get_users() :
     """유저 목록을 가져오는 함수""" 
-    users = User.objects.all()
+    users = User.objects.all().order_by("-created_at")
     return users
-    
-

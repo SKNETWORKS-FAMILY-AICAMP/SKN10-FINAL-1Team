@@ -7,7 +7,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from .utils import get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table, make_index, remove_index
+from .utils import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table, make_index, remove_index
 from .models import User
 # Create your views here.
 
@@ -31,7 +31,7 @@ def dashboard_view(request):
     elif section == "log" :
         context['sessions'] = get_sessions() 
     elif section == "user" :
-        context['users'] = get_users()
+        context['users'] = get_users() 
     else : 
         return JsonResponse({'error': 'Invalid section'}, status=400)
     return render(request, 'knowledge/dashboard.html', context)
@@ -67,6 +67,7 @@ def create_index(request):
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
 
 def delete_index(request):
+    """특정 index를 제거"""
     if request.method == 'POST':
         index_name = request.POST.get('name') # 인덱스 이름
         # 입력한 인덱스 이름이 비어있을 때 예외처리
@@ -87,6 +88,7 @@ def delete_index(request):
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
 
 def delete_user(request):
+    """특정 User를 제거"""
     if request.method == 'POST':
         email = request.POST.get('email') # 이메일
         url = reverse('knowledge:dashboard') + '?section=user'
@@ -106,6 +108,14 @@ def delete_user(request):
 
 # Placeholder API views to match knowledge/urls.py
 # These should be properly implemented later.
+
+def index_detail(request, index_name) :
+    """특정 index의 네임스페이스 정보들을 가져옴"""
+    namespaces = get_namespaces(index_name)
+    return JsonResponse({'namespaces': namespaces})
+
+
+
 
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])

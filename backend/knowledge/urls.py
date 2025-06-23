@@ -30,6 +30,8 @@ urlpatterns = [
     path('dashboard/create_index/', views.create_index, name='create_index'),
     path('dashboard/delete_index/', views.delete_index, name='delete_index'),
     path('dashboard/delete_user/', views.delete_user, name='delete_user'),
+    path('dashboard/index_detail/<str:index_name>', views.index_detail, name='index_detail'),
+
     # Include API routes under 'api/' prefix
     path('api/', include(api_urlpatterns)),
 ]
