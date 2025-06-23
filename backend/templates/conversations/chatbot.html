@@ -23,108 +23,112 @@
     </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Roboto:wght@300;400;500;700&display=swap');
-        body { font-family: 'Roboto', 'Noto Sans KR', sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
-        .sidebar-gradient { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); }
-                .tool-usage-container {
-            background-color: #1e293b; /* slate-800 */
-            border: 1px solid #475569; /* slate-600 */
-            border-radius: 8px;
-            margin-bottom: 8px; /* Space between tool usage and AI message */
+        body { font-family: 'Roboto', 'Noto Sans KR', sans-serif; background: #ffffff; color: #333333; }
+        .sidebar-gradient { background: #f8f9fa; border-right: 1px solid #e0e0e0; }
+
+        /* --- Tool Usage UI --- */
+        .tool-usage-container {
+            background-color: #f8fafc; /* slate-50 */
+            border: 1px solid #e2e8f0; /* slate-200 */
+            border-radius: 12px;
+            margin-bottom: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
         }
         .tool-usage-container summary {
-            padding: 8px 12px;
+            padding: 10px 16px;
             cursor: pointer;
-            font-weight: 500;
-            color: #94a3b8; /* slate-400 */
+            font-weight: 600;
+            color: #334155; /* slate-700 */
             outline: none;
             transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
         }
-        .tool-usage-container summary:hover {
-            background-color: #334155; /* slate-700 */
-        }
-        .tool-usage-container summary .fa-fw {
-            margin-right: 8px;
-        }
-        .tool-usage-content {
-            padding: 12px;
-            border-top: 1px solid #475569; /* slate-600 */
-        }
+        .tool-usage-container summary:hover { background-color: #f1f5f9; /* slate-100 */ }
+        .tool-usage-container summary .fa-fw { margin-right: 10px; color: #64748b; /* slate-500 */ }
+        .tool-usage-content { padding: 16px; border-top: 1px solid #e2e8f0; /* slate-200 */ }
+
         .tool-call-item, .tool-output-item {
-            background-color: #0f172a; /* slate-900 */
-            border-radius: 6px;
-            padding: 10px;
-            margin-bottom: 8px;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 0.85rem;
-            border-left: 3px solid #f59e0b; /* amber-500 for tool call */
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+            font-size: 0.875rem;
+            color: #1e293b; /* slate-800 */
         }
-        .tool-output-item {
-             border-left-color: #22c55e; /* green-500 for tool output */
-        }
-        .tool-output-item pre {
+        .tool-call-item { border-left: 4px solid #6366f1; /* indigo-500 */ }
+        .tool-output-item { border-left: 4px solid #10b981; /* emerald-500 */ }
+
+        .tool-call-item pre, .tool-output-item pre {
             white-space: pre-wrap;
             word-wrap: break-word;
-            max-height: 200px;
+            max-height: 250px;
             overflow-y: auto;
-            background-color: #020617; /* slate-950 */
-            padding: 8px;
-            border-radius: 4px;
-            margin-top: 6px;
+            background-color: #f1f5f9; /* slate-100 */
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 8px;
+            color: #0f172a; /* slate-900 */
         }
-        .chat-bubble-user { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
-        .chat-bubble-ai { background: linear-gradient(135deg, #334155 0%, #1e293b 100%); }
-        .pulse { animation: pulse 2s infinite; }
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+
+        /* --- Chat Bubbles & Typing Indicator --- */
+        .chat-bubble-user { background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; }
+        .chat-bubble-ai { background: #f5f5f5; color: #1a365d; border: 1px solid #e0e0e0; }
+        .typing-indicator span {
+            height: 8px; width: 8px; background-color: #9E9E9E; border-radius: 50%;
+            display: inline-block; animation: a 1.4s infinite ease-in-out both;
         }
-        .typing-indicator span { display: inline-block; width: 8px; height: 8px; background-color: #94a3b8; border-radius: 50%; margin: 0 2px; animation: typing 1.4s infinite ease-in-out; }
-        .typing-indicator span:nth-child(1) { animation-delay: 0s; }
-        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
-        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes typing {
-            0%, 100% { transform: translateY(0); opacity: 0.5; }
-            50% { transform: translateY(-5px); opacity: 1; }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes a {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1.0); }
         }
-        .session-item { transition: all 0.3s ease; }
-        .session-item:hover { transform: translateX(5px); background: rgba(59, 130, 246, 0.1); }
-        .growing-shadow { transition: box-shadow 0.3s ease; }
-        .growing-shadow:hover { box-shadow: 0 10px 25px rgba(37, 99, 235, 0.25); }
     </style>
 </head>
 <body class="min-h-screen text-gray-100 overflow-hidden" data-active-session-id="{{ active_session_id|default:'' }}">
     <div id="app-container" class="flex h-screen">
         <!-- 세션 사이드바 -->
-        <aside id="sidebar" class="sidebar-gradient w-80 flex-shrink-0 border-r border-gray-800 flex flex-col transition-all duration-300 ease-in-out group">
-            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
-                <h2 class="text-xl font-bold group-[.is-collapsed]:hidden">채팅 세션</h2>
-                <button id="sidebar-toggle" class="text-gray-400 hover:text-white focus:outline-none">
+        <aside id="sidebar" class="bg-white border-r border-gray-200 h-full flex flex-col transition-all duration-300 w-80 group">
+            <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-white/80">
+                <h2 class="text-xl font-bold text-gray-800 group-[.is-collapsed]:hidden">채팅 세션</h2>
+                <i class="fas fa-comments text-gray-500 text-xl group-[.is-collapsed]:block hidden"></i>
+                <button id="sidebar-toggle" class="text-gray-500 hover:text-primary focus:outline-none transition-colors">
                     <i class="fas fa-chevron-left transform transition-transform duration-300"></i>
                 </button>
             </div>
-            <div class="p-4 border-b border-gray-700">
-                <a href="#" id="new-session-btn" class="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors growing-shadow group-[.is-collapsed]:w-12 group-[.is-collapsed]:h-12">
-                    <i class="fas fa-plus-circle"></i>
+            <div class="p-2 border-b border-gray-200">
+                <a href="#" class="flex items-center p-3 rounded-lg transition-all duration-200 hover:bg-gray-50 text-gray-600 border-l-4 border-transparent group-[.is-collapsed]:justify-center">
+                    <i class="fas fa-home fa-fw text-gray-400 group-[.is-collapsed]:mx-auto"></i>
+                    <span class="flex-1 truncate ml-3 font-medium group-[.is-collapsed]:hidden">홈</span>
+                </a>
+                <a href="#" class="flex items-center p-3 rounded-lg transition-all duration-200 hover:bg-gray-50 text-gray-600 border-l-4 border-transparent group-[.is-collapsed]:justify-center">
+                    <i class="fas fa-cog fa-fw text-gray-400 group-[.is-collapsed]:mx-auto"></i>
+                    <span class="flex-1 truncate ml-3 font-medium group-[.is-collapsed]:hidden">설정</span>
+                </a>
+            </div>
+            <div class="p-4 border-b border-gray-200">
+                <a href="#" id="new-session-btn" class="flex items-center justify-center w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors growing-shadow group-[.is-collapsed]:w-12 group-[.is-collapsed]:h-12 group-[.is-collapsed]:p-0">
+                    <i class="fas fa-plus-circle group-[.is-collapsed]:mx-auto"></i>
                     <span class="ml-2 group-[.is-collapsed]:hidden">새 세션 시작하기</span>
                 </a>
             </div>
             <div id="session-list" class="flex-1 overflow-y-auto p-2">
                 {% for session in sessions %}
-                <a href="{% url 'conversations:chatbot_session' session.id %}" id="session-link-{{ session.id }}" class="session-item flex items-center p-3 rounded-lg transition-colors {% if session.id|stringformat:'s' == active_session_id %}bg-blue-600/30 text-white{% else %}hover:bg-gray-700/50 text-gray-300{% endif %}">
-                    <i class="fas fa-comment-dots fa-fw text-gray-400"></i>
-                    <span id="session-title-{{ session.id }}" class="flex-1 truncate ml-3">{{ session.title|default:"새로운 채팅" }}</span>
+                <a href="{% url 'conversations:chatbot_session' session.id %}" id="session-link-{{ session.id }}" class="session-item flex items-center p-3 rounded-lg transition-all duration-200 {% if session.id|stringformat:'s' == active_session_id %}bg-primary/10 border-l-4 border-primary text-primary{% else %}hover:bg-gray-50 text-gray-600 border-l-4 border-transparent{% endif %} group-[.is-collapsed]:justify-center" title="{{ session.title|default:"새로운 채팅" }}">
+                    <i class="fas fa-comment-dots fa-fw {% if session.id|stringformat:'s' == active_session_id %}text-primary{% else %}text-gray-400{% endif %} group-[.is-collapsed]:mx-auto"></i>
+                    <span id="session-title-{{ session.id }}" class="flex-1 truncate ml-3 font-medium group-[.is-collapsed]:hidden">{{ session.title|default:"새로운 채팅" }}</span>
                 </a>
                 {% empty %}
-                <p class="text-gray-500 text-sm text-center p-4">채팅 세션이 없습니다.</p>
+                <p class="text-gray-600 text-sm text-center p-4">채팅 세션이 없습니다.</p>
                 {% endfor %}
             </div>
         </aside>
 
         <!-- 채팅창 -->
-        <main class="flex-1 flex flex-col bg-dark">
-            <header class="bg-dark/80 backdrop-blur border-b border-gray-800 p-4 flex justify-between items-center">
-                <h2 id="chat-header-title" class="text-lg font-semibold truncate">
+        <main class="flex-1 flex flex-col bg-white">
+            <header class="bg-white/95 backdrop-blur-sm border-b border-gray-200 p-4 flex justify-between items-center sticky top-0 z-10">
+                <h2 id="chat-header-title" class="text-lg font-semibold truncate text-gray-800 flex items-center">
                     {% if active_session_id %}
                         {{ sessions.first.title|default:"Chat" }}
                     {% else %}
@@ -132,8 +136,8 @@
                     {% endif %}
                 </h2>
                 <div class="flex items-center space-x-4">
-                    <span class="text-sm text-gray-400">안녕하세요, {{ user.username }}님</span>
-                                        <a href="{% url 'accounts:logout_page' %}" class="text-sm bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg transition-colors">로그아웃</a>
+                    <span class="text-sm text-gray-600">안녕하세요, {{ user.username }}님</span>
+                    <a href="{% url 'accounts:logout_page' %}" class="text-sm bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg transition-colors">로그아웃</a>
                 </div>
             </header>
 
@@ -143,7 +147,7 @@
                         {% if message.role == 'user' %}
                         <div class="flex justify-end">
                             <div class="max-w-xl">
-                                <div class="chat-bubble-user text-white p-4 rounded-lg rounded-br-none shadow-lg">
+                                <div class="chat-bubble-user text-white p-4 rounded-2xl rounded-tr-none shadow-lg transition-all duration-200 hover:shadow-md">
                                     <p>{{ message.content|linebreaksbr }}</p>
                                 </div>
                                 <p class="text-xs text-gray-500 text-right mt-1">{{ message.created_at|date:"H:i" }}</p>
@@ -151,28 +155,27 @@
                         </div>
                         {% elif message.role == 'assistant' %}
                         <div class="flex items-start gap-3 mb-4">
-    
                             <div class="w-full max-w-xl">
                                 {% if message.processed_tool_events %}
-                                <details class="tool-usage-container bg-slate-800 rounded-lg border border-slate-700 mb-2" open>
-                                    <summary class="p-2 cursor-pointer text-slate-400 hover:bg-slate-700 rounded-t-lg"><i class="fas fa-cogs fa-fw mr-2"></i>Tool Usage</summary>
-                                    <div class="tool-usage-content p-3 border-t border-slate-700">
+                                <details class="tool-usage-container" open>
+                                    <summary><i class="fas fa-cogs fa-fw"></i>Tool Usage</summary>
+                                    <div class="tool-usage-content">
                                         {% for event in message.processed_tool_events %}
-                                        <div class="mb-2">
+                                        <div class="mb-3">
                                             <div class="tool-call-item">
-                                                <div class="font-semibold text-amber-400"><i class="fas fa-wrench fa-fw mr-2"></i>{{ event.call.name }}</div>
-                                                <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 bg-slate-950 p-2 rounded">{{ event.call.args_pretty }}</pre>
+                                                <div class="font-semibold"><i class="fas fa-wrench fa-fw"></i> {{ event.call.name }}</div>
+                                                <pre>{{ event.call.args_pretty }}</pre>
                                             </div>
-                                            <div class="tool-output-item mt-1">
-                                                <div class="font-semibold text-green-400"><i class="fas fa-clipboard-check fa-fw mr-2"></i>Output</div>
-                                                <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 bg-slate-950 p-2 rounded">{{ event.output }}</pre>
+                                            <div class="tool-output-item">
+                                                <div class="font-semibold"><i class="fas fa-clipboard-check fa-fw"></i> Output</div>
+                                                <pre>{{ event.output }}</pre>
                                             </div>
                                         </div>
                                         {% endfor %}
                                     </div>
                                 </details>
                                 {% endif %}
-                                <div class="chat-bubble-ai text-gray-200 p-4 rounded-lg rounded-bl-none shadow-lg bg-slate-700">
+                                <div class="chat-bubble-ai text-gray-800 p-4 rounded-2xl rounded-tl-none shadow-lg bg-gray-50 transition-all duration-200 hover:shadow-md">
                                     <p>{{ message.content|linebreaksbr }}</p>
                                 </div>
                                 <p class="text-xs text-gray-500 mt-1">{{ message.created_at|date:"H:i" }}</p>
@@ -181,10 +184,10 @@
                         {% endif %}
                     {% endfor %}
                 {% else %}
-                <div class="flex flex-col items-center justify-center h-full text-center text-gray-400">
-                    <i class="fas fa-comments text-6xl mb-4"></i>
-                    <h2 class="text-2xl font-bold">WorkAssist AI</h2>
-                    <p class="max-w-md mt-2">새로운 세션을 시작하거나 왼쪽 목록에서 기존 세션을 선택하여 대화를 시작하세요.</p>
+                <div class="flex flex-col items-center justify-center h-full text-center">
+                    <i class="fas fa-comments text-6xl mb-4 text-gray-500"></i>
+                    <h2 class="text-2xl font-bold text-gray-800">WorkAssist AI</h2>
+                    <p class="max-w-md mt-2 text-gray-600">새로운 세션을 시작하거나 왼쪽 목록에서 기존 세션을 선택하여 대화를 시작하세요.</p>
                 </div>
                 {% endif %}
             </div>
@@ -204,12 +207,12 @@
             </div>
 
             <!-- 입력 영역 -->
-            <div class="bg-dark/80 backdrop-blur border-t border-gray-800 p-4">
+            <div class="bg-white/95 backdrop-blur-sm border-t border-gray-200 p-4 sticky bottom-0">
                 <div class="max-w-4xl mx-auto">
-                    <form id="chat-form" class="flex items-center">
+                    <form id="chat-form" class="flex items-center gap-2">
                         {% csrf_token %}
-                        <input type="text" id="message-input" name="message" placeholder="업무 내용을 입력하세요..." class="flex-1 bg-gray-800 border border-gray-700 rounded-lg py-3 px-4 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50" {% if not active_session_id %}disabled{% endif %}>
-                        <button type="submit" id="send-button" class="bg-gradient-to-r from-primary to-secondary hover:from-blue-500 hover:to-blue-600 w-14 h-14 rounded-lg flex items-center justify-center ml-3 flex-shrink-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed" {% if not active_session_id %}disabled{% endif %}>
+                        <input type="text" id="message-input" name="message" placeholder="업무 내용을 입력하세요..." class="flex-1 bg-white border border-gray-200 rounded-full py-3 px-5 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:opacity-50 text-gray-800 shadow-sm transition-all duration-200 hover:shadow-md" {% if not active_session_id %}disabled{% endif %}>
+                        <button type="submit" id="send-button" class="bg-gradient-to-r from-primary to-secondary hover:from-blue-500 hover:to-blue-600 w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg" {% if not active_session_id %}disabled{% endif %}>
                             <i class="fas fa-paper-plane text-white text-xl"></i>
                         </button>
                     </form>
@@ -246,65 +249,80 @@
             }
         }
 
+        function escapeHtml(unsafe) {
+            if (typeof unsafe !== 'string') {
+                unsafe = String(unsafe);
+            }
+            return unsafe
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+        }
+
         // --- UI Update Functions ---
-        function updateToolUI(toolData, toolContainer) {
-            if (!toolContainer) return;
-            const toolContentDiv = toolContainer.querySelector('.tool-usage-content');
-            if (!toolContentDiv) return;
+                if (data.event === 'tool_update') {
+                    let container = document.getElementById(`${assistantMessageId}-container`);
+                    let details = container.querySelector('.tool-usage-container');
 
-            toolContainer.style.display = 'block';
-            toolContentDiv.innerHTML = ''; // Clear previous content as we get full updates
+                    // Create the tool usage container only if it doesn't exist
+                    if (!details) {
+                        details = document.createElement('details');
+                        details.className = 'tool-usage-container';
+                        details.open = true;
 
-            for (const agentName in toolData) {
-                const agentState = toolData[agentName];
-                if (agentState.messages) {
-                    const toolEvents = {}; // Store calls and their outputs
+                        const summary = document.createElement('summary');
+                        summary.innerHTML = '<i class="fas fa-cogs fa-fw"></i>Tool Usage';
+                        details.appendChild(summary);
 
-                    agentState.messages.forEach(msg => {
-                        if (msg.type === 'ai' && msg.tool_calls && msg.tool_calls.length > 0) {
-                            msg.tool_calls.forEach(tc => {
-                                if (tc.id) {
-                                    toolEvents[tc.id] = { call: tc, output: 'Pending...' };
-                                }
-                            });
+                        const content = document.createElement('div');
+                        content.className = 'tool-usage-content';
+                        details.appendChild(content);
+
+                        // Insert the new container before the chat bubble
+                        container.insertBefore(details, container.querySelector('.chat-bubble-ai'));
+                    }
+
+                    const content = details.querySelector('.tool-usage-content');
+                    const toolCallId = `tool-call_${data.run_id}`;
+                    let toolCallDiv = document.getElementById(toolCallId);
+
+                    // Create the specific tool call container if it doesn't exist
+                    if (!toolCallDiv) {
+                        toolCallDiv = document.createElement('div');
+                        toolCallDiv.id = toolCallId;
+                        toolCallDiv.className = 'mb-3';
+                        content.appendChild(toolCallDiv);
+                    }
+
+                    // Always update the tool call item with the latest input
+                    let toolCallItem = toolCallDiv.querySelector('.tool-call-item');
+                    if (!toolCallItem) {
+                        toolCallItem = document.createElement('div');
+                        toolCallItem.className = 'tool-call-item';
+                        toolCallDiv.appendChild(toolCallItem);
+                    }
+                    toolCallItem.innerHTML = `<div class="font-semibold"><i class="fas fa-wrench fa-fw"></i> ${data.name}</div><pre>${JSON.stringify(data.input, null, 2)}</pre>`;
+
+                    // If there's output, create or update the output item
+                    if (data.output) {
+                        let toolOutputItem = toolCallDiv.querySelector('.tool-output-item');
+                        if (!toolOutputItem) {
+                            toolOutputItem = document.createElement('div');
+                            toolOutputItem.className = 'tool-output-item';
+                            toolCallDiv.appendChild(toolOutputItem);
                         }
-                    });
+                        const formattedOutput = data.output.replace(/\n/g, '<br>').replace(/  /g, '&nbsp;&nbsp;');
+                        toolOutputItem.innerHTML = `<div class="font-semibold"><i class="fas fa-clipboard-check fa-fw"></i> Output</div><pre>${formattedOutput}</pre>`;
+                    }
 
-                    agentState.messages.forEach(msg => {
-                        if (msg.type === 'tool' && msg.tool_call_id && toolEvents[msg.tool_call_id]) {
-                            let outputContent = msg.content;
-                            try {
-                                const parsedContent = JSON.parse(outputContent);
-                                outputContent = JSON.stringify(parsedContent, null, 2);
-                            } catch (e) { /* Not a JSON string, leave as is */ }
-                            toolEvents[msg.tool_call_id].output = outputContent;
-                        }
-                    });
-                    
-                    for (const id in toolEvents) {
-                        const { call, output } = toolEvents[id];
-                        const toolCallElement = document.createElement('div');
-                        toolCallElement.id = `tool-${id}`;
-                        toolCallElement.classList.add('mb-2');
-                        
-                        const argsString = JSON.stringify(call.args, null, 2);
-                        const outputString = (typeof output === 'string') ? output : JSON.stringify(output, null, 2);
-
-                        toolCallElement.innerHTML = `
-                            <div class="tool-call-item">
-                                <div class="font-semibold text-amber-400"><i class="fas fa-wrench fa-fw mr-2"></i>${call.name}</div>
-                                <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 bg-slate-950 p-2 rounded">${argsString}</pre>
-                            </div>
-                            <div class="tool-output-item mt-1">
-                                <div class="font-semibold text-green-400"><i class="fas fa-clipboard-check fa-fw mr-2"></i>Output</div>
-                                <pre class="text-xs whitespace-pre-wrap word-wrap break-word max-h-48 overflow-y-auto mt-1 bg-slate-950 p-2 rounded">${outputString}</pre>
-                            </div>
-                        `;
-                        toolContentDiv.appendChild(toolCallElement);
+                    // Hide typing indicator as soon as tool usage is shown
+                    const typingIndicator = document.getElementById(assistantMessageId);
+                    if (typingIndicator) {
+                        typingIndicator.style.display = 'none';
                     }
                 }
-            }
-        }
 
         // --- Event Listeners ---
         if (sidebar && sidebarToggle) {
@@ -380,14 +398,10 @@
                 const assistantMessageId = `assistant-message-${Date.now()}`;
                 const assistantMessageHtml = `
                     <div class="flex items-start gap-3 mb-4">
-
-                        <div class="w-full max-w-xl">
+                        <div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center font-bold text-white text-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">AI</div>
+                        <div class="flex-1">
                             <div id="${assistantMessageId}-container">
-                                <details class="tool-usage-container bg-slate-800 rounded-lg border border-slate-700 mb-2" style="display: none;">
-                                    <summary class="p-2 cursor-pointer text-slate-400 hover:bg-slate-700 rounded-t-lg"><i class="fas fa-cogs fa-fw mr-2"></i>Tool Usage</summary>
-                                    <div class="tool-usage-content p-3 border-t border-slate-700"></div>
-                                </details>
-                                <div class="chat-bubble-ai text-white p-4 rounded-lg shadow-md">
+                                <div class="chat-bubble-ai p-4 rounded-lg shadow-md">
                                     <p id="${assistantMessageId}"><span class="typing-indicator"><span></span><span></span><span></span></span></p>
                                 </div>
                             </div>

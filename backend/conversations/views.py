@@ -96,7 +96,7 @@ async def chat_stream(request, session_id):
             session.thread_id = uuid.UUID(thread_id)
             await session.asave()
 
-        fastapi_url = os.environ.get("FASTAPI_SERVER_URL", "http://127.0.0.1:8001")
+        fastapi_url = os.environ.get("FASTAPI_232SERVER_URL", "http://127.0.0.1:8001")
 
         async def event_stream():
             # Stream title first if it's the first message
@@ -107,14 +107,20 @@ async def chat_stream(request, session_id):
             # Then, proceed with the main agent response streaming
             final_ai_content = ""
             final_tool_data = None
-            
+            current_tool_state = {"assistant": {"messages": []}}
+            active_tool_calls = {}
+            known_tool_call_ids = set()
+
             try:
                 internal_secret = os.getenv("FASTAPI_INTERNAL_SECRET")
                 headers = {"X-Internal-Secret": internal_secret} if internal_secret else {}
                 async with httpx.AsyncClient() as client:
                     payload = {
                         "input": {"messages": [{"role": "user", "content": message_content}]},
-                        "config": {"configurable": {"thread_id": thread_id}}
+                        "config": {
+                            "configurable": {"thread_id": thread_id},
+                            "stream_mode": ["messages", "updates"]
+                        }
                     }
                     async with client.stream("POST", f"{fastapi_url}/invoke", json=payload, headers=headers, timeout=300.0) as response:
                         response.raise_for_status()
@@ -137,24 +143,101 @@ async def chat_stream(request, session_id):
                                             yield f"data: {json.dumps({'event': 'tool_use_started'})}\n\n"
                                             tool_use_started_sent = True
 
-                                        # Stream pure text content only if it's from the 'agent' node
-                                        if (metadata.get("langgraph_node") == "agent" and
-                                                message_chunk.get("type") == "AIMessageChunk" and
-                                                not message_chunk.get("tool_call_chunks")):
+                                        # Stream pure text content
+                                        if (message_chunk.get("type") == "AIMessageChunk" and not message_chunk.get("tool_call_chunks")):
                                             content = message_chunk.get("content", "")
                                             if content:
                                                 final_ai_content += content
                                                 sse_payload = {"event": "message_chunk", "data": content}
                                                 yield f"data: {json.dumps(sse_payload)}\n\n"
 
-                                    elif event_type == "updates":
-                                        final_tool_data = payload
-                                        yield f"data: {json.dumps({'event': 'tool_update', 'data': payload})}\n\n"
+                                        # Handle tool-related messages for real-time UI updates
+                                        if message_chunk.get("type") == "AIMessageChunk":
+                                            # 1. Accumulate tool call argument chunks using 'index'
+                                            tool_call_chunks = message_chunk.get("tool_call_chunks", [])
+                                            if tool_call_chunks:
+                                                for tc_chunk in tool_call_chunks:
+                                                    chunk_index = tc_chunk.get("index")
+                                                    if chunk_index is not None:
+                                                        if chunk_index not in active_tool_calls:
+                                                            # First chunk for this index, contains name and id
+                                                            active_tool_calls[chunk_index] = {
+                                                                "name": tc_chunk.get("name"), 
+                                                                "args": tc_chunk.get("args", ""), 
+                                                                "id": tc_chunk.get("id")
+                                                            }
+                                                        else:
+                                                            # Subsequent chunks, append args
+                                                            active_tool_calls[chunk_index]["args"] += tc_chunk.get("args", "")
+                                            
+                                            # 2. Check for tool call end signal, then yield update with complete args
+                                            if message_chunk.get("response_metadata", {}).get("finish_reason") == "tool_calls":
+                                                if active_tool_calls:
+                                                    # Sort tool calls by index to ensure correct order for multiple calls
+                                                    sorted_indices = sorted(active_tool_calls.keys())
+                                                    complete_tool_calls = [active_tool_calls[i] for i in sorted_indices]
+                                                    
+                                                    # Store the IDs for later lookup when tool results arrive
+                                                    for tc in complete_tool_calls:
+                                                        if tc.get("id"):
+                                                            known_tool_call_ids.add(tc["id"])
+                                                    
+                                                    # Find if an 'ai' message already exists to append to
+                                                    existing_ai_message = None
+                                                    for msg in reversed(current_tool_state["assistant"]["messages"]):
+                                                        if msg.get("type") == "ai":
+                                                            existing_ai_message = msg
+                                                            break
+                                                    
+                                                    if existing_ai_message:
+                                                        # Append new tool calls to the existing message's tool_calls list
+                                                        if "tool_calls" not in existing_ai_message:
+                                                            existing_ai_message["tool_calls"] = []
+                                                        existing_ai_message["tool_calls"].extend(complete_tool_calls)
+                                                    else:
+                                                        # Or create a new ai message if it's the first tool call
+                                                        ai_message = {"type": "ai", "tool_calls": complete_tool_calls}
+                                                        current_tool_state["assistant"]["messages"].append(ai_message)
+                                                    
+                                                    final_tool_data = current_tool_state.copy()
+                                                    yield f'data: {json.dumps({"event": "tool_update", "data": current_tool_state})}\n\n'
+                                                    active_tool_calls.clear()
 
-                                except (json.JSONDecodeError, IndexError):
+                                        # 3. Handle tool output
+                                        elif message_chunk.get("type") == "tool":
+                                            tool_call_id = message_chunk.get("tool_call_id")
+                                            # Check if the result corresponds to a known tool call
+                                            if tool_call_id in known_tool_call_ids:
+                                                tool_message = {
+                                                    "type": "tool",
+                                                    "tool_call_id": tool_call_id,
+                                                    "content": message_chunk.get("content", ""),
+                                                    "name": message_chunk.get("name")
+                                                }
+                                                current_tool_state["assistant"]["messages"].append(tool_message)
+                                                final_tool_data = current_tool_state.copy()
+                                                yield f'data: {json.dumps({"event": "tool_update", "data": current_tool_state})}\n\n'
+
+                                    elif event_type == "updates":
+                                        # The 'updates' event contains the final state, which can be used for saving.
+                                        final_tool_data = payload
+
+                                except (json.JSONDecodeError, IndexError) as e:
+                                    print(f"---[STREAM PARSE ERROR] {e} on line: {raw_data}")
                                     continue
                 
-                if final_ai_content:
+                if final_ai_content or final_tool_data:
+                    # Try to parse args from string to JSON for saving
+                    if final_tool_data and "assistant" in final_tool_data:
+                        for msg in final_tool_data["assistant"].get("messages", []):
+                            if msg.get("type") == "ai" and "tool_calls" in msg:
+                                for call in msg.get("tool_calls", []):
+                                    try:
+                                        call["args"] = json.loads(call["args"])
+                                        print(call["args"])
+                                    except (json.JSONDecodeError, TypeError):
+                                        pass # Keep as string if not valid JSON
+
                     await ChatMessage.objects.acreate(
                         session=session,
                         role='assistant',
