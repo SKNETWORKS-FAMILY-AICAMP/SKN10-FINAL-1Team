@@ -26,19 +26,19 @@ app = FastAPI(
 # --- Security Middleware ---
 INTERNAL_SECRET = os.getenv("FASTAPI_INTERNAL_SECRET")
 
-@app.middleware("http")
-async def verify_internal_secret(request: Request, call_next):
-    # Allow access to docs and openapi.json without the secret header for convenience
-    if request.url.path in ["/docs", "/openapi.json", "/redoc"]:
-        return await call_next(request)
+# @app.middleware("http")
+# async def verify_internal_secret(request: Request, call_next):
+#     # Allow access to docs and openapi.json without the secret header for convenience
+#     if request.url.path in ["/docs", "/openapi.json", "/redoc"]:
+#         return await call_next(request)
 
-    # For all other paths, require the secret header
-    secret_header = request.headers.get("X-Internal-Secret")
-    if not INTERNAL_SECRET or secret_header != INTERNAL_SECRET:
-        raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing internal secret key")
+#     # For all other paths, require the secret header
+#     secret_header = request.headers.get("X-Internal-Secret")
+#     if not INTERNAL_SECRET or secret_header != INTERNAL_SECRET:
+#         raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing internal secret key")
     
-    response = await call_next(request)
-    return response
+#     response = await call_next(request)
+#     return response
 
 # --- Pydantic Models for API ---
 class UserInput(BaseModel):
@@ -83,18 +83,18 @@ async def invoke_agent(invocation_request: InvocationRequest):
             async for chunk in graph.astream(
                 {"messages": messages},
                 config=invocation_request.config,
-                stream_mode=["updates","messages"]
+                stream_mode=["messages"]
             ):
                 try:
                     serializable_chunk = make_serializable(chunk)
-                    yield f"data: {json.dumps(serializable_chunk)}\n\n"
+                    yield f"data: {json.dumps(serializable_chunk, ensure_ascii=False)}\n\n"
                 except Exception as e:
                     print(f"---[FASTAPI-SERVER-ERROR] Failed to serialize chunk: {e}")
                     error_payload = {
                         "event": "error",
                         "data": {"message": "An unexpected error occurred during stream serialization."}
                     }
-                    yield f"data: {json.dumps(error_payload)}\n\n"
+                    yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -121,4 +121,6 @@ def read_root():
 # --- Uvicorn Runner ---
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+
+
