@@ -11,9 +11,8 @@ from typing import Any, Dict, TypedDict
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph
 
-from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
-from langgraph_supervisor import create_supervisor
+from langgraph_swarm import create_swarm, create_handoff_tool
 import os
 import sys
 from typing import List, Dict, Any # Added Type for Pinecone tools
@@ -159,49 +158,77 @@ tool_proceedings = Tool(
     args_schema=SearchInput
 )
 
-# --- Agent Definitions ---
-# Note: Handoff tools are removed as the supervisor will handle delegation.
+# --- Handoff Tool Definitions ---
+transfer_to_doc_search_assistant = create_handoff_tool(
+    agent_name="doc_search_assistant",
+    description=(
+        "Delegate a task to the 'Document Search Assistant' when you need to find specific information "
+        "within the company's internal documents. Use this for queries like 'Find the latest vacation policy,' "
+        "'What are the API specs for the payment gateway?,' or 'Pull up the meeting notes from last week's project sync.'"
+    )
+)
 
+transfer_to_analyst_assistant = create_handoff_tool(
+    agent_name="analyst_assistant",
+    description="Passes the task to the Analyst Assistant. Use this for requests that involve data analysis, creating charts, or querying databases for specific information like customer data or business news. This assistant is skilled in SQL and data visualization."
+)
+
+transfer_to_predict_assistant = create_handoff_tool(
+    agent_name="predict_assistant",
+    description=(
+        "Delegate a task to the 'Prediction Assistant' ONLY when the request is to predict customer churn from a provided CSV data string. "
+        "The assistant's single function is to take this data and return a churn probability. "
+        "Example use: 'Here is the customer data, predict the churn risk.'"
+    )
+)
+
+# --- Agent Definitions ---
 doc_search_assistant = create_react_agent(
-    model="openai:gpt-4o", # Using a consistent, powerful model
+    model="openai:gpt-4.1-2025-04-14", # Consistent model
     tools=[
         tool_internal_policy,
         tool_tech_doc,
         tool_product_doc,
         tool_proceedings,
+        transfer_to_analyst_assistant,
+        transfer_to_predict_assistant,
     ],
     prompt=(
         """You are an expert document search assistant. Your sole purpose is to retrieve information from the company's knowledge base.
 
         **Your Capabilities:**
-        - You can search across four types of documents:
-          1. **Internal Policies:** For HR, company rules, and administrative guidelines.
-          2. **Technical Docs:** For API specifications, development guides, and engineering standards.
-          3. **Product Docs:** For user manuals, feature descriptions, and customer-facing guides.
-          4. **Meeting Proceedings:** For summaries of past meetings, decisions, and action items.
+        - You can search across four distinct document types using specific tools:
+          - `tool_internal_policy`: For company policies and internal regulations.
+          - `tool_tech_doc`: For technical specifications and engineering documents.
+          - `tool_product_doc`: For product manuals and user guides.
+          - `tool_proceedings`: For meeting minutes and official records.
 
         **Your Workflow:**
-        1. **Analyze the Request:** Determine which document type is most likely to contain the answer.
-        2. **Execute Search:** Use the appropriate search tool (e.g., `InternalPolicySearch`).
-        3. **Present Results:** Clearly provide the information found.
-        
+        1. **Analyze the Query:** Carefully examine the user's request to determine the most relevant document source.
+        2. **Execute Search:** Use the single most appropriate search tool to find the information.
+        3. **Present Results:** Clearly provide the retrieved information to the user.
+        4. **Autonomous Handoff:** After presenting your findings, if the original request also contains tasks outside your scope (like data analysis, SQL queries, or predictions), you MUST immediately use the correct handoff tool (`transfer_to_analyst_assistant` or `transfer_to_predict_assistant`). Do not ask for permission to handoff.
+
         **Strict Tool Usage Rules:**
         - **One Tool Per Turn:** You must only call ONE tool at a time.
         - **Wait For Results:** ALWAYS wait for a tool's output before deciding your next action.
         - **Sequential Search:** If you need to search multiple document types, do so one by one, waiting for results each time.
+        - **No Mixed Tool Calls:** NEVER call a search tool and a handoff tool in the same turn.
         """
     ),
     name="doc_search_assistant"
 )
 
 analyst_assistant = create_react_agent(
-    model="openai:gpt-4o",
+    model="openai:gpt-4.1-2025-04-14",
     tools=[
         analyst_chart_tool,
         *sql_tools_for_analyst, # Unpack all SQL tools
+        transfer_to_doc_search_assistant,
+        transfer_to_predict_assistant,
     ],
     prompt=(
-        """You are a specialized data analyst assistant. Your purpose is to provide data-driven insights through SQL queries and chart generation.
+        """You are a specialized data analyst assistant. Your purpose is to provide data-driven insights through SQL queries and chart generation. You must act autonomously without asking for permission.
 
         **Your Capabilities:**
 
@@ -222,20 +249,23 @@ analyst_assistant = create_react_agent(
         1. **Analyze the Request:** Determine if the task requires database analysis, chart generation, or both.
         2. **Execute Tasks:** Perform all requested data analysis and charting tasks.
         3. **Present Results:** Clearly show the results of your analysis, including any generated charts or data tables.
+        4. **Handoff (If Necessary):** Only after completing all your tasks, if the original request also involves document searching or churn prediction, use the appropriate handoff tool (`transfer_to_doc_search_assistant` or `transfer_to_predict_assistant`).
 
         **Strict Tool Usage Rules:**
         - **One Tool Per Turn:** You must only call ONE tool at a time.
         - **Wait For Results:** ALWAYS wait for a tool's output before deciding your next action.
-        - **No Mixed Tool Calls:** NEVER call a SQL tool and a chart tool in the same turn.
+        - **No Mixed Tool Calls:** NEVER call a SQL tool and a chart tool in the same turn. NEVER call a primary tool and a handoff tool in the same turn.
         """
     ),
     name="analyst_assistant"
 )
 
 predict_assistant = create_react_agent(
-    model="openai:gpt-4o",
+    model="openai:gpt-4.1-2025-04-14",
     tools=[
         predict_churn_tool,
+        transfer_to_doc_search_assistant, # Added doc_search handoff
+        transfer_to_analyst_assistant,    # Added analyst handoff
     ],
     prompt=(
         """You are a highly specialized customer churn prediction assistant. Your only function is to predict churn based on customer data.
@@ -248,40 +278,23 @@ predict_assistant = create_react_agent(
         1. **Receive Data:** Take the CSV data provided in the request.
         2. **Execute Prediction:** Immediately use the `predict_churn_tool` with the input data.
         3. **Present Results:** Clearly state the churn prediction results.
+        4. **Handoff (If Necessary):** After presenting the prediction, if the original request requires further tasks like document searching or data analysis, you MUST use the appropriate handoff tool (`transfer_to_doc_search_assistant` or `transfer_to_analyst_assistant`).
 
         **Strict Tool Usage Rules:**
         - **One Tool Per Turn:** You must only call ONE tool at a time.
         - **Wait For Results:** ALWAYS wait for the `predict_churn_tool` output before deciding your next action.
+        - **No Mixed Tool Calls:** NEVER call the prediction tool and a handoff tool in the same turn.
         """
     ),
     name="predict_assistant"
 )
 
-# --- Supervisor Definition ---
-def get_graph(checkpointer: AsyncPostgresSaver):
-    """Compiles and returns the supervisor graph with the given checkpointer."""
-    
-    # The supervisor model orchestrates the assistants.
-    # Note: The model name should be a string identifier, not a ChatOpenAI instance
-    # if you are using a pre-configured environment (like with LangSmith). 
-    # For local execution, instantiating is fine.
-    supervisor_model = ChatOpenAI(model="gpt-4o")
 
-    # Define the supervisor agent
-    supervisor = create_supervisor(
+
+
+def get_swarm_graph(checkpointer: AsyncPostgresSaver):
+    """Compiles and returns the swarm graph with the given checkpointer."""
+    return create_swarm(
         agents=[doc_search_assistant, analyst_assistant, predict_assistant],
-        model=supervisor_model,
-        prompt=(
-            "You are a supervisor managing a team of expert assistants. "
-            "Based on the user's request, you must delegate the task to the appropriate assistant. "
-            "Your team consists of:\n"
-            "- **doc_search_assistant**: Searches internal company documents.\n"
-            "- **analyst_assistant**: Performs data analysis, SQL queries, and creates charts.\n"
-            "- **predict_assistant**: Predicts customer churn from data.\n\n"
-            "Route the user's request to the correct assistant to handle the task. "
-            "If a task requires multiple assistants, route them sequentially. "
-            "Only the user can mark the task as complete. Continue processing until the user is satisfied."
-        )
+        default_active_agent="doc_search_assistant"
     ).compile(checkpointer=checkpointer)
-    
-    return supervisor
