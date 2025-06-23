@@ -21,6 +21,7 @@ class ChatSession(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     title = models.CharField(max_length=60, default="새 세션")
+    deleted_check = models.BooleanField(default=False)
 
     class Meta:
         db_table = "chat_sessions"
