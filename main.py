@@ -61,6 +61,7 @@ def main():
     parser.add_argument("--s3-secret-key", help="AWS Secret Access Key for S3 upload.")
     parser.add_argument("--s3-region", help="AWS region for the S3 bucket.")
     parser.add_argument("--user-id", help="User identifier for constructing S3 path.")
+    parser.add_argument("--github-user-name", help="GitHub username for constructing S3 path.")
 
     args = parser.parse_args()
 
@@ -99,6 +100,7 @@ def main():
         "aws_secret_access_key": args.s3_secret_key,
         "aws_region_name": args.s3_region,
         "user_id": args.user_id,
+        "github_user_name": args.github_user_name,
 
         # Outputs will be populated by the nodes
         "files": [],

@@ -374,6 +374,7 @@ def scan_selected_repositories_view(request):
         print(f"DEBUG: scan_type received: '{scan_type}'")
         user = request.user
         github_token = getattr(user, 'github_access_token', None)
+        github_user_name = None # Variable to store the GitHub username
         scan_results = []
         s3_client = None
         print("DEBUG: BEFORE S3 CLIENT INITIALIZATION BLOCK (Corrected)")
@@ -424,6 +425,21 @@ def scan_selected_repositories_view(request):
             s3_client = None 
         
         print("DEBUG: AFTER S3 CLIENT INITIALIZATION BLOCK (Corrected)")
+
+        # Fetch GitHub username from token
+        if github_token:
+            try:
+                user_api_url = 'https://api.github.com/user'
+                headers = {'Authorization': f'token {github_token}'}
+                response = requests.get(user_api_url, headers=headers)
+                if response.status_code == 200:
+                    github_user_name = response.json().get('login')
+                    print(f"DEBUG: Successfully fetched GitHub username: {github_user_name}")
+                else:
+                    print(f"DEBUG: Failed to fetch GitHub username. Status: {response.status_code}, Response: {response.text}")
+            except Exception as e:
+                print(f"DEBUG: Error fetching GitHub username: {e}")
+
 
         output_base_dir = os.path.join(PROJECT_ROOT, 'scanned_tutorials')
         os.makedirs(output_base_dir, exist_ok=True)
@@ -509,7 +525,7 @@ def scan_selected_repositories_view(request):
                                     else:
                                         relative_file_path_str = local_file_path # Fallback
                                     
-                                    s3_object_key = f"original_sources/{user_identifier}/{owner}/{repo_name}/{current_branch_for_s3}/{relative_file_path_str.replace(os.sep, '/')}"
+                                    s3_object_key = f"user_github_repos/{github_user_name or owner}/{repo_name}/{current_branch_for_s3}/{relative_file_path_str.replace(os.sep, '/')}"
                                     
                                     print(f"DEBUG: S3 Upload - User Repo '{repo_url}': Attempting to upload '{local_file_path}' to S3 bucket '{s3_bucket_name_from_settings}' as '{s3_object_key}'")
                                     try:
@@ -540,6 +556,8 @@ def scan_selected_repositories_view(request):
                         '--token', github_token,
                         '--language', 'korean'
                     ]
+                    if github_user_name:
+                        command.extend(['--github-user-name', github_user_name])
                     # Add S3 parameters if the client was initialized
                     if s3_client and s3_bucket_name_from_settings:
                         command.extend([
@@ -604,7 +622,7 @@ def scan_selected_repositories_view(request):
                                     else:
                                         relative_file_path_str = local_file_path # Fallback
                                     
-                                    s3_object_key = f"original_sources/{user_identifier}/{owner}/{repo_name}/{branch_name}/{relative_file_path_str.replace(os.sep, '/')}"
+                                    s3_object_key = f"user_github_repos/{github_user_name or owner}/{repo_name}/{branch_name}/{relative_file_path_str.replace(os.sep, '/')}"
                                     
                                     print(f"DEBUG: S3 Upload - Branch '{branch_name}': Attempting to upload '{local_file_path}' to S3 bucket '{s3_bucket_name_from_settings}' as '{s3_object_key}'")
                                     try:
@@ -634,6 +652,8 @@ def scan_selected_repositories_view(request):
                         '--output', repo_output_dir,
                         '--language', 'korean'
                     ]
+                    if github_user_name:
+                        command.extend(['--github-user-name', github_user_name])
                     # Add S3 parameters if the client was initialized
                     if s3_client and s3_bucket_name_from_settings:
                         command.extend([
