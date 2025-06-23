@@ -308,27 +308,23 @@
             if (headerDeleteBtn) {
                 headerDeleteBtn.addEventListener('click', async () => {
                     const sessionId = headerDeleteBtn.dataset.sessionId;
-                    const sessionTitle = document.getElementById('chat-header-title').textContent.trim();
-                    
-                    if (confirm(`'${sessionTitle}' 세션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
-                        try {
-                            const response = await fetch(`/conversations/api/session/delete/${sessionId}/`, {
-                                method: 'POST',
-                                headers: {
-                                    'X-CSRFToken': getCsrfToken(),
-                                    'Content-Type': 'application/json'
-                                }
-                            });
-                            const data = await response.json();
-                            if (data.status === 'success') {
-                                window.location.href = "{% url 'conversations:chatbot' %}";
-                            } else {
-                                throw new Error(data.message || 'Unknown error');
+                    try {
+                        const response = await fetch(`/conversations/api/session/delete/${sessionId}/`, {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': getCsrfToken(),
+                                'Content-Type': 'application/json'
                             }
-                        } catch (error) {
-                            console.error('Error deleting session:', error);
-                            alert('세션 삭제 중 오류가 발생했습니다: ' + error.message);
+                        });
+                        const data = await response.json();
+                        if (data.status === 'success') {
+                            window.location.href = "{% url 'conversations:chatbot' %}";
+                        } else {
+                            throw new Error(data.message || 'Unknown error');
                         }
+                    } catch (error) {
+                        console.error('Error deleting session:', error);
+                        alert('세션 삭제 중 오류가 발생했습니다: ' + error.message);
                     }
                 });
             }
