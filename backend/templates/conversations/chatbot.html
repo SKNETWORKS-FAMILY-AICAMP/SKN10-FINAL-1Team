@@ -115,7 +115,7 @@
             </div>
             <div id="session-list" class="flex-1 overflow-y-auto p-2">
                 {% for session in sessions %}
-                <a href="{% url 'conversations:chatbot_session' session.id %}" id="session-link-{{ session.id }}" class="session-item flex items-center p-3 rounded-lg transition-all duration-200 {% if session.id|stringformat:'s' == active_session_id %}bg-primary/10 border-l-4 border-primary text-primary{% else %}hover:bg-gray-50 text-gray-600 border-l-4 border-transparent{% endif %} group-[.is-collapsed]:justify-center" title="{{ session.title|default:"새로운 채팅" }}">
+                                <a href="{% url 'conversations:chatbot_session' session.id %}" id="session-link-{{ session.id }}" class="session-item flex items-center p-3 rounded-lg transition-all duration-200 {% if session.id|stringformat:'s' == active_session_id %}bg-primary/10 border-l-4 border-primary text-primary{% else %}hover:bg-gray-50 text-gray-600 border-l-4 border-transparent{% endif %} group-[.is-collapsed]:justify-center" title="{{ session.title|default:"새로운 채팅" }}" data-session-id="{{ session.id }}">
                     <i class="fas fa-comment-dots fa-fw {% if session.id|stringformat:'s' == active_session_id %}text-primary{% else %}text-gray-400{% endif %} group-[.is-collapsed]:mx-auto"></i>
                     <span id="session-title-{{ session.id }}" class="flex-1 truncate ml-3 font-medium group-[.is-collapsed]:hidden">{{ session.title|default:"새로운 채팅" }}</span>
                 </a>
@@ -128,14 +128,25 @@
         <!-- 채팅창 -->
         <main class="flex-1 flex flex-col bg-white">
             <header class="bg-white/95 backdrop-blur-sm border-b border-gray-200 p-4 flex justify-between items-center sticky top-0 z-10">
-                <h2 id="chat-header-title" class="text-lg font-semibold truncate text-gray-800 flex items-center">
+                <div class="flex items-center min-w-0 mr-4">
+                    <h2 id="chat-header-title" class="text-lg font-semibold truncate text-gray-800">
+                        {% if active_session_id %}
+                            {% for session in sessions %}
+                                {% if session.id|stringformat:'s' == active_session_id %}
+                                    {{ session.title|default:"새로운 채팅" }}
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            새로운 채팅
+                        {% endif %}
+                    </h2>
                     {% if active_session_id %}
-                        {{ sessions.first.title|default:"Chat" }}
-                    {% else %}
-                        WorkAssist AI
+                    <button id="header-delete-btn" class="ml-3 flex-shrink-0 p-2 text-gray-500 rounded-md hover:bg-gray-100 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-gray-300" title="현재 세션 삭제" data-session-id="{{ active_session_id }}">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
                     {% endif %}
-                </h2>
-                <div class="flex items-center space-x-4">
+                </div>
+                <div class="flex items-center space-x-4 flex-shrink-0">
                     <span class="text-sm text-gray-600">안녕하세요, {{ user.username }}님</span>
                     <a href="{% url 'accounts:logout_page' %}" class="text-sm bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg transition-colors">로그아웃</a>
                 </div>
@@ -222,154 +233,126 @@
     </div>
 
     <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Element selections
-        const chatMessages = document.getElementById('chat-messages');
-        const chatForm = document.getElementById('chat-form');
-        const messageInput = document.getElementById('message-input');
-        const newSessionBtn = document.getElementById('new-session-btn');
-        const sessionList = document.getElementById('session-list');
-        const sidebar = document.getElementById('sidebar');
-        const sidebarToggle = document.getElementById('sidebar-toggle');
-        const body = document.body;
-
-        // --- Helper Functions ---
-        function getActiveSessionId() {
-            return body.dataset.activeSessionId;
-        }
-
-        function getCsrfToken() {
-            const csrfCookie = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
-            return csrfCookie ? csrfCookie.split('=')[1] : document.querySelector('[name=csrfmiddlewaretoken]').value;
-        }
-
-        function scrollToBottom() {
-            if (chatMessages) {
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- UTILITY FUNCTIONS ---
+            function getActiveSessionId() {
+                return document.body.dataset.activeSessionId || null;
             }
-        }
 
-        function escapeHtml(unsafe) {
-            if (typeof unsafe !== 'string') {
-                unsafe = String(unsafe);
+            function getCsrfToken() {
+                return document.querySelector('input[name="csrfmiddlewaretoken"]').value;
             }
-            return unsafe
-                 .replace(/&/g, "&amp;")
-                 .replace(/</g, "&lt;")
-                 .replace(/>/g, "&gt;")
-                 .replace(/"/g, "&quot;")
-                 .replace(/'/g, "&#039;");
-        }
 
-        // --- UI Update Functions ---
-                if (data.event === 'tool_update') {
-                    let container = document.getElementById(`${assistantMessageId}-container`);
-                    let details = container.querySelector('.tool-usage-container');
+            function scrollToBottom() {
+                const chatMessages = document.getElementById('chat-messages');
+                if (chatMessages) {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            }
 
-                    // Create the tool usage container only if it doesn't exist
-                    if (!details) {
-                        details = document.createElement('details');
-                        details.className = 'tool-usage-container';
-                        details.open = true;
+            // --- GLOBAL STATE ---
+            let controller = new AbortController();
 
-                        const summary = document.createElement('summary');
-                        summary.innerHTML = '<i class="fas fa-cogs fa-fw"></i>Tool Usage';
-                        details.appendChild(summary);
+            // --- ELEMENT REFERENCES ---
+            const newSessionBtn = document.getElementById('new-session-btn');
+            const sessionList = document.getElementById('session-list');
+            const headerDeleteBtn = document.getElementById('header-delete-btn');
+            const chatForm = document.getElementById('chat-form');
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            const typingIndicator = document.getElementById('typing-indicator');
+            const chatMessages = document.getElementById('chat-messages');
 
-                        const content = document.createElement('div');
-                        content.className = 'tool-usage-content';
-                        details.appendChild(content);
+            // --- EVENT LISTENERS ---
 
-                        // Insert the new container before the chat bubble
-                        container.insertBefore(details, container.querySelector('.chat-bubble-ai'));
-                    }
-
-                    const content = details.querySelector('.tool-usage-content');
-                    const toolCallId = `tool-call_${data.run_id}`;
-                    let toolCallDiv = document.getElementById(toolCallId);
-
-                    // Create the specific tool call container if it doesn't exist
-                    if (!toolCallDiv) {
-                        toolCallDiv = document.createElement('div');
-                        toolCallDiv.id = toolCallId;
-                        toolCallDiv.className = 'mb-3';
-                        content.appendChild(toolCallDiv);
-                    }
-
-                    // Always update the tool call item with the latest input
-                    let toolCallItem = toolCallDiv.querySelector('.tool-call-item');
-                    if (!toolCallItem) {
-                        toolCallItem = document.createElement('div');
-                        toolCallItem.className = 'tool-call-item';
-                        toolCallDiv.appendChild(toolCallItem);
-                    }
-                    toolCallItem.innerHTML = `<div class="font-semibold"><i class="fas fa-wrench fa-fw"></i> ${data.name}</div><pre>${JSON.stringify(data.input, null, 2)}</pre>`;
-
-                    // If there's output, create or update the output item
-                    if (data.output) {
-                        let toolOutputItem = toolCallDiv.querySelector('.tool-output-item');
-                        if (!toolOutputItem) {
-                            toolOutputItem = document.createElement('div');
-                            toolOutputItem.className = 'tool-output-item';
-                            toolCallDiv.appendChild(toolOutputItem);
+            // 1. New Session Button
+            if (newSessionBtn) {
+                newSessionBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    try {
+                        const response = await fetch("{% url 'conversations:api:session_create' %}", {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': getCsrfToken(),
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        const data = await response.json();
+                        if (data.session_id) {
+                            window.location.href = `/conversations/chat/${data.session_id}/`;
+                        } else {
+                            throw new Error(data.error || 'Failed to create session.');
                         }
-                        const formattedOutput = data.output.replace(/\n/g, '<br>').replace(/  /g, '&nbsp;&nbsp;');
-                        toolOutputItem.innerHTML = `<div class="font-semibold"><i class="fas fa-clipboard-check fa-fw"></i> Output</div><pre>${formattedOutput}</pre>`;
+                    } catch (error) {
+                        console.error('Error creating new session:', error);
+                        alert('새 세션을 만드는 중 오류가 발생했습니다.');
                     }
+                });
+            }
 
-                    // Hide typing indicator as soon as tool usage is shown
-                    const typingIndicator = document.getElementById(assistantMessageId);
-                    if (typingIndicator) {
-                        typingIndicator.style.display = 'none';
-                    }
-                }
-
-        // --- Event Listeners ---
-        if (sidebar && sidebarToggle) {
-            sidebarToggle.addEventListener('click', () => {
-                sidebar.classList.toggle('w-80');
-                sidebar.classList.toggle('w-20');
-                sidebar.classList.toggle('is-collapsed');
-                sidebarToggle.querySelector('i').classList.toggle('rotate-180');
-            });
-        }
-
-        if (newSessionBtn) {
-            newSessionBtn.addEventListener('click', async (e) => {
-                e.preventDefault();
-                try {
-                    const response = await fetch("{% url 'conversations:api:session_create' %}", {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRFToken': getCsrfToken(),
-                            'Content-Type': 'application/json'
+            // 2. Session List Navigation
+            if (sessionList) {
+                sessionList.addEventListener('click', (e) => {
+                    const sessionItem = e.target.closest('.session-item');
+                    if (sessionItem) {
+                        e.preventDefault();
+                        const sessionId = sessionItem.dataset.sessionId;
+                        if (sessionId && sessionId !== getActiveSessionId()) {
+                            window.location.href = `/conversations/chat/${sessionId}/`;
                         }
-                    });
-                    const data = await response.json();
-                    if (data.session_id) {
-                        window.location.href = `/conversations/chat/${data.session_id}/`;
                     }
-                } catch (error) {
-                    console.error('Error creating new session:', error);
-                }
-            });
-        }
+                });
+            }
 
-        if (sessionList) {
-            sessionList.addEventListener('click', (e) => {
-                const sessionItem = e.target.closest('.session-item');
-                if (sessionItem) {
-                    const sessionId = sessionItem.dataset.sessionId;
-                    if (sessionId) {
-                        window.location.href = `/conversations/chat/${sessionId}/`;
+            // 3. Header Delete Button
+            if (headerDeleteBtn) {
+                headerDeleteBtn.addEventListener('click', async () => {
+                    const sessionId = headerDeleteBtn.dataset.sessionId;
+                    const sessionTitle = document.getElementById('chat-header-title').textContent.trim();
+                    
+                    if (confirm(`'${sessionTitle}' 세션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+                        try {
+                            const response = await fetch(`/conversations/api/session/delete/${sessionId}/`, {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRFToken': getCsrfToken(),
+                                    'Content-Type': 'application/json'
+                                }
+                            });
+                            const data = await response.json();
+                            if (data.status === 'success') {
+                                window.location.href = "{% url 'conversations:chatbot' %}";
+                            } else {
+                                throw new Error(data.message || 'Unknown error');
+                            }
+                        } catch (error) {
+                            console.error('Error deleting session:', error);
+                            alert('세션 삭제 중 오류가 발생했습니다: ' + error.message);
+                        }
                     }
-                }
-            });
-        }
-        
-        if (chatForm) {
-            chatForm.addEventListener('submit', async function(e) {
-                e.preventDefault();
+                });
+            }
+
+            // 4. Chat Form Submission
+            if (chatForm) {
+                chatForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    handleChatSubmission();
+                });
+            }
+
+            // 5. Enter Key to Submit
+            if (messageInput) {
+                messageInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+                    }
+                });
+            }
+            
+            // --- MAIN CHAT LOGIC ---
+            async function handleChatSubmission() {
                 const messageText = messageInput.value.trim();
                 if (!messageText) return;
 
@@ -379,42 +362,45 @@
                     return;
                 }
 
-                // Append user message
+                controller = new AbortController();
+                const signal = controller.signal;
+
+                messageInput.disabled = true;
+                sendButton.disabled = true;
+
                 const userMessageHtml = `
                     <div class="flex justify-end">
                         <div class="max-w-xl">
-                            <div class="chat-bubble-user text-white p-4 rounded-lg shadow-md">
-                                ${messageText.replace(/\n/g, '<br>')}
+                            <div class="chat-bubble-user text-white p-4 rounded-2xl rounded-tr-none shadow-lg">
+                                <p>${messageText.replace(/\n/g, '<br>')}</p>
                             </div>
                             <p class="text-xs text-gray-500 text-right mt-1">Now</p>
                         </div>
                     </div>`;
                 chatMessages.innerHTML += userMessageHtml;
                 messageInput.value = '';
-                messageInput.style.height = 'auto';
                 scrollToBottom();
 
-                // Prepare assistant message container
+                typingIndicator.style.display = 'flex';
                 const assistantMessageId = `assistant-message-${Date.now()}`;
+                const toolUiId = `tool-ui-${Date.now()}`;
                 const assistantMessageHtml = `
                     <div class="flex items-start gap-3 mb-4">
-                        <div class="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center font-bold text-white text-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">AI</div>
-                        <div class="flex-1">
-                            <div id="${assistantMessageId}-container">
-                                <div class="chat-bubble-ai p-4 rounded-lg shadow-md">
-                                    <p id="${assistantMessageId}"><span class="typing-indicator"><span></span><span></span><span></span></span></p>
-                                </div>
-                            </div>
-                            <p class="text-xs text-gray-500 mt-1">Just now</p>
-                        </div>
-                    </div>`;
+                         <div class="w-full max-w-xl">
+                             <div id="${toolUiId}"></div>
+                             <div class="chat-bubble-ai text-gray-800 p-4 rounded-2xl rounded-tl-none shadow-lg bg-gray-50">
+                                 <p id="${assistantMessageId}"></p>
+                             </div>
+                             <p class="text-xs text-gray-500 mt-1">Just now</p>
+                         </div>
+                     </div>`;
                 chatMessages.innerHTML += assistantMessageHtml;
                 scrollToBottom();
-
+                
                 const assistantMessageP = document.getElementById(assistantMessageId);
-                const toolContainer = document.querySelector(`#${assistantMessageId}-container .tool-usage-container`);
+                const toolContainer = document.getElementById(toolUiId);
+                toolContainer.style.display = 'none';
 
-                // Fetch stream
                 try {
                     const response = await fetch(`/conversations/api/chat/stream/${sessionId}/`, {
                         method: 'POST',
@@ -422,15 +408,19 @@
                             'Content-Type': 'application/json',
                             'X-CSRFToken': getCsrfToken()
                         },
-                        body: JSON.stringify({ message: messageText })
+                        body: JSON.stringify({ message: messageText }),
+                        signal
                     });
 
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
+                    typingIndicator.style.display = 'none';
+                    
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder();
                     let buffer = '';
                     let isFirstChunk = true;
+                    let isFirstTitleChunk = true;
 
                     while (true) {
                         const { done, value } = await reader.read();
@@ -447,42 +437,29 @@
                                 if (!rawJson) continue;
                                 const payload = JSON.parse(rawJson);
                                 
-                                if (isFirstChunk && assistantMessageP) {
-                                    assistantMessageP.innerHTML = '';
-                                    isFirstChunk = false;
-                                }
-
-                                if (payload.event === 'title_start') {
-                                    const headerTitle = document.getElementById('chat-header-title');
-                                    const sidebarTitle = document.getElementById(`session-title-${sessionId}`);
-                                    if (headerTitle) headerTitle.textContent = '';
-                                    if (sidebarTitle) sidebarTitle.textContent = '';
+                                if (payload.event === 'message_chunk') {
+                                    if (isFirstChunk) {
+                                        assistantMessageP.innerHTML = '';
+                                        isFirstChunk = false;
+                                    }
+                                    assistantMessageP.innerHTML += payload.data.replace(/\n/g, '<br>');
+                                } else if (payload.event === 'tool_update') {
+                                    if (toolContainer) {
+                                        toolContainer.style.display = 'block';
+                                        updateToolUI(payload.data, toolContainer);
+                                    }
                                 } else if (payload.event === 'title_chunk') {
                                     const headerTitle = document.getElementById('chat-header-title');
                                     const sidebarTitle = document.getElementById(`session-title-${sessionId}`);
+                                    if (isFirstTitleChunk) {
+                                        if(headerTitle) headerTitle.textContent = '';
+                                        if(sidebarTitle) sidebarTitle.textContent = '';
+                                        isFirstTitleChunk = false;
+                                    }
                                     if (headerTitle) headerTitle.textContent += payload.data;
                                     if (sidebarTitle) sidebarTitle.textContent += payload.data;
-                                } else if (payload.event === 'title_end') {
-                                    const finalTitle = payload.data;
-                                    const headerTitle = document.getElementById('chat-header-title');
-                                    const sidebarTitle = document.getElementById(`session-title-${sessionId}`);
-                                    if (headerTitle) headerTitle.textContent = finalTitle;
-                                    if (sidebarTitle) sidebarTitle.textContent = finalTitle;
-                                    document.title = `${finalTitle} - WorkAssist`;
-                                } else if (payload.event === 'message_chunk') {
-                                    if (assistantMessageP) assistantMessageP.innerHTML += payload.data.replace(/\n/g, '<br>');
-                                } else if (payload.event === 'tool_use_started') {
-                                    if (toolContainer) {
-                                        toolContainer.style.display = 'block';
-                                        const toolContentDiv = toolContainer.querySelector('.tool-usage-content');
-                                        if (toolContentDiv && toolContentDiv.innerHTML === '') {
-                                            toolContentDiv.innerHTML = '<p class="text-slate-400 text-xs"><i>Agent is using tools...</i></p>';
-                                        }
-                                    }
-                                } else if (payload.event === 'tool_update') {
-                                    updateToolUI(payload.data, toolContainer);
                                 } else if (payload.event === 'error') {
-                                    if (assistantMessageP) assistantMessageP.innerHTML = `<span class="text-red-400">Error: ${payload.data}</span>`;
+                                    assistantMessageP.innerHTML = `<span class="text-red-500">Error: ${payload.data}</span>`;
                                     break;
                                 }
                                 scrollToBottom();
@@ -492,12 +469,83 @@
                         }
                     }
                 } catch (error) {
-                    console.error('Fetch error:', error);
-                    if (assistantMessageP) assistantMessageP.innerHTML = '<span class="text-red-400">Sorry, an error occurred while connecting to the server.</span>';
+                    if (error.name === 'AbortError') {
+                        console.log('Stream fetch aborted.');
+                        assistantMessageP.innerHTML += '<br><i class="text-gray-500">...stream stopped.</i>';
+                    } else {
+                        console.error('Fetch error:', error);
+                        assistantMessageP.innerHTML = `<span class="text-red-500">An error occurred. Please try again.</span>`;
+                    }
+                } finally {
+                    messageInput.disabled = false;
+                    sendButton.disabled = false;
+                    typingIndicator.style.display = 'none';
+                    messageInput.focus();
                 }
-            });
-        }
+            }
 
+            function updateToolUI(data, container) {
+                if (!container || !data || !data.assistant || !data.assistant.messages) {
+                    return;
+                }
+                
+                let contentHtml = '';
+                const messages = data.assistant.messages;
+
+                const toolCalls = {};
+
+                messages.forEach(msg => {
+                    if (msg.type === 'ai' && msg.tool_calls && msg.tool_calls.length > 0) {
+                        msg.tool_calls.forEach(call => {
+                            toolCalls[call.id] = { name: call.name, args: call.args, output: '<i>Pending...</i>' };
+                        });
+                    } else if (msg.type === 'tool') {
+                        if (toolCalls[msg.tool_call_id]) {
+                            toolCalls[msg.tool_call_id].output = msg.content;
+                        }
+                    }
+                });
+
+                for (const id in toolCalls) {
+                    const call = toolCalls[id];
+                    let args_pretty, output_pretty;
+                    try {
+                        args_pretty = JSON.stringify(JSON.parse(call.args || '{}'), null, 2);
+                    } catch {
+                        args_pretty = call.args;
+                    }
+                    try {
+                        output_pretty = JSON.stringify(JSON.parse(call.output || '""'), null, 2);
+                    } catch {
+                        output_pretty = call.output;
+                    }
+
+                    contentHtml += `
+                        <div class="tool-call-item">
+                            <div class="font-semibold"><i class="fas fa-wrench fa-fw"></i> ${call.name}</div>
+                            <pre>${args_pretty}</pre>
+                        </div>
+                        <div class="tool-output-item">
+                            <div class="font-semibold"><i class="fas fa-clipboard-check fa-fw"></i> Output</div>
+                            <pre>${output_pretty}</pre>
+                        </div>`;
+                }
+
+                if (contentHtml) {
+                    container.innerHTML = `
+                        <details class="tool-usage-container" open>
+                            <summary><i class="fas fa-cogs fa-fw"></i>Tool Usage</summary>
+                            <div class="tool-usage-content">
+                                ${contentHtml}
+                            </div>
+                        </details>`;
+                }
+            }
+
+            // --- INITIALIZATION ---
+            scrollToBottom();
+        });
+    </script>
         if (messageInput) {
             messageInput.addEventListener('input', () => {
                 messageInput.style.height = 'auto';

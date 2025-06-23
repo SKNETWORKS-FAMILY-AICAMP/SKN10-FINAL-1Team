@@ -7,6 +7,7 @@ app_name = 'conversations'
 api_urlpatterns = [
     path('chat/stream/<uuid:session_id>/', views.chat_stream, name='chat_stream'),
     path('session/create/', views.session_create_view, name='session_create'),
+    path('session/delete/<uuid:session_id>/', views.session_delete_view, name='session_delete'),
 ]
 
 urlpatterns = [
