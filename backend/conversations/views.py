@@ -77,11 +77,30 @@ async def session_create_view(request):
 @csrf_exempt
 async def chat_stream(request, session_id):
     try:
-        data = json.loads(request.body)
-        message_content = data.get('message', '')
-        file_name = data.get('file_name')
-        file_content = data.get('file_content')
         user = request.user
+        message_content = ''
+        file_name = None
+        file_content = None
+
+        # Handle multipart/form-data for file uploads, or application/json for standard messages
+        if request.content_type.startswith('multipart/form-data'):
+            message_content = request.POST.get('message', '')
+            file_obj = request.FILES.get('file')
+            if file_obj:
+                file_name = file_obj.name
+                # Ensure the file is read as a string. Handle potential binary files gracefully.
+                try:
+                    file_content = file_obj.read().decode('utf-8')
+                except UnicodeDecodeError:
+                    # Fallback for non-UTF8 files, though CSV should be text.
+                    file_content = "Error: Could not decode file content. Please ensure it is UTF-8 encoded."
+        elif request.content_type.startswith('application/json'):
+            data = json.loads(request.body)
+            message_content = data.get('message', '')
+            file_name = data.get('file_name')
+            file_content = data.get('file_content')
+        else:
+             return JsonResponse({"error": f"Unsupported content type: {request.content_type}"}, status=415)
 
         if not message_content and not file_content:
             return JsonResponse({"error": "Message or file content is empty."}, status=400)
