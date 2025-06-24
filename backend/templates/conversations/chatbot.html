@@ -147,7 +147,7 @@
                     {% endif %}
                 </div>
                 <div class="flex items-center space-x-4 flex-shrink-0">
-                    <span class="text-sm text-gray-600">안녕하세요, {{ user.username }}님</span>
+                                        <span class="text-sm text-gray-600">안녕하세요, {{ user.name }}님</span>
                     <a href="{% url 'accounts:logout_page' %}" class="text-sm bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg transition-colors">로그아웃</a>
                 </div>
             </header>

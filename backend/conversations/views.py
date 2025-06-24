@@ -61,6 +61,7 @@ def chatbot_view(request, session_id=None):
         'sessions': sessions,
         'initial_messages': initial_messages,
         'active_session_id': active_session_id,
+        'user': user, # Add user to the context
     })
 
 
