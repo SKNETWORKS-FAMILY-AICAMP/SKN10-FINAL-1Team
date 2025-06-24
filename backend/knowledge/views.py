@@ -8,8 +8,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from .utils import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table, make_index, remove_index
-from .models import User
 from conversations.models import ChatSession, ChatMessage
+from accounts.models import User, Organization
+
 # Create your views here.
 
 def dashboard_view(request, screen_type):
@@ -61,7 +62,7 @@ def create_index(request):
             else: 
                 messages.error(request, '⚠️ 이미 존재하는 인덱스명입니다!')
 
-        url = reverse('knowledge:dashboard') + '?section=db&db=pinecone'
+        url = reverse('knowledge:dashboard', args=['db']) + '?db=pinecone'
         return redirect(url)
     else : 
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
@@ -82,16 +83,50 @@ def delete_index(request):
             else: 
                 messages.error(request, '⚠️ 입력하신 인덱스가 DB에 없습니다!')
         
-        url = reverse('knowledge:dashboard') + '?section=db&db=pinecone'
+        url = reverse('knowledge:dashboard', args=['db']) + '?db=pinecone'
         return redirect(url)
     else : 
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
+def create_user(request) :
+    if request.method == 'POST':
+        email = request.POST.get('email', '').strip() # 이메일
+        pw = request.POST.get('pw', '')  # 비밀번호           
+        pw_confirm = request.POST.get('pw_confirm', '') # 비밀번호 확인
+        username = request.POST.get('username', '').strip() # 유저명
+        authority = request.POST.get('authority') # 권한
+        department = request.POST.get('department') # 부서
+        org = Organization.objects.get(name='Default Organization') # 임시 방편으로 Organization를 생성
+        redirect_url = reverse('knowledge:dashboard', args=['user'])
 
+        # 서버사이드 검증
+        if not email or not pw or not pw_confirm or not username:
+            messages.error(request, '❌ 모든 필드를 입력해 주세요.')
+            return redirect(redirect_url)
+        if pw != pw_confirm:
+            messages.error(request, '❌ 비밀번호가 일치하지 않습니다.')
+            return redirect(redirect_url)
+        # 중복 이메일 체크
+        if User.objects.filter(email=email).exists():
+            messages.error(request, '⚠️ 이미 등록된 이메일입니다.')
+            return redirect(redirect_url)
+
+        # 실제 생성
+        try:
+            user = User.objects.create_user(email=email,password=pw,name=username,role=authority,org=org)
+        except Exception as e:
+            messages.error(request, e)
+            return redirect(redirect_url)
+        
+        messages.success(request, '✅ 사용자 생성이 정상적으로 완료되었습니다!')
+        return redirect(redirect_url)
+    else : 
+        return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
+    
 def delete_user(request):
     """특정 User를 제거"""
     if request.method == 'POST':
         email = request.POST.get('email') # 이메일
-        url = reverse('knowledge:dashboard') + '?section=user'
+        url = reverse('knowledge:dashboard', args=['user'])
 
         try : 
             target = User.objects.get(email=email)
