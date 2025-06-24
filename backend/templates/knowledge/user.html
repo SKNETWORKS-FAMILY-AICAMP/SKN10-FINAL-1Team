@@ -6,15 +6,22 @@
         [x-cloak] { display: none !important; }
     </style>
     <!-- alpine.js 임포트--> 
-    <section x-data= class="rounded-lg bg-white p-6 shadow-md border border-gray-200">
-    <div class="flex items-center justify-between mb-6">
-        <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em]">사용자 목록</h3>
-        <div class="flex items-center gap-4 ml-auto">
-        
-        <!-- 계정 삭제 Alpine 컴포넌트 시작 -->
-        <div x-data="{ open: false, loading : false, error : '', email : '',
-        submitForm(event) {
-            if (!this.email) {
+    <section x-data="{
+        // 현재 열려 있는 모달 구분: 'add' | 'delete' | 'multi' | null
+        active: null,
+        // 공통 상태
+        loading: false, error: '',
+        // 모달별 폼 데이터
+        add:    { email:'', pw:'', pw_confirm:'', username:'' },
+        del:    { email:'' },
+        // 모달 열고 닫기
+        open(name) { this.active = name},
+        close() { 
+            this.active = null
+            this.error = ''
+        },
+        submitDelete(event) {
+            if (!this.del.email) {
                 this.error = '이메일을 입력해주세요!'
             }
             else {
@@ -24,133 +31,119 @@
                     this.$nextTick(() => event.target.submit())
                 }   
             }
-        }}" class="relative">
-        <!-- 1) 계정 삭제 버튼 -->
+        },
+        submitAdd(event) {
+            if (!this.add.email) {
+                this.error = '이메일을 입력해주세요!'
+            } else if (!this.add.pw) {
+                this.error = '비밀번호를 입력해주세요!'
+            } else if (!this.add.pw_confirm) {
+                this.error = '비밀번호 확인을 입력해주세요!'
+            } else if (this.add.pw !== this.add.pw_confirm) {
+                this.error = '두 비밀번호가 일치하지 않아요!'
+            } else if (!this.add.username) {
+                this.error = '사용자명을 입력해주세요!'
+            } else {
+                // 확인창 띄우기
+                if (confirm('⚠️ 정말 이 계정을 추가할까요?')) {
+                    this.loading = true
+                    this.$nextTick(() => event.target.submit())
+                }   
+            }
+        },
+        submitMultiAdd(event) {
+            // 1) 파일 체크
+            if (!$refs.fileInput.files.length) {
+                this.error = '오류 : 파일을 선택해줘!'
+                return
+            }
+            // 1-1) CSV 확장자 체크
+            const file = $refs.fileInput.files[0];
+            const name = file.name.toLowerCase();
+            if (!name.endsWith('.csv')) {
+                this.error = '오류 : CSV 파일만 업로드할 수 있어!';
+                return;
+            }
+            // 3) 확인창
+            if (!confirm(`⚠️ 정말 다중 계정을 추가하시겠습니까?`)) {
+                return
+            }
+            // 4) 모두 통과하면 로딩 켜고 폼 제출
+            this.loading = true
+            $refs.multiForm.submit()
+        },
+    }"
+    class="rounded-lg bg-white p-6 shadow-md border border-gray-200">
+    <div class="flex items-center justify-between mb-6">
+        <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em]">사용자 목록</h3>
+        <div class="flex items-center gap-4 ml-auto">
+        
+        <!-- 계정 삭제 Alpine 컴포넌트 시작 -->
+        <div class="relative">
 
+        <!-- 1) 계정 삭제 버튼 -->
         <button
-            @click="open = true"
+            @click="open('delete')"
             class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
         ><span class="material-icons-outlined font-bold">계정 삭제</span></button>
 
-        <!-- 2) 백그라운드 오버레이 -->
+        <!-- 2) 계정 삭제 모달 박스 -->
         <div
-            x-show="open"
-            x-cloak
-            class="fixed inset-0 bg-black bg-opacity-50 z-40"
-            @click="open = false"
-        ></div>
-
-        <!-- 3) 모달 박스 -->
-        <div
-            x-show="open"
+            x-show="active === 'delete'"
             class="fixed inset-0 flex items-center justify-center z-50 p-4"
             x-cloak
         >
             <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
             <div class="flex justify-between items-center px-6 py-4 border-b">
                 <h2 class="text-lg font-semibold">계정 삭제</h2>
-                <button @click="open = false" class="text-xl leading-none">&times;</button>
-            </div>
-
-
-            <!-- 로딩 오버레이 -->
-            <div x-show="loading" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-70 z-60">
-            <svg class="animate-spin h-12 w-12 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor"
-                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
-            </path>
-            </svg>
+                <button @click="close()" class="text-xl leading-none">&times;</button>
             </div>
 
             <form
                 action="{% url 'knowledge:delete_user' %}"
                 method="post"
                 class="px-6 py-4 space-y-4"
-                @submit.prevent="submitForm($event)">
+                @submit.prevent="submitDelete($event)">
                 {% csrf_token %}
 
                 <!-- 에러 메시지 -->
-                <div
-                x-show="error"
-                class="flex items-start space-x-2 bg-red-50 border-l-4 border-red-600 text-red-700 p-3 rounded-md shadow-sm mt-2"
-                >
+                <div x-show="error"
+                class="flex items-start space-x-2 bg-red-50 border-l-4 border-red-600 text-red-700 p-3 rounded-md shadow-sm mt-2">
                 <!-- 실제 메시지 -->
                 <span x-text="error" class="text-sm"></span>
                 </div>
                 
                 <div>
                 <label class="block text-sm font-medium">🆔<span class="text-red-500"> 삭제할 이메일</span>을 입력하세요! </label>
-                <input type="email" name="email" x-model="email" class="mt-1 w-full border rounded px-3 py-2" />
+                <input type="email" name="email" x-model="del.email" class="mt-1 w-full border rounded px-3 py-2" />
                 </div>
     
-
                 <div class="text-right space-x-2">
-                <button type="button" @click="open = false" class="px-4 py-2 rounded border hover:bg-gray-100">취소</button>
+                <button type="button" @click="close()" class="px-4 py-2 rounded border hover:bg-gray-100">취소</button>
                 <button type="submit" class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white">삭제</button>
-                
                 </div>
-                
             </form>
             </div>
         </div>
         </div>
-        <!-- Alpine 컴포넌트 끝 -->
+        <!-- 계정 삭제 Alpine 컴포넌트 끝 -->
 
         
         <!-- 계정 추가 Alpine 컴포넌트 시작 -->
-        <div x-data="{ open: false, loading : false, email: '', pw: '', pw_confirm: '', username: '', error: '',
-        submitForm(event) {
-            if (!this.email) {
-                this.error = '이메일을 입력해주세요!'
-            } else if (!this.pw) {
-                this.error = '비밀번호를 입력해주세요!'
-            } else if (!this.pw_confirm) {
-                this.error = '비밀번호 확인을 입력해주세요!'
-            } else if (this.pw !== this.pw_confirm) {
-                this.error = '두 비밀번호가 일치하지 않아요!'
-            } else if (!this.username) {
-                this.error = '사용자명을 입력해주세요!'
-            } else {
-                // 확인창 띄우기
-                if (confirm('⚠️ 정말 이 계정을 추가할까요?')) {
-                    this.loading = true
-                    // Alpine이 로딩 오버레이 렌더링할 시간을 주려면 nextTick 권장
-                    this.$nextTick(() => event.target.submit())
-                }   
-            }
-        }}" class="relative">
+        <div class="relative">
         <!-- 1) 계정 추가 버튼 -->
 
         <button
-            @click="open = true"
+            @click="open('add')"
             class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
         ><span class="material-icons-outlined font-bold">계정 추가</span></button>
 
-        <!-- 2) 백그라운드 오버레이 -->
-        <div
-            x-show="open"
-            x-cloak
-            class="fixed inset-0 bg-black bg-opacity-50 z-40"
-            @click="open = false"
-        ></div>
-
-        <!-- 3) 모달 박스 -->
-        <div x-show="open" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
+        <!-- 2) 계정 추가 모달 박스 -->
+        <div x-show="active === 'add'" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
             <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
             <div class="flex justify-between items-center px-6 py-4 border-b">
                 <h2 class="text-lg font-semibold">계정 추가</h2>
-                <button @click="open = false" class="text-xl leading-none">&times;</button>
-            </div>
-            
-            <!-- 로딩 오버레이 -->
-            <div x-show="loading" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-70 z-60">
-            <svg class="animate-spin h-12 w-12 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor"
-                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
-            </path>
-            </svg>
+                <button @click="close()" class="text-xl leading-none">&times;</button>
             </div>
 
 
@@ -158,7 +151,7 @@
                 action="{% url 'knowledge:create_user' %}"
                 method="post"
                 class="px-6 py-4 space-y-4"
-                @submit.prevent="submitForm($event)">
+                @submit.prevent="submitAdd($event)">
                 {% csrf_token %}
                 
                 <!-- 에러 메시지 -->
@@ -173,7 +166,7 @@
                 <div>
                 <label class="block text-sm font-medium">이메일</label>
                 <input type="email" name="email"
-                x-model="email"
+                x-model="add.email"
                 @input="error = ''"
                 class="mt-1 w-full border rounded px-3 py-2" />
                 </div>
@@ -181,7 +174,7 @@
                 <div>
                 <label class="block text-sm font-medium">비밀번호</label>
                 <input type="password" name="pw"
-                x-model="pw"
+                x-model="add.pw"
                 @input="error = ''"
                 class="mt-1 w-full border rounded px-3 py-2" />
                 </div>
@@ -189,7 +182,7 @@
                 <div>
                 <label class="block text-sm font-medium">비밀번호 확인</label>
                 <input type="password" name="pw_confirm"
-                x-model="pw_confirm"
+                x-model="add.pw_confirm"
                 @input="error = ''"
                 class="mt-1 w-full border rounded px-3 py-2" />
                 </div>
@@ -197,7 +190,7 @@
                 <div>
                 <label class="block text-sm font-medium">사용자명</label>
                 <input name="username"
-                x-model="username"
+                x-model="add.username"
                 @input="error = ''"
                 class="mt-1 w-full border rounded px-3 py-2" />
                 </div>
@@ -223,18 +216,9 @@
 
 
                 <div class="text-right space-x-2">
-                <button
-                    type="button"
-                    @click="open = false"
-                    class="px-4 py-2 rounded border hover:bg-gray-100"
-                >취소</button>
-
-                <button
-                    type="submit"
-                    class="px-4 py-2 rounded bg-orange-400 hover:bg-orange-600 text-white"
-                >추가</button>
+                <button type="button" @click="close()" class="px-4 py-2 rounded border hover:bg-gray-100">취소</button>
+                <button type="submit" class="px-4 py-2 rounded bg-orange-400 hover:bg-orange-600 text-white">추가</button>
                 </div>
-                
             </form>
             </div>
         </div>
@@ -242,49 +226,20 @@
         <!-- Alpine 컴포넌트 끝 -->
 
         <!-- 다중 계정 추가 Alpine 컴포넌트 시작 -->
-        <div x-data="{ open: false, error: '', loading: false,
-        submitForm() {
-            // 1) 파일 체크
-            if (!$refs.fileInput.files.length) {
-                this.error = '오류 : 파일을 선택해줘!'
-                return
-            }
-            // 1-1) CSV 확장자 체크
-            const file = $refs.fileInput.files[0];
-            const name = file.name.toLowerCase();
-            if (!name.endsWith('.csv')) {
-                this.error = '오류 : CSV 파일만 업로드할 수 있어!';
-                return;
-            }
-            // 3) 확인창
-            if (!confirm(`⚠️ 정말 다중 계정을 추가하시겠습니까?`)) {
-                return
-            }
-            // 4) 모두 통과하면 로딩 켜고 폼 제출
-            this.loading = true
-            $refs.multiForm.submit()
-        }}" class="relative">
+        <div class="relative">
 
         <!-- 1) 다중 계정 생성 버튼 -->
-        <button
-            @click="open = true"
-            class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
+        <button 
+        @click="open('multi')"
+        class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
         ><span class="material-icons-outlined font-bold">다중 계정 추가</span></button>
 
-        <!-- 2) 백그라운드 오버레이 -->
-        <div
-            x-show="open"
-            x-cloak
-            class="fixed inset-0 bg-black bg-opacity-50 z-40"
-            @click="open = false"
-        ></div>
-
-        <!-- 3) 모달 박스 -->
-        <div x-show="open" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
+        <!-- 2) 다중 계정 모달 박스 -->
+        <div x-show="active === 'multi'" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
             <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
             <div class="flex justify-between items-center px-6 py-4 border-b">
                 <h2 class="text-lg font-semibold">다중 계정 추가</h2>
-                <button @click="open = false" class="text-xl leading-none">&times;</button>
+                <button @click="close()" class="text-xl leading-none">&times;</button>
             </div>
             
             <!-- 주의사항 -->
@@ -295,23 +250,13 @@
                 3. 컬럼값은 null값이 없어야 함.  
             </p>
 
-            <!-- 로딩 오버레이 -->
-            <div x-show="loading" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-70 z-60">
-            <svg class="animate-spin h-12 w-12 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor"
-                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
-            </path>
-            </svg>
-            </div>
-
             <form
                 action="{% url 'knowledge:create_multi_user' %}"
                 method="post"
                 class="px-6 space-y-4"
-                x-ref="multiForm"
                 enctype="multipart/form-data"
-                @submit.prevent="submitForm()">
+                x-ref="multiForm"
+                @submit.prevent="submitMultiAdd()">
                 {% csrf_token %}
 
                 <div>
@@ -323,16 +268,8 @@
                 <p x-show="error" x-text="error" class="text-red-600 text-sm mt-2"></p>
 
                 <div class="text-right space-x-2">
-                <button
-                    type="button"
-                    @click="open = false"
-                    class="px-4 py-2 rounded border hover:bg-gray-100"
-                >취소</button>
-
-                <button
-                    type="submit"
-                    class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white"
-                >생성</button>
+                <button type="button" @click="close()" class="px-4 py-2 rounded border hover:bg-gray-100">취소</button>
+                <button type="submit" class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white">생성</button>
                 </div>
                 
             </form>
@@ -341,7 +278,25 @@
         </div>
         <!-- Alpine 컴포넌트 끝 -->
         
+        <!-- 공통 백그라운드 오버레이 -->
+        <div
+            x-show="active"
+            x-cloak
+            class="fixed inset-0 bg-black bg-opacity-50 z-40"
+            @click="close()"
+        ></div>
+
+        <!-- 공통 로딩화면 -->
+        <div x-show="loading" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-70 z-60">
+        <svg class="animate-spin h-12 w-12 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" sroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+        </path>
+        </svg>
         </div>
+        </div>
+
     </div>
     
     <div class="@container">
