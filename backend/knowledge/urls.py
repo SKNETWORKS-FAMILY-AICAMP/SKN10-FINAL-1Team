@@ -30,6 +30,7 @@ urlpatterns = [
     path('dashboard/<str:screen_type>', views.dashboard_view, name='dashboard'), # New view for dashboard.html
     path('dashboard/create_index/', views.create_index, name='create_index'),
     path('dashboard/create_user/', views.create_user, name='create_user'),
+    path('dashboard/create_multi_user/', views.create_multi_user, name='create_multi_user'),
     path('dashboard/delete_index/', views.delete_index, name='delete_index'),
     path('dashboard/delete_user/', views.delete_user, name='delete_user'),
     path('dashboard/index_detail/<str:index_name>', views.index_detail, name='index_detail'),

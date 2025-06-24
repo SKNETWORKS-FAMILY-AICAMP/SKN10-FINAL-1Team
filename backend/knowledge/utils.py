@@ -22,6 +22,8 @@ from django.conf import settings
 from django.db import connection
 from functools import lru_cache
 from django.core.paginator import Paginator 
+import secrets
+import string
                     
 def get_postgre_db() : 
     """PostgreSQL 데이터베이스 연결 정보 가져오는 함수"""
@@ -179,6 +181,11 @@ def get_namespaces(index_name) :
         for name, info in namespaces.items()
     }
     return flatten_namespaces
+
+def generate_password(length=15):
+    """랜덤으로 비밀번호를 만드는 함수"""
+    alphabet = string.ascii_letters + string.digits + string.punctuation
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
 def get_sessions(request) :

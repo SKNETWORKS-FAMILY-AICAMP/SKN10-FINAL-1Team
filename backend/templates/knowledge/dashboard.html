@@ -17,6 +17,12 @@
             font-family: Inter, "Noto Sans", sans-serif;
         }
     </style>
+    <!-- alpine.js 임포트 --> 
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+    <!-- alpine.js 임포트--> 
     </head>
     <body>
     <div class="relative flex size-full min-h-screen flex-col group/design-root overflow-x-hidden">
@@ -35,11 +41,12 @@
         </button>
     </div>
 
-    <div class="flex flex-col gap-6 p-4 md:p-0">
+    <div x-data="{loading : false}" class="flex flex-col gap-6 p-4 md:p-0">
     <nav class="flex flex-col gap-2">
+
     <a class="{% if screen_type == 'home' %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-white bg-[var(--primary-color)] hover:bg-blue-600 transition-colors duration-150
             {% else %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150{% endif %}"
-            href="{% url 'knowledge:dashboard' 'home' %}  ">
+            href="{% url 'knowledge:dashboard' 'home' %}  " @click="loading = true">
     <div class="text-[var(--text-primary)]" data-icon="House" data-size="24px" data-weight="regular">
     <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
     <path d="M218.83,103.77l-80-75.48a1.14,1.14,0,0,1-.11-.11,16,16,0,0,0-21.53,0l-.11.11L37.17,103.77A16,16,0,0,0,32,115.55V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V160h32v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V115.55A16,16,0,0,0,218.83,103.77ZM208,208H160V160a16,16,0,0,0-16-16H112a16,16,0,0,0-16,16v48H48V115.55l.11-.1L128,40l79.9,75.43.11.1Z"></path>
@@ -47,9 +54,10 @@
     </div>
     <p class="text-sm font-medium leading-normal">홈</p>
     </a>
+
     <a class="{% if screen_type == 'db' %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-white bg-[var(--primary-color)] hover:bg-blue-600 transition-colors duration-150
             {% else %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150{% endif %}" 
-            href="{% url 'knowledge:dashboard' 'db' %}  ">
+            href="{% url 'knowledge:dashboard' 'db' %}  " @click="loading = true">
     <div data-icon="Database" data-size="24px" data-weight="fill">
     <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
     <path d="M128,24C74.17,24,32,48.6,32,80v96c0,31.4,42.17,56,96,56s96-24.6,96-56V80C224,48.6,181.83,24,128,24Zm80,104c0,9.62-7.88,19.43-21.61,26.92C170.93,163.35,150.19,168,128,168s-42.93-4.65-58.39-13.08C55.88,147.43,48,137.62,48,128V111.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64Zm-21.61,74.92C170.93,211.35,150.19,216,128,216s-42.93-4.65-58.39-13.08C55.88,195.43,48,185.62,48,176V159.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64V176C208,185.62,200.12,195.43,186.39,202.92Z"></path>
@@ -57,9 +65,10 @@
     </div>
     <p class="text-sm font-medium leading-normal">DB 관리</p>
     </a>
+
     <a class="{% if screen_type == 'log' %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-white bg-[var(--primary-color)] hover:bg-blue-600 transition-colors duration-150
             {% else %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150{% endif %}" 
-            href="{% url 'knowledge:dashboard' 'log' %} ">
+            href="{% url 'knowledge:dashboard' 'log' %} " @click="loading = true">
     <div class="text-[var(--text-primary)]" data-icon="ChatCircleDots" data-size="24px" data-weight="regular">
     <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
     <path d="M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128ZM84,116a12,12,0,1,0,12,12A12,12,0,0,0,84,116Zm88,0a12,12,0,1,0,12,12A12,12,0,0,0,172,116Zm60,12A104,104,0,0,1,79.12,219.82L45.07,231.17a16,16,0,0,1-20.24-20.24l11.35-34.05A104,104,0,1,1,232,128Zm-16,0A88,88,0,1,0,51.81,172.06a8,8,0,0,1,.66,6.54L40,216,77.4,203.53a7.85,7.85,0,0,1,2.53-.42,8,8,0,0,1,4,1.08A88,88,0,0,0,216,128Z"></path>
@@ -67,9 +76,10 @@
     </div>
     <p class="text-sm font-medium leading-normal">채팅 로그</p>
     </a>
+
     <a class="{% if screen_type == 'user' %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-white bg-[var(--primary-color)] hover:bg-blue-600 transition-colors duration-150
             {% else %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150{% endif %}"
-            href="{% url 'knowledge:dashboard' 'user' %}  ">
+            href="{% url 'knowledge:dashboard' 'user' %}  " @click="loading = true">
     <div class="text-[var(--text-primary)]" data-icon="Users" data-size="24px" data-weight="regular">
     <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
     <path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"></path>
@@ -77,7 +87,17 @@
     </div>
     <p class="text-sm font-medium leading-normal">사용자 관리</p>
     </a>
+    
     </nav>
+    <!-- 로딩 오버레이 -->
+            <div x-show="loading" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-70 z-60">
+            <svg class="animate-spin h-12 w-12 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+            </path>
+            </svg>
+            </div>
     </div>
     </aside>
     <main class="flex flex-col w-full h-full overflow-y-auto bg-white">
