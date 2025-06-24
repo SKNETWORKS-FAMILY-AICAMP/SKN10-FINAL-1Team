@@ -220,8 +220,21 @@
             <!-- 입력 영역 -->
             <div class="bg-white/95 backdrop-blur-sm border-t border-gray-200 p-4 sticky bottom-0">
                 <div class="max-w-4xl mx-auto">
+                    <div id="file-preview-container" class="hidden bg-gray-100 p-2 rounded-md text-sm mb-2 flex items-center justify-between">
+                        <div class="flex items-center min-w-0">
+                            <i class="fas fa-paperclip text-gray-500 mr-2"></i>
+                            <span id="file-name-preview" class="truncate"></span>
+                        </div>
+                        <button type="button" id="remove-file-btn" class="text-gray-500 hover:text-red-500 ml-2">
+                            <i class="fas fa-times-circle"></i>
+                        </button>
+                    </div>
                     <form id="chat-form" class="flex items-center gap-2">
                         {% csrf_token %}
+                        <input type="file" id="file-input" class="hidden">
+                        <button type="button" id="attach-file-btn" class="bg-gray-200 hover:bg-gray-300 w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-all shadow-md hover:shadow-lg" {% if not active_session_id %}disabled{% endif %}>
+                            <i class="fas fa-paperclip text-gray-600 text-xl"></i>
+                        </button>
                         <input type="text" id="message-input" name="message" placeholder="업무 내용을 입력하세요..." class="flex-1 bg-white border border-gray-200 rounded-full py-3 px-5 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:opacity-50 text-gray-800 shadow-sm transition-all duration-200 hover:shadow-md" {% if not active_session_id %}disabled{% endif %}>
                         <button type="submit" id="send-button" class="bg-gradient-to-r from-primary to-secondary hover:from-blue-500 hover:to-blue-600 w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg" {% if not active_session_id %}disabled{% endif %}>
                             <i class="fas fa-paper-plane text-white text-xl"></i>
@@ -235,19 +248,19 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // --- UTILITY FUNCTIONS ---
-            function getActiveSessionId() {
-                return document.body.dataset.activeSessionId || null;
-            }
-
-            function getCsrfToken() {
-                return document.querySelector('input[name="csrfmiddlewaretoken"]').value;
-            }
-
+            function getActiveSessionId() { return document.body.dataset.activeSessionId || null; }
+            function getCsrfToken() { return document.querySelector('input[name="csrfmiddlewaretoken"]').value; }
             function scrollToBottom() {
                 const chatMessages = document.getElementById('chat-messages');
-                if (chatMessages) {
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                }
+                if (chatMessages) { chatMessages.scrollTop = chatMessages.scrollHeight; }
+            }
+            function readFileAsBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result.split(',')[1]); // Get only Base64 content
+                    reader.onerror = (error) => reject(error);
+                    reader.readAsDataURL(file);
+                });
             }
 
             // --- GLOBAL STATE ---
@@ -262,27 +275,21 @@
             const sendButton = document.getElementById('send-button');
             const typingIndicator = document.getElementById('typing-indicator');
             const chatMessages = document.getElementById('chat-messages');
+            const attachFileBtn = document.getElementById('attach-file-btn');
+            const fileInput = document.getElementById('file-input');
+            const filePreviewContainer = document.getElementById('file-preview-container');
+            const fileNamePreview = document.getElementById('file-name-preview');
+            const removeFileBtn = document.getElementById('remove-file-btn');
 
             // --- EVENT LISTENERS ---
-
-            // 1. New Session Button
             if (newSessionBtn) {
                 newSessionBtn.addEventListener('click', async (e) => {
                     e.preventDefault();
                     try {
-                        const response = await fetch("{% url 'conversations:api:session_create' %}", {
-                            method: 'POST',
-                            headers: {
-                                'X-CSRFToken': getCsrfToken(),
-                                'Content-Type': 'application/json'
-                            }
-                        });
+                        const response = await fetch("{% url 'conversations:api:session_create' %}", { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' } });
                         const data = await response.json();
-                        if (data.session_id) {
-                            window.location.href = `/conversations/chat/${data.session_id}/`;
-                        } else {
-                            throw new Error(data.error || 'Failed to create session.');
-                        }
+                        if (data.session_id) { window.location.href = `/conversations/chat/${data.session_id}/`; } 
+                        else { throw new Error(data.error || 'Failed to create session.'); }
                     } catch (error) {
                         console.error('Error creating new session:', error);
                         alert('새 세션을 만드는 중 오류가 발생했습니다.');
@@ -290,41 +297,27 @@
                 });
             }
 
-            // 2. Session List Navigation
             if (sessionList) {
                 sessionList.addEventListener('click', (e) => {
                     const sessionItem = e.target.closest('.session-item');
                     if (sessionItem) {
                         e.preventDefault();
                         const sessionId = sessionItem.dataset.sessionId;
-                        if (sessionId && sessionId !== getActiveSessionId()) {
-                            window.location.href = `/conversations/chat/${sessionId}/`;
-                        }
+                        if (sessionId && sessionId !== getActiveSessionId()) { window.location.href = `/conversations/chat/${sessionId}/`; }
                     }
                 });
             }
 
-            // 3. Header Delete Button
             if (headerDeleteBtn) {
                 headerDeleteBtn.addEventListener('click', async () => {
                     const sessionId = headerDeleteBtn.dataset.sessionId;
                     const sessionTitle = document.getElementById('chat-header-title').textContent.trim();
-                    
-                    if (confirm(`'${sessionTitle}' 세션을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+                    if (confirm(`'${sessionTitle}' 세션을 삭제하시겠습니까?`)) {
                         try {
-                            const response = await fetch(`/conversations/api/session/delete/${sessionId}/`, {
-                                method: 'POST',
-                                headers: {
-                                    'X-CSRFToken': getCsrfToken(),
-                                    'Content-Type': 'application/json'
-                                }
-                            });
+                            const response = await fetch(`/conversations/api/session/delete/${sessionId}/`, { method: 'POST', headers: { 'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json' } });
                             const data = await response.json();
-                            if (data.status === 'success') {
-                                window.location.href = "{% url 'conversations:chatbot' %}";
-                            } else {
-                                throw new Error(data.message || 'Unknown error');
-                            }
+                            if (data.status === 'success') { window.location.href = "{% url 'conversations:chatbot' %}"; } 
+                            else { throw new Error(data.message || 'Unknown error'); }
                         } catch (error) {
                             console.error('Error deleting session:', error);
                             alert('세션 삭제 중 오류가 발생했습니다: ' + error.message);
@@ -333,61 +326,121 @@
                 });
             }
 
-            // 4. Chat Form Submission
-            if (chatForm) {
-                chatForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    handleChatSubmission();
-                });
-            }
+            if (chatForm) { chatForm.addEventListener('submit', (e) => { e.preventDefault(); handleChatSubmission(); }); }
 
-            // 5. Enter Key to Submit
             if (messageInput) {
-                messageInput.addEventListener('keydown', function(e) {
+                messageInput.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
                     }
                 });
             }
+
+            if (attachFileBtn) { attachFileBtn.addEventListener('click', () => fileInput.click()); }
             
+            if (fileInput) {
+                fileInput.addEventListener('change', () => {
+                    if (fileInput.files.length > 0) {
+                        fileNamePreview.textContent = fileInput.files[0].name;
+                        filePreviewContainer.classList.remove('hidden');
+                    } else {
+                        filePreviewContainer.classList.add('hidden');
+                    }
+                });
+            }
+
+            if (removeFileBtn) {
+                removeFileBtn.addEventListener('click', () => {
+                    fileInput.value = ''; // Reset file input
+                    filePreviewContainer.classList.add('hidden');
+                });
+            }
+
             // --- MAIN CHAT LOGIC ---
             async function handleChatSubmission() {
                 const messageText = messageInput.value.trim();
-                if (!messageText) return;
+                const file = fileInput.files[0];
+                if (!messageText && !file) return;
 
                 const sessionId = getActiveSessionId();
-                if (!sessionId) {
-                    alert('Please start a new session first.');
-                    return;
+                if (!sessionId) { alert('Please start a new session first.'); return; }
+
+                setFormDisabled(true);
+
+                let fileContentBase64 = null, fileName = null;
+                if (file) {
+                    try {
+                        fileName = file.name;
+                        fileContentBase64 = await readFileAsBase64(file);
+                    } catch (error) {
+                        console.error('Error reading file:', error);
+                        alert('파일을 읽는 중 오류가 발생했습니다.');
+                        setFormDisabled(false);
+                        return;
+                    }
                 }
 
-                controller = new AbortController();
-                const signal = controller.signal;
-
-                messageInput.disabled = true;
-                sendButton.disabled = true;
-
-                const userMessageHtml = `
-                    <div class="flex justify-end">
-                        <div class="max-w-xl">
-                            <div class="chat-bubble-user text-white p-4 rounded-2xl rounded-tr-none shadow-lg">
-                                <p>${messageText.replace(/\n/g, '<br>')}</p>
-                            </div>
-                            <p class="text-xs text-gray-500 text-right mt-1">Now</p>
-                        </div>
-                    </div>`;
-                chatMessages.innerHTML += userMessageHtml;
-                messageInput.value = '';
-                scrollToBottom();
-
+                displayUserMessage(messageText, fileName);
+                resetInputs();
                 typingIndicator.style.display = 'flex';
+                
+                const assistantMessageContainer = displayAssistantMessageContainer();
+
+                try {
+                    const response = await fetch(`/conversations/api/chat/stream/${sessionId}/`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+                        body: JSON.stringify({ 
+                            message: messageText, 
+                            file_content: fileContentBase64, 
+                            file_name: fileName 
+                        }),
+                        signal: (controller = new AbortController()).signal
+                    });
+
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    typingIndicator.style.display = 'none';
+                    await processStream(response, assistantMessageContainer, sessionId);
+
+                } catch (error) {
+                    handleStreamError(error, assistantMessageContainer.messageP);
+                } finally {
+                    setFormDisabled(false);
+                    typingIndicator.style.display = 'none';
+                    messageInput.focus();
+                }
+            }
+
+            function setFormDisabled(disabled) {
+                messageInput.disabled = disabled;
+                sendButton.disabled = disabled;
+                if (attachFileBtn) attachFileBtn.disabled = disabled;
+            }
+
+            function resetInputs() {
+                messageInput.value = '';
+                fileInput.value = '';
+                filePreviewContainer.classList.add('hidden');
+            }
+
+            function displayUserMessage(message, fileName) {
+                let userMessageContent = message.replace(/\n/g, '<br>');
+                if (fileName) {
+                    userMessageContent += `<div class="mt-2 text-xs bg-black bg-opacity-10 rounded p-2">첨부파일: ${fileName}</div>`;
+                }
+                const userMessageHtml = `<div class="flex justify-end"><div class="max-w-xl"><div class="chat-bubble-user text-white p-4 rounded-2xl rounded-tr-none shadow-lg"><p>${userMessageContent}</p></div><p class="text-xs text-gray-500 text-right mt-1">Now</p></div></div>`;
+                chatMessages.innerHTML += userMessageHtml;
+                scrollToBottom();
+            }
+
+            function displayAssistantMessageContainer() {
                 const assistantMessageId = `assistant-message-${Date.now()}`;
                 const toolUiId = `tool-ui-${Date.now()}`;
                 const assistantMessageHtml = `
                     <div class="flex items-start gap-3 mb-4">
                          <div class="w-full max-w-xl">
-                             <div id="${toolUiId}"></div>
+                             <div id="${toolUiId}" style="display: none;"></div>
                              <div class="chat-bubble-ai text-gray-800 p-4 rounded-2xl rounded-tl-none shadow-lg bg-gray-50">
                                  <p id="${assistantMessageId}"></p>
                              </div>
@@ -396,154 +449,93 @@
                      </div>`;
                 chatMessages.innerHTML += assistantMessageHtml;
                 scrollToBottom();
-                
-                const assistantMessageP = document.getElementById(assistantMessageId);
-                const toolContainer = document.getElementById(toolUiId);
-                toolContainer.style.display = 'none';
+                return {
+                    messageP: document.getElementById(assistantMessageId),
+                    toolContainer: document.getElementById(toolUiId)
+                };
+            }
 
-                try {
-                    const response = await fetch(`/conversations/api/chat/stream/${sessionId}/`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCsrfToken()
-                        },
-                        body: JSON.stringify({ message: messageText }),
-                        signal
-                    });
+            async function processStream(response, { messageP, toolContainer }, sessionId) {
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let isFirstChunk = true, isFirstTitleChunk = true;
 
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
 
-                    typingIndicator.style.display = 'none';
-                    
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder();
-                    let buffer = '';
-                    let isFirstChunk = true;
-                    let isFirstTitleChunk = true;
-
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-
-                        buffer += decoder.decode(value, { stream: true });
-                        const lines = buffer.split('\n');
-                        buffer = lines.pop(); 
-
-                        for (const line of lines) {
-                            if (!line.startsWith('data: ')) continue;
-                            try {
-                                const rawJson = line.substring(6).trim();
-                                if (!rawJson) continue;
-                                const payload = JSON.parse(rawJson);
-                                
-                                if (payload.event === 'message_chunk') {
-                                    if (isFirstChunk) {
-                                        assistantMessageP.innerHTML = '';
-                                        isFirstChunk = false;
-                                    }
-                                    assistantMessageP.innerHTML += payload.data.replace(/\n/g, '<br>');
-                                } else if (payload.event === 'tool_update') {
-                                    if (toolContainer) {
-                                        toolContainer.style.display = 'block';
-                                        updateToolUI(payload.data, toolContainer);
-                                    }
-                                } else if (payload.event === 'title_chunk') {
-                                    const headerTitle = document.getElementById('chat-header-title');
-                                    const sidebarTitle = document.getElementById(`session-title-${sessionId}`);
-                                    if (isFirstTitleChunk) {
-                                        if(headerTitle) headerTitle.textContent = '';
-                                        if(sidebarTitle) sidebarTitle.textContent = '';
-                                        isFirstTitleChunk = false;
-                                    }
-                                    if (headerTitle) headerTitle.textContent += payload.data;
-                                    if (sidebarTitle) sidebarTitle.textContent += payload.data;
-                                } else if (payload.event === 'error') {
-                                    assistantMessageP.innerHTML = `<span class="text-red-500">Error: ${payload.data}</span>`;
-                                    break;
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        try {
+                            const payload = JSON.parse(line.substring(6).trim());
+                            if (payload.event === 'message_chunk') {
+                                if (isFirstChunk) { messageP.innerHTML = ''; isFirstChunk = false; }
+                                messageP.innerHTML += payload.data.replace(/\n/g, '<br>');
+                            } else if (payload.event === 'tool_update') {
+                                toolContainer.style.display = 'block';
+                                updateToolUI(payload.data, toolContainer);
+                            } else if (payload.event === 'title_chunk') {
+                                const headerTitle = document.getElementById('chat-header-title');
+                                const sidebarTitle = document.getElementById(`session-title-${sessionId}`);
+                                if (isFirstTitleChunk) {
+                                    if (headerTitle) headerTitle.textContent = '';
+                                    if (sidebarTitle) sidebarTitle.textContent = '';
+                                    isFirstTitleChunk = false;
                                 }
-                                scrollToBottom();
-                            } catch (e) {
-                                console.error('Error parsing stream data:', e, 'line:', line);
+                                if (headerTitle) headerTitle.textContent += payload.data;
+                                if (sidebarTitle) sidebarTitle.textContent += payload.data;
+                            } else if (payload.event === 'error') {
+                                messageP.innerHTML = `<span class="text-red-500">Error: ${payload.data}</span>`;
+                                break;
                             }
-                        }
+                            scrollToBottom();
+                        } catch (e) { console.error('Error parsing stream data:', e, 'line:', line); }
                     }
-                } catch (error) {
-                    if (error.name === 'AbortError') {
-                        console.log('Stream fetch aborted.');
-                        assistantMessageP.innerHTML += '<br><i class="text-gray-500">...stream stopped.</i>';
-                    } else {
-                        console.error('Fetch error:', error);
-                        assistantMessageP.innerHTML = `<span class="text-red-500">An error occurred. Please try again.</span>`;
-                    }
-                } finally {
-                    messageInput.disabled = false;
-                    sendButton.disabled = false;
-                    typingIndicator.style.display = 'none';
-                    messageInput.focus();
+                }
+            }
+
+            function handleStreamError(error, messageP) {
+                if (error.name === 'AbortError') {
+                    console.log('Stream fetch aborted.');
+                    messageP.innerHTML += '<br><i class="text-gray-500">...stream stopped.</i>';
+                } else {
+                    console.error('Fetch error:', error);
+                    messageP.innerHTML = `<span class="text-red-500">An error occurred. Please try again.</span>`;
                 }
             }
 
             function updateToolUI(data, container) {
-                if (!container || !data || !data.assistant || !data.assistant.messages) {
-                    return;
-                }
-                
+                if (!container || !data || !data.assistant || !data.assistant.messages) return;
                 let contentHtml = '';
-                const messages = data.assistant.messages;
-
                 const toolCalls = {};
-
-                messages.forEach(msg => {
-                    if (msg.type === 'ai' && msg.tool_calls && msg.tool_calls.length > 0) {
-                        msg.tool_calls.forEach(call => {
-                            toolCalls[call.id] = { name: call.name, args: call.args, output: '<i>Pending...</i>' };
-                        });
+                data.assistant.messages.forEach(msg => {
+                    if (msg.type === 'ai' && msg.tool_calls) {
+                        msg.tool_calls.forEach(call => { toolCalls[call.id] = { name: call.name, args: call.args, output: '<i>Pending...</i>' }; });
                     } else if (msg.type === 'tool') {
-                        if (toolCalls[msg.tool_call_id]) {
-                            toolCalls[msg.tool_call_id].output = msg.content;
-                        }
+                        if (toolCalls[msg.tool_call_id]) { toolCalls[msg.tool_call_id].output = msg.content; }
                     }
                 });
-
                 for (const id in toolCalls) {
                     const call = toolCalls[id];
                     let args_pretty, output_pretty;
-                    try {
-                        args_pretty = JSON.stringify(JSON.parse(call.args || '{}'), null, 2);
-                    } catch {
-                        args_pretty = call.args;
-                    }
-                    try {
-                        output_pretty = JSON.stringify(JSON.parse(call.output || '""'), null, 2);
-                    } catch {
-                        output_pretty = call.output;
-                    }
-
-                    contentHtml += `
-                        <div class="tool-call-item">
-                            <div class="font-semibold"><i class="fas fa-wrench fa-fw"></i> ${call.name}</div>
-                            <pre>${args_pretty}</pre>
-                        </div>
-                        <div class="tool-output-item">
-                            <div class="font-semibold"><i class="fas fa-clipboard-check fa-fw"></i> Output</div>
-                            <pre>${output_pretty}</pre>
-                        </div>`;
+                    try { args_pretty = JSON.stringify(JSON.parse(call.args || '{}'), null, 2); } catch { args_pretty = call.args; }
+                    try { output_pretty = JSON.stringify(JSON.parse(call.output || '""'), null, 2); } catch { output_pretty = call.output; }
+                    contentHtml += `<div class="tool-call-item"><div class="font-semibold"><i class="fas fa-wrench fa-fw"></i> ${call.name}</div><pre>${args_pretty}</pre></div><div class="tool-output-item"><div class="font-semibold"><i class="fas fa-clipboard-check fa-fw"></i> Output</div><pre>${output_pretty}</pre></div>`;
                 }
-
                 if (contentHtml) {
-                    container.innerHTML = `
-                        <details class="tool-usage-container" open>
-                            <summary><i class="fas fa-cogs fa-fw"></i>Tool Usage</summary>
-                            <div class="tool-usage-content">
-                                ${contentHtml}
-                            </div>
-                        </details>`;
+                    container.innerHTML = `<details class="tool-usage-container" open><summary><i class="fas fa-cogs fa-fw"></i>Tool Usage</summary><div class="tool-usage-content">${contentHtml}</div></details>`;
                 }
             }
 
             // --- INITIALIZATION ---
             scrollToBottom();
+            if (getActiveSessionId()) {
+                messageInput.focus();
+            }
         });
     </script>
         if (messageInput) {

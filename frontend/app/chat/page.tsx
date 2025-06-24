@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { SendIcon } from "lucide-react"
+import { SendIcon, Paperclip, FileText, X } from "lucide-react"
 import { ChatMessage as ChatMessageComponent } from "@/components/chat-message"
 import { AgentSelector } from "@/components/agent-selector"
 import { ChatHeader } from "@/components/chat-header"
@@ -69,6 +69,9 @@ export default function ChatPage() {
   const [sessions, setSessions] = useState<any[]>([])
   const [activeSession, setActiveSession] = useState<any | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvFileContent, setCsvFileContent] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Check if user is logged in
   useEffect(() => {
@@ -136,15 +139,18 @@ export default function ChatPage() {
       
       // Get first active session or null if none exists
       const activeSession = sessions.find(s => !s.ended_at) || sessions[0] || null
-      setActiveSession(activeSession)
       
       if (activeSession) {
+        setActiveSession(activeSession)
         // Set title for editing to current title
         setEditTitle(activeSession.title || '')
         // Set active session ID
         setActiveSessionId(activeSession.id)
         // Load messages for active session
         fetchSessionMessages(activeSession.id)
+      } else {
+        // If there are no sessions, create a new one automatically
+        await handleNewSession()
       }
       
       // Return the sessions for further use
@@ -261,6 +267,9 @@ export default function ChatPage() {
             setActiveSessionId(newActiveSession.id)
             fetchSessionMessages(newActiveSession.id)
             setEditTitle(newActiveSession.title || '')
+          } else if (newSessions.length === 0) {
+            // If there are no sessions, create a new one automatically
+            await handleNewSession();
           }
         }
         
@@ -297,37 +306,67 @@ export default function ChatPage() {
     }
   }
   
+  // Handle file selection for CSV upload
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.name.endsWith('.csv')) {
+        toast({
+          title: "Invalid File Type",
+          description: "Please select a CSV file.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setCsvFile(file);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        setCsvFileContent(content);
+        // Automatically select prediction agent when CSV is attached
+        setSelectedAgent("prediction");
+      };
+      reader.readAsText(file);
+    }
+  };
+
   // Create a new chat session
   const handleNewSession = async (agentType: AgentType = "code") => {
-    setIsLoading(true)
+    if (!user?.id) {
+      toast({ title: "Error", description: "User not found.", variant: "destructive" });
+      return;
+    }
+    setIsLoading(true);
     try {
-      const newSession = await createChatSessionInDB(user?.id || '', agentType)
+      const newSession = await createChatSessionInDB(user.id, agentType);
       if (newSession) {
-        // 새 세션 생성 후 세션 목록을 갱신하고 새 세션을 활성화
-        await fetchUserSessions(user?.id || '')
-        handleSessionChange(newSession.id)
+        setSessions(prev => [newSession, ...prev]);
+        setActiveSession(newSession);
+        setActiveSessionId(newSession.id);
+        setMessages([]);
+        setEditTitle(newSession.title || "");
+        setSelectedAgent(agentType);
         toast({
           title: "새 세션 생성",
           description: "새 채팅 세션이 생성되었습니다.",
-        })
+        });
       }
     } catch (error) {
-      console.error("Error creating new session:", error)
+      console.error("Error creating new session:", error);
       toast({
         title: "Error",
         description: "Failed to create new chat session",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
   // Handle sending a message
-  const handleSendMessage = async (e: FormEvent) => {
-    e.preventDefault()
-
-    if (!input.trim() || isLoading || !activeSessionId) return
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || !user || isLoading || !activeSessionId) return;
 
     const userInput = input.trim()
   
@@ -340,8 +379,15 @@ export default function ChatPage() {
       created_at: new Date().toISOString(),
     }
 
+    const currentCsvFileContent = csvFileContent;
+
     setMessages((prev) => [...prev, userMessage])
     setInput("")
+    setCsvFile(null)
+    setCsvFileContent(null)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
     setIsLoading(true)
     setIsReceivingResponse(false) // Reset the response receiving flag
 
@@ -396,7 +442,7 @@ export default function ChatPage() {
         },
         // On agent change event
         (agent) => {
-          if (agent === "code" || agent === "rag" || agent === "analytics") {
+          if (agent === "code" || agent === "rag" || agent === "analytics" || agent === "prediction") {
             currentAgentType = agent
           }
         },
@@ -472,7 +518,7 @@ export default function ChatPage() {
       
       // 4. Send the message over WebSocket
       if (wsConnection) {
-        wsConnection.sendMessage(userInput)
+        wsConnection.sendMessage(userInput, currentCsvFileContent || undefined)
       } else {
         throw new Error("Failed to establish WebSocket connection")
       }
@@ -595,15 +641,60 @@ export default function ChatPage() {
             {/* Input Form */}
             {activeSessionId && (
               <div className="border-t p-4">
+                {csvFile && (
+                  <div className="flex items-center justify-between p-2 mb-2 bg-slate-100 dark:bg-slate-800 rounded-md">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileText className="h-5 w-5 text-slate-500 flex-shrink-0" />
+                      <span className="text-sm font-medium truncate" title={csvFile.name}>{csvFile.name}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setCsvFile(null);
+                        setCsvFileContent(null);
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = "";
+                        }
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                      <span className="sr-only">Remove file</span>
+                    </Button>
+                  </div>
+                )}
                 <form onSubmit={handleSendMessage} className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading}
+                    title="Attach CSV file"
+                  >
+                    <Paperclip className="h-5 w-5" />
+                    <span className="sr-only">Attach file</span>
+                  </Button>
                   <Input
-                    placeholder="Ask a question about code, documents, or business data..."
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept=".csv"
+                    className="hidden"
+                  />
+                  <Input
+                    placeholder={
+                      selectedAgent === 'prediction'
+                        ? "Ask a question about the attached CSV..."
+                        : "Ask a question about code, documents, or business data..."
+                    }
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     disabled={isLoading}
                     className="flex-1"
                   />
-                  <Button type="submit" disabled={isLoading || !input.trim()}>
+                  <Button type="submit" disabled={isLoading || !input.trim() || (selectedAgent === 'prediction' && !csvFile)}>
                     <SendIcon className="h-5 w-5" />
                     <span className="sr-only">Send</span>
                   </Button>

@@ -5,7 +5,7 @@ import { toast } from "@/hooks/use-toast"
 import { isPreviewEnvironment, mockChatSessions, mockMessages, generateMockResponse } from "./mock-data"
 
 // Types that match Django models
-export type AgentType = "code" | "rag" | "analytics" // Matches AgentType enum in schema
+export type AgentType = "code" | "rag" | "analytics" | "prediction" // Matches AgentType enum in schema
 
 export interface ChatSession {
   id: string
@@ -162,7 +162,11 @@ export async function getChatMessages(sessionId: string): Promise<ChatMessage[]>
  * Creates a new ChatMessage and triggers LLM processing on the backend
  * The backend will create LlmCall records for tracking
  */
-export async function sendChatMessage(sessionId: string, content: string): Promise<ChatMessage | null> {
+export async function sendChatMessage(
+  sessionId: string,
+  content: string,
+  csvFileContent?: string
+): Promise<ChatMessage | null> {
   // Use mock data in preview environment
   if (isPreviewEnvironment()) {
     // Find the session to get its agent type
@@ -194,10 +198,15 @@ export async function sendChatMessage(sessionId: string, content: string): Promi
   }
 
   try {
+    const body: { content: string; csv_file_content?: string } = { content };
+    if (csvFileContent) {
+      body.csv_file_content = csvFileContent;
+    }
+
     const response = await fetch(`${API_BASE_URL}/chat/sessions/${sessionId}/messages/`, {
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(body),
     })
 
     if (!response.ok) {

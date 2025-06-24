@@ -40,6 +40,7 @@ from sqlalchemy import create_engine
 from langchain_community.agent_toolkits.sql.toolkit import SQLDatabaseToolkit
 from langchain_openai import ChatOpenAI
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
+from langchain_core.runnables import RunnableConfig
 from openai import OpenAI as OpenAIClient # For embeddings
 from pinecone import Pinecone as PineconeClient # For vector search
 
@@ -309,21 +310,30 @@ def _predict_churn_and_create_df(csv_data_string: str) -> pd.DataFrame:
 
 class ChurnAnalysisInputArgs(BaseModel):
     """Input schema for the CustomerChurnDataAnalyzer tool."""
-    csv_data_string: str = Field(
-        description="A string containing the full customer data in CSV format, including headers."
-    )
     user_query: str = Field(
         description="The user's natural language question about the CSV data. This can be a general question or a specific one about churn predictions (e.g., 'Show me the top 5 customers most likely to churn')."
     )
+    csv_data_string: Optional[str] = Field(
+        None,
+        description="(Optional) A string containing the full customer data in CSV format. If not provided, the tool will attempt to find it in the execution context."
+    )
 
-def analyze_csv_with_churn_prediction(csv_data_string: str, user_query: str) -> str:
+def analyze_csv_with_churn_prediction(user_query: str, csv_data_string: Optional[str] = None, config: Optional[RunnableConfig] = None) -> str:
     """
     Performs churn prediction on the provided CSV data and then answers a user's question
     about the data (including the prediction results) using a powerful language model agent.
     """
     try:
+        final_csv_data = csv_data_string
+        # If CSV data is not passed directly, try to get it from the config
+        if not final_csv_data and config:
+            final_csv_data = config.get("metadata", {}).get("csv_file_content")
+
+        if not final_csv_data:
+            return "Error: CSV data not provided. Please attach a CSV file to your request."
+
         # Step 1: Run prediction and get the enhanced DataFrame
-        predicted_df = _predict_churn_and_create_df(csv_data_string)
+        predicted_df = _predict_churn_and_create_df(final_csv_data)
 
         # Step 2: Create a pandas DataFrame agent to answer the query
         llm = ChatOpenAI(model="gpt-4o", temperature=0)

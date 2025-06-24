@@ -178,11 +178,15 @@ export function createChatWebSocket(threadId: string = uuidv4(),
     
     // Return methods for interacting with the WebSocket
     return {
-      sendMessage: (message: string) => {
+      sendMessage: (message: string, csvFileContent?: string) => {
         // 연결 상태 확인 및 재연결 시도
         if (ws.readyState === WebSocket.OPEN) {
           console.log(`Sending message over WebSocket: ${message.substring(0, 30)}...`);
-          ws.send(JSON.stringify({ message }));
+          const payload: { message: string; csv_file_content?: string } = { message };
+          if (csvFileContent) {
+            payload.csv_file_content = csvFileContent;
+          }
+          ws.send(JSON.stringify(payload));
           return true;
         } else if (ws.readyState === WebSocket.CONNECTING) {
           console.log("WebSocket is still connecting, waiting...");
@@ -190,7 +194,11 @@ export function createChatWebSocket(threadId: string = uuidv4(),
           setTimeout(() => {
             if (ws.readyState === WebSocket.OPEN) {
               console.log(`Retry sending message over WebSocket after connecting`);
-              ws.send(JSON.stringify({ message }));
+              const payload: { message: string; csv_file_content?: string } = { message };
+              if (csvFileContent) {
+                payload.csv_file_content = csvFileContent;
+              }
+              ws.send(JSON.stringify(payload));
             } else {
               console.error("WebSocket failed to connect in time");
               onError("Failed to establish connection with the AI assistant. Please try again.");

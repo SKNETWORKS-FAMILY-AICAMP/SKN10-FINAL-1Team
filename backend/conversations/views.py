@@ -78,15 +78,23 @@ async def session_create_view(request):
 async def chat_stream(request, session_id):
     try:
         data = json.loads(request.body)
-        message_content = data.get('message')
+        message_content = data.get('message', '')
+        file_name = data.get('file_name')
+        file_content = data.get('file_content')
         user = request.user
 
-        if not message_content:
-            return JsonResponse({"error": "Message content is empty."}, status=400)
+        if not message_content and not file_content:
+            return JsonResponse({"error": "Message or file content is empty."}, status=400)
 
         session = await ChatSession.objects.aget(id=session_id, user=user)
         # Save user message first
-        await ChatMessage.objects.acreate(session=session, role='user', content=message_content)
+        await ChatMessage.objects.acreate(
+            session=session,
+            role='user',
+            content=message_content,
+            file_name=file_name,
+            file_content=file_content
+        )
         
         # Check if this is the first message to generate a title
         is_first_message = await ChatMessage.objects.filter(session=session).acount() == 1
@@ -96,7 +104,7 @@ async def chat_stream(request, session_id):
             session.thread_id = uuid.UUID(thread_id)
             await session.asave()
 
-        fastapi_url = os.environ.get("FASTAPI_232SERVER_URL", "http://127.0.0.1:8001")
+        fastapi_url = os.environ.get("FASTAPI_SERVER_URL", "http://127.0.0.1:8001")
 
         async def event_stream():
             # Stream title first if it's the first message
@@ -115,8 +123,19 @@ async def chat_stream(request, session_id):
                 internal_secret = os.getenv("FASTAPI_INTERNAL_SECRET")
                 headers = {"X-Internal-Secret": internal_secret} if internal_secret else {}
                 async with httpx.AsyncClient() as client:
+                    # Prepare payload for FastAPI
+                    payload_input = {
+                        "messages": [{"content": message_content}]
+                    }
+                    if file_content:
+                        # FastAPI의 RequestBody 모델에 따라 'csv_file_content' 키를 사용합니다.
+                        payload_input["csv_file_content"] = file_content
+                        # 텍스트 메시지가 없는 경우, 파일 분석 요청 메시지를 생성합니다.
+                        if not message_content:
+                            payload_input["messages"] = [{"content": f"첨부된 파일 '{file_name}'을 분석해줘."}]
+
                     payload = {
-                        "input": {"messages": [{"role": "user", "content": message_content}]},
+                        "input": payload_input,
                         "config": {
                             "configurable": {"thread_id": thread_id},
                             "stream_mode": ["messages", "updates"]

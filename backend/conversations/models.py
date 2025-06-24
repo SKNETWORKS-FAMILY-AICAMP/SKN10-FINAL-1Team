@@ -31,7 +31,9 @@ class ChatMessage(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name="messages")
     role = models.CharField(max_length=20)  # user | assistant | system
-    content = models.TextField()
+    content = models.TextField(blank=True)
+    file_name = models.CharField(max_length=255, null=True, blank=True)
+    file_content = models.TextField(null=True, blank=True, help_text="Base64 encoded file content or file path")
     tool_data = models.JSONField(null=True, blank=True, help_text="Tool calls and outputs data")
     created_at = models.DateTimeField(auto_now_add=True)
 

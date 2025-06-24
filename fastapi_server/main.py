@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from fastapi.responses import StreamingResponse
 import json
 from dotenv import load_dotenv
@@ -12,6 +12,12 @@ import subprocess
 load_dotenv()
 
 import os
+import sys
+import asyncio
+
+# Windows-specific: Set the asyncio event loop policy for psycopg
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 from contextlib import asynccontextmanager
 from collections import ChainMap
 from agent.graph import get_graph
@@ -46,6 +52,7 @@ class UserInput(BaseModel):
 
 class RequestBody(BaseModel):
     messages: List[UserInput]
+    csv_file_content: Optional[str] = None
 
 class InvocationRequest(BaseModel):
     input: RequestBody
@@ -75,6 +82,14 @@ async def invoke_agent(invocation_request: InvocationRequest):
     Invokes the agent swarm with a user request and streams both message and debug events.
     """
     messages = [("user", msg.content) for msg in invocation_request.input.messages]
+    config = invocation_request.config.copy()
+
+    # Check for CSV data and add it to the config's metadata
+    csv_content = invocation_request.input.csv_file_content
+    if csv_content:
+        if "metadata" not in config:
+            config["metadata"] = {}
+        config["metadata"]["csv_file_content"] = csv_content
 
     async def event_stream():
         # Create the checkpointer and graph for each request to isolate lifecycles.
@@ -82,7 +97,7 @@ async def invoke_agent(invocation_request: InvocationRequest):
             graph = get_graph(checkpointer)
             async for chunk in graph.astream(
                 {"messages": messages},
-                config=invocation_request.config,
+                config=config,
                 stream_mode=["messages"]
             ):
                 try:
