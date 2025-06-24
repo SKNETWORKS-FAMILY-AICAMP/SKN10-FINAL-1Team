@@ -13,6 +13,7 @@ from langgraph.graph import StateGraph
 
 from langgraph.prebuilt import create_react_agent
 from langgraph_swarm import create_swarm, create_handoff_tool
+from langgraph.graph.message import add_messages
 import os
 import sys
 from typing import List, Dict, Any # Added Type for Pinecone tools
@@ -22,6 +23,7 @@ from openai import OpenAI
 from pinecone import Pinecone as PineconeClient # Renamed to avoid conflict
 from langchain_core.tools import Tool
 from src.agent.tools import analyst_chart_tool, predict_churn_tool, sql_tools_for_analyst # Import chart, churn, and SQL tools
+from src.agent.coding_agent_tools import get_all_coding_tools # Import coding tools
 
 from langgraph.checkpoint.postgres import PostgresSaver
 
@@ -184,6 +186,14 @@ transfer_to_predict_assistant = create_handoff_tool(
     )
 )
 
+transfer_to_coding_assistant = create_handoff_tool(
+    agent_name="coding_assistant",
+    description=(
+        "Delegate a task to the 'Coding Assistant' for any software development, code writing, repository management, or debugging tasks. "
+        "Use this for tasks involving reading, writing, or modifying code files, creating pull requests, or understanding code architecture."
+    )
+)
+
 # --- Agent Definitions ---
 doc_search_assistant = create_react_agent(
     model="openai:gpt-4.1-2025-04-14", # Consistent model
@@ -194,6 +204,7 @@ doc_search_assistant = create_react_agent(
         tool_proceedings,
         transfer_to_analyst_assistant,
         transfer_to_predict_assistant,
+        transfer_to_coding_assistant,
     ],
     prompt=(
         """You are an expert document search assistant. Your sole purpose is to retrieve information from the company's knowledge base.
@@ -228,6 +239,7 @@ analyst_assistant = create_react_agent(
         *sql_tools_for_analyst, # Unpack all SQL tools
         transfer_to_doc_search_assistant,
         transfer_to_predict_assistant,
+        transfer_to_coding_assistant,
     ],
     prompt=(
         """You are a specialized data analyst assistant. Your purpose is to provide data-driven insights through SQL queries and chart generation. You must act autonomously without asking for permission.
@@ -268,6 +280,7 @@ predict_assistant = create_react_agent(
         predict_churn_tool,
         transfer_to_doc_search_assistant, # Added doc_search handoff
         transfer_to_analyst_assistant,    # Added analyst handoff
+        transfer_to_coding_assistant,
     ],
     prompt=(
         """You are a highly specialized customer churn prediction assistant. Your only function is to predict churn based on customer data.
@@ -291,10 +304,43 @@ predict_assistant = create_react_agent(
     name="predict_assistant"
 )
 
+# --- Coding Assistant Definition ---
 
+coding_assistant_prompt = """당신은 전문 AI 소프트웨어 엔지니어입니다. 당신의 목표는 사용자가 GitHub 리포지토리를 이해하고, 수정하며, 개선하는 것을 돕는 것입니다.
+
+**중요: GitHub 관련 작업을 수행하려면 먼저 사용자에게 GitHub 개인 액세스 토큰(PAT)을 요청해야 합니다.**
+
+**작업 흐름:**
+1.  **토큰 요청**: 사용자가 GitHub 관련 작업을 요청하면, 먼저 토큰을 요청하는 응답을 하세요. 예: "해당 작업을 수행하려면 GitHub 개인 액세스 토큰이 필요합니다. 제공해주시겠어요?"
+2.  **토큰 수신 및 사용**: 사용자가 메시지로 토큰을 제공하면, 그 토큰을 `token` 인자로 사용하여 모든 GitHub 관련 도구(`github_list_repositories`, `github_read_file` 등)를 호출해야 합니다.
+3.  **실행 및 보고**: 도구를 사용하여 사용자의 요청을 수행하고 결과를 명확하게 보고합니다.
+
+**사용 가능 도구:**
+- **GitHub 도구**: `github_list_repositories`, `github_list_branches`, `github_read_file`, `github_create_file`, `github_update_file`. **모든 GitHub 도구는 `token` 인자가 필수입니다.**
+- **코드 실행 도구**: `python_repl`을 사용하여 코드를 테스트합니다.
+- **웹 검색**: 외부 라이브러리, 에러 메시지 등을 검색합니다.
+- **작업 위임**: `transfer_to_*` 도구를 사용하여 다른 전문 에이전트에게 작업을 넘깁니다.
+"""
+
+coding_assistant = create_react_agent(
+    model="openai:gpt-4.1-mini",
+    tools=get_all_coding_tools() + [
+        {"type": "web_search_preview"},
+        transfer_to_doc_search_assistant,
+        transfer_to_analyst_assistant,
+        transfer_to_predict_assistant,
+    ],
+    prompt=coding_assistant_prompt,
+    name="coding_assistant"
+)
+
+# --- Swarm Graph Creation ---
 graph = create_swarm(
-    agents=[doc_search_assistant, analyst_assistant, predict_assistant],
-    default_active_agent="doc_search_assistant"
+    agents=[
+        doc_search_assistant,
+        analyst_assistant,
+        predict_assistant,
+        coding_assistant,  # Directly add the simplified agent
+    ],
+    default_active_agent="coding_assistant"
 ).compile()
-
-

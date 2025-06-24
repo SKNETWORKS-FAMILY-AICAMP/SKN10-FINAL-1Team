@@ -29,6 +29,13 @@ dependencies = [
     "langgraph-checkpoint-postgres",
     "psycopg2-binary",
     "psycopg[binary,pool]",
+    "langchain",
+    "langgraph",
+    "langchain-openai",
+    "langchain-community",
+    "langchain-pinecone",
+    "langchain-experimental",
+    "PyGithub"
 ]
 
 

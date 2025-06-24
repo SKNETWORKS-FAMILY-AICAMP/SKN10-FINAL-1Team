@@ -17,3 +17,4 @@ ENV/
 env.bak/
 venv.bak/
 *.pyc
+.pem
