@@ -7,12 +7,15 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from .utils import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table, make_index, remove_index
+from .utils import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table
+from .utils import make_index, remove_index, generate_password
 from conversations.models import ChatSession, ChatMessage
 from accounts.models import User, Organization
+import csv, io
 
 # Create your views here.
 
+"""dashboard 출력"""
 def dashboard_view(request, screen_type):
     context = {"screen_type" : screen_type}
     if screen_type == "home" :
@@ -37,6 +40,7 @@ def dashboard_view(request, screen_type):
         return JsonResponse({'error': 'Invalid section'}, status=400)
     return render(request, 'knowledge/dashboard.html', context)
 
+"""Index 생성"""
 def create_index(request):
     if request.method == 'POST':
         index_name = request.POST.get('name') # 인덱스명
@@ -67,6 +71,7 @@ def create_index(request):
     else : 
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
 
+"""Index 삭제"""
 def delete_index(request):
     """특정 index를 제거"""
     if request.method == 'POST':
@@ -87,6 +92,8 @@ def delete_index(request):
         return redirect(url)
     else : 
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
+
+"""User 생성"""
 def create_user(request) :
     if request.method == 'POST':
         email = request.POST.get('email', '').strip() # 이메일
@@ -121,9 +128,53 @@ def create_user(request) :
         return redirect(redirect_url)
     else : 
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
-    
+
+
+def create_multi_user(request) :
+    if request.method == 'POST':
+        # 1) 파일 꺼내기
+        uploaded = request.FILES.get('file')
+        redirect_url = reverse('knowledge:dashboard', args=['user'])
+        if not uploaded:
+            messages.error(request, '파일이 없습니다!')
+            return redirect(redirect_url)
+
+        # 2) CSV 읽기 (csv 모듈 + StringIO 사용)
+        raw = uploaded.read()  # 바이너리 데이터
+        try:
+            data = raw.decode('utf-8')          # 먼저 UTF-8 시도
+        except UnicodeDecodeError:
+            try:
+                data = raw.decode('cp949')      # 실패하면 CP949로 재시도
+            except UnicodeDecodeError:
+                data = raw.decode('euc-kr', errors='ignore')  
+                # (필요하면 errors 옵션 추가)
+        reader = csv.DictReader(io.StringIO(data))
+        rows = list(reader) 
+        print("✅ 정상적으로 csv파일을 읽었습니다.")
+
+        # 3) rows 순회하면서 회원 생성
+        org = Organization.objects.get(name='Default Organization')  # 예시
+        for row in rows:
+            name = row['name']
+            id = row['id']
+            authority = row['authority']
+            dept = row['department']
+
+            User.objects.create_user(
+                email=f'{id}@example.com', # 이메일 생성 로직
+                password=generate_password(),     # 비번 지정
+                name=name,
+                role=authority,
+                org=org,
+            )
+        messages.success(request, f'✅ {len(rows)}명의 계정을 생성했어!')
+        return redirect(redirect_url)
+    else : 
+        return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
+
+"""User 삭제"""
 def delete_user(request):
-    """특정 User를 제거"""
     if request.method == 'POST':
         email = request.POST.get('email') # 이메일
         url = reverse('knowledge:dashboard', args=['user'])
@@ -144,11 +195,12 @@ def delete_user(request):
 # Placeholder API views to match knowledge/urls.py
 # These should be properly implemented later.
 
+"""해당 index 상세화면"""
 def index_detail(request, index_name) :
-    """특정 index의 네임스페이스 정보들을 가져옴"""
     namespaces = get_namespaces(index_name)
     return JsonResponse({'namespaces': namespaces})
 
+"""해당 session 상세화면"""
 def session_detail(request, session_id) :
     session = ChatSession.objects.get(id=session_id)
     related_messages = session.messages.all()

@@ -1,16 +1,30 @@
 <div class="p-8">
     <div class="mx-auto max-w-4xl">
+    <!-- alpine.js 임포트-->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }
-    </style>    
-    <section class="rounded-lg bg-white p-6 shadow-md border border-gray-200">
+    </style>
+    <!-- alpine.js 임포트--> 
+    <section x-data= class="rounded-lg bg-white p-6 shadow-md border border-gray-200">
     <div class="flex items-center justify-between mb-6">
         <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em]">사용자 목록</h3>
         <div class="flex items-center gap-4 ml-auto">
         
-        <!-- Alpine 컴포넌트 시작 -->
-        <div x-data="{ open: false }" class="relative">
+        <!-- 계정 삭제 Alpine 컴포넌트 시작 -->
+        <div x-data="{ open: false, loading : false, error : '', email : '',
+        submitForm(event) {
+            if (!this.email) {
+                this.error = '이메일을 입력해주세요!'
+            }
+            else {
+                // 확인창 띄우기
+                if (confirm('⚠️ 정말 이 계정을 삭제하시겠습니까?')) {
+                    this.loading = true
+                    this.$nextTick(() => event.target.submit())
+                }   
+            }
+        }}" class="relative">
         <!-- 1) 계정 삭제 버튼 -->
 
         <button
@@ -38,33 +52,43 @@
                 <button @click="open = false" class="text-xl leading-none">&times;</button>
             </div>
 
+
+            <!-- 로딩 오버레이 -->
+            <div x-show="loading" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-70 z-60">
+            <svg class="animate-spin h-12 w-12 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+            </path>
+            </svg>
+            </div>
+
             <form
                 action="{% url 'knowledge:delete_user' %}"
                 method="post"
                 class="px-6 py-4 space-y-4"
-                @submit.prevent=" 
-                    if (confirm('⚠️ 정말 해당 계정을 삭제하시겠습니까?')) {
-                        $event.target.submit()
-                    }">
+                @submit.prevent="submitForm($event)">
                 {% csrf_token %}
 
+                <!-- 에러 메시지 -->
+                <div
+                x-show="error"
+                class="flex items-start space-x-2 bg-red-50 border-l-4 border-red-600 text-red-700 p-3 rounded-md shadow-sm mt-2"
+                >
+                <!-- 실제 메시지 -->
+                <span x-text="error" class="text-sm"></span>
+                </div>
+                
                 <div>
                 <label class="block text-sm font-medium">🆔<span class="text-red-500"> 삭제할 이메일</span>을 입력하세요! </label>
-                <input type="email" name="email" class="mt-1 w-full border rounded px-3 py-2" />
+                <input type="email" name="email" x-model="email" class="mt-1 w-full border rounded px-3 py-2" />
                 </div>
     
 
                 <div class="text-right space-x-2">
-                <button
-                    type="button"
-                    @click="open = false"
-                    class="px-4 py-2 rounded border hover:bg-gray-100"
-                >취소</button>
-
-                <button
-                    type="submit"
-                    class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white"
-                >삭제</button>
+                <button type="button" @click="open = false" class="px-4 py-2 rounded border hover:bg-gray-100">취소</button>
+                <button type="submit" class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white">삭제</button>
+                
                 </div>
                 
             </form>
@@ -74,8 +98,28 @@
         <!-- Alpine 컴포넌트 끝 -->
 
         
-        <!-- Alpine 컴포넌트 시작 -->
-        <div x-data="{open: false, email: '', pw: '', pw_confirm: '', username: '', error: ''}" class="relative">
+        <!-- 계정 추가 Alpine 컴포넌트 시작 -->
+        <div x-data="{ open: false, loading : false, email: '', pw: '', pw_confirm: '', username: '', error: '',
+        submitForm(event) {
+            if (!this.email) {
+                this.error = '이메일을 입력해주세요!'
+            } else if (!this.pw) {
+                this.error = '비밀번호를 입력해주세요!'
+            } else if (!this.pw_confirm) {
+                this.error = '비밀번호 확인을 입력해주세요!'
+            } else if (this.pw !== this.pw_confirm) {
+                this.error = '두 비밀번호가 일치하지 않아요!'
+            } else if (!this.username) {
+                this.error = '사용자명을 입력해주세요!'
+            } else {
+                // 확인창 띄우기
+                if (confirm('⚠️ 정말 이 계정을 추가할까요?')) {
+                    this.loading = true
+                    // Alpine이 로딩 오버레이 렌더링할 시간을 주려면 nextTick 권장
+                    this.$nextTick(() => event.target.submit())
+                }   
+            }
+        }}" class="relative">
         <!-- 1) 계정 추가 버튼 -->
 
         <button
@@ -92,37 +136,29 @@
         ></div>
 
         <!-- 3) 모달 박스 -->
-        <div
-            x-show="open"
-            class="fixed inset-0 flex items-center justify-center z-50 p-4"
-            x-cloak
-        >
+        <div x-show="open" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
             <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
             <div class="flex justify-between items-center px-6 py-4 border-b">
                 <h2 class="text-lg font-semibold">계정 추가</h2>
                 <button @click="open = false" class="text-xl leading-none">&times;</button>
             </div>
+            
+            <!-- 로딩 오버레이 -->
+            <div x-show="loading" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-70 z-60">
+            <svg class="animate-spin h-12 w-12 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+            </path>
+            </svg>
+            </div>
+
 
             <form
                 action="{% url 'knowledge:create_user' %}"
                 method="post"
                 class="px-6 py-4 space-y-4"
-                @submit.prevent="
-                if (!email) {
-                error = '이메일을 입력해줘!'
-                } else if (!pw) {
-                error = '비밀번호를 입력해줘!'
-                } else if (!pw_confirm) {
-                error = '비밀번호 확인을 입력해줘!'
-                } else if (pw !== pw_confirm) {
-                error = '두 비밀번호가 일치하지 않아!'
-                } else if (!username) {
-                error = '사용자명을 입력해줘!'
-                } else {
-                // 확인창 띄우기
-                if (confirm('⚠️ 정말 이 계정을 추가할까요?')) {
-                    $event.target.submit()
-                }}">
+                @submit.prevent="submitForm($event)">
                 {% csrf_token %}
                 
                 <!-- 에러 메시지 -->
@@ -197,6 +233,106 @@
                     type="submit"
                     class="px-4 py-2 rounded bg-orange-400 hover:bg-orange-600 text-white"
                 >추가</button>
+                </div>
+                
+            </form>
+            </div>
+        </div>
+        </div>
+        <!-- Alpine 컴포넌트 끝 -->
+
+        <!-- 다중 계정 추가 Alpine 컴포넌트 시작 -->
+        <div x-data="{ open: false, error: '', loading: false,
+        submitForm() {
+            // 1) 파일 체크
+            if (!$refs.fileInput.files.length) {
+                this.error = '오류 : 파일을 선택해줘!'
+                return
+            }
+            // 1-1) CSV 확장자 체크
+            const file = $refs.fileInput.files[0];
+            const name = file.name.toLowerCase();
+            if (!name.endsWith('.csv')) {
+                this.error = '오류 : CSV 파일만 업로드할 수 있어!';
+                return;
+            }
+            // 3) 확인창
+            if (!confirm(`⚠️ 정말 다중 계정을 추가하시겠습니까?`)) {
+                return
+            }
+            // 4) 모두 통과하면 로딩 켜고 폼 제출
+            this.loading = true
+            $refs.multiForm.submit()
+        }}" class="relative">
+
+        <!-- 1) 다중 계정 생성 버튼 -->
+        <button
+            @click="open = true"
+            class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
+        ><span class="material-icons-outlined font-bold">다중 계정 추가</span></button>
+
+        <!-- 2) 백그라운드 오버레이 -->
+        <div
+            x-show="open"
+            x-cloak
+            class="fixed inset-0 bg-black bg-opacity-50 z-40"
+            @click="open = false"
+        ></div>
+
+        <!-- 3) 모달 박스 -->
+        <div x-show="open" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 class="text-lg font-semibold">다중 계정 추가</h2>
+                <button @click="open = false" class="text-xl leading-none">&times;</button>
+            </div>
+            
+            <!-- 주의사항 -->
+            <p class="flex text-sm items-start space-x-2 bg-red-50 text-red-700 p-3 rounded-md shadow-sm m-4 ">
+                ※주의사항 :<br>
+                1. 입력 파일은 csv파일이어야 함. <br>
+                2. name, id, authority, department 컬럼으로 구성되어야 함.<br>
+                3. 컬럼값은 null값이 없어야 함.  
+            </p>
+
+            <!-- 로딩 오버레이 -->
+            <div x-show="loading" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-70 z-60">
+            <svg class="animate-spin h-12 w-12 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+            </path>
+            </svg>
+            </div>
+
+            <form
+                action="{% url 'knowledge:create_multi_user' %}"
+                method="post"
+                class="px-6 space-y-4"
+                x-ref="multiForm"
+                enctype="multipart/form-data"
+                @submit.prevent="submitForm()">
+                {% csrf_token %}
+
+                <div>
+                <label class="block text-sm font-medium">📂 추가할 직원들의 정보가 담긴 csv파일을 넣어주세요! </label>
+                <input type="file" name="file" x-ref="fileInput" class="mt-2 w-full border rounded px-3 py-2" />
+                </div>
+    
+                <!-- 에러 메시지 -->
+                <p x-show="error" x-text="error" class="text-red-600 text-sm mt-2"></p>
+
+                <div class="text-right space-x-2">
+                <button
+                    type="button"
+                    @click="open = false"
+                    class="px-4 py-2 rounded border hover:bg-gray-100"
+                >취소</button>
+
+                <button
+                    type="submit"
+                    class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white"
+                >생성</button>
                 </div>
                 
             </form>
