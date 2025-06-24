@@ -9,14 +9,14 @@ from rest_framework.response import Response
 from rest_framework import status
 from .utils import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table, make_index, remove_index
 from .models import User
+from conversations.models import ChatSession, ChatMessage
 # Create your views here.
 
-def dashboard_view(request):
-    section = request.GET.get('section', 'home')
-    context = {"section" : section}
-    if section == "home" :
+def dashboard_view(request, screen_type):
+    context = {"screen_type" : screen_type}
+    if screen_type == "home" :
         pass
-    elif section == "db" :
+    elif screen_type == "db" :
         db = request.GET.get('db', 'postgre')
         context['db'] = db
 
@@ -28,10 +28,10 @@ def dashboard_view(request):
         elif db == "s3" :
             pass
 
-    elif section == "log" :
-        context['sessions'] = get_sessions() 
-    elif section == "user" :
-        context['users'] = get_users() 
+    elif screen_type == "log" :
+        context['sessions'] = get_sessions(request) 
+    elif screen_type == "user" :
+        context['users'] = get_users(request) 
     else : 
         return JsonResponse({'error': 'Invalid section'}, status=400)
     return render(request, 'knowledge/dashboard.html', context)
@@ -113,6 +113,20 @@ def index_detail(request, index_name) :
     """특정 index의 네임스페이스 정보들을 가져옴"""
     namespaces = get_namespaces(index_name)
     return JsonResponse({'namespaces': namespaces})
+
+def session_detail(request, session_id) :
+    session = ChatSession.objects.get(id=session_id)
+    related_messages = session.messages.all()
+    messages = []
+    for msg in related_messages:
+        messages.append({
+            "id" : msg.id,
+            "created_at" : msg.created_at.strftime("%Y-%m-%d %H:%M"),
+            "role" : msg.role,
+            "content" : msg.content
+        })
+    print(messages)
+    return JsonResponse({"messages" : messages})
 
 
 

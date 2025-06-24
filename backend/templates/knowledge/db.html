@@ -8,15 +8,15 @@
     <div class="flex w-full bg-gray-100 rounded-lg p-1">
         <button class="{% if db == 'postgre' %}flex-1 text-center py-2 rounded-lg bg-white text-gray-900 font-medium
             {% else %}flex-1 text-center py-2 rounded-lg text-gray-600 hover:bg-white hover:text-gray-900{% endif %}"
-            onclick="location.href=`{% url 'knowledge:dashboard' %}?section=db&db=postgre`">Storage</button>
+            onclick="location.href=`{% url 'knowledge:dashboard' 'db' %}?db=postgre`">Storage</button>
 
         <button class="{% if db == 'pinecone' %}flex-1 text-center py-2 rounded-lg bg-white text-gray-900 font-medium
             {% else %}flex-1 text-center py-2 rounded-lg text-gray-600 hover:bg-white hover:text-gray-900{% endif %}"
-            onclick="location.href=`{% url 'knowledge:dashboard' %}?section=db&db=pinecone`">Vector DB</button>
+            onclick="location.href=`{% url 'knowledge:dashboard' 'db' %}?db=pinecone`">Vector DB</button>
 
         <button class="{% if db == 's3' %}flex-1 text-center py-2 rounded-lg bg-white text-gray-900 font-medium
             {% else %}flex-1 text-center py-2 rounded-lg text-gray-600 hover:bg-white hover:text-gray-900{% endif %}"
-            onclick="location.href=`{% url 'knowledge:dashboard' %}?section=db&db=s3`">S3</button>
+            onclick="location.href=`{% url 'knowledge:dashboard' 'db' %}?db=s3`">S3</button>
     </div>
     {% if db == 'postgre' %}
         <section class="mt-6 mb-10 rounded-lg bg-white p-6 shadow-md border border-gray-200">
@@ -359,7 +359,13 @@
             class="fixed inset-0 flex items-center justify-center z-50 p-4"
             x-cloak>
 
-            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="bg-white rounded-lg shadow-lg
+                w-full             
+                max-w-xl          
+                max-h-[90vh]      
+                overflow-y-auto    
+                overflow-x-hidden          
+                p-6 ">
             <div class="flex justify-between items-center px-6 py-4 border-b">
                 <h2 class="text-lg font-semibold"><span class="text-red-500 mt-4">{{index.name}}</span>의 네임스페이스</h2>
                 <button @click="open = false" class="text-xl leading-none">&times;</button>
@@ -371,7 +377,9 @@
                 <p x-show="loaded" class="text-base mb-4 text-[var(--text-primary)]">
                     총 <span class="text-red-500 font-semibold" x-text="Object.keys(namespaces).length"></span>
                     개의 네임스페이스가 있습니다.</p>
+                
 
+                
                 <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
                 <table x-show="loaded" x-cloak class="min-w-full divide-y divide-[var(--border-color)]">
                     <thead class="bg-slate-50">
