@@ -75,7 +75,7 @@
 
         
         <!-- Alpine 컴포넌트 시작 -->
-        <div x-data="{ open: false }" class="relative">
+        <div x-data="{open: false, email: '', pw: '', pw_confirm: '', username: '', error: ''}" class="relative">
         <!-- 1) 계정 추가 버튼 -->
 
         <button
@@ -104,35 +104,71 @@
             </div>
 
             <form
-                action="{% url 'knowledge:create_index' %}"
+                action="{% url 'knowledge:create_user' %}"
                 method="post"
-                class="px-6 py-4 space-y-4">
+                class="px-6 py-4 space-y-4"
+                @submit.prevent="
+                if (!email) {
+                error = '이메일을 입력해줘!'
+                } else if (!pw) {
+                error = '비밀번호를 입력해줘!'
+                } else if (!pw_confirm) {
+                error = '비밀번호 확인을 입력해줘!'
+                } else if (pw !== pw_confirm) {
+                error = '두 비밀번호가 일치하지 않아!'
+                } else if (!username) {
+                error = '사용자명을 입력해줘!'
+                } else {
+                // 확인창 띄우기
+                if (confirm('⚠️ 정말 이 계정을 추가할까요?')) {
+                    $event.target.submit()
+                }}">
                 {% csrf_token %}
+                
+                <!-- 에러 메시지 -->
+                <div
+                x-show="error"
+                class="flex items-start space-x-2 bg-red-50 border-l-4 border-red-600 text-red-700 p-3 rounded-md shadow-sm mt-2"
+                >
+                <!-- 실제 메시지 -->
+                <span x-text="error" class="text-sm"></span>
+                </div>
 
                 <div>
                 <label class="block text-sm font-medium">이메일</label>
-                <input type="email" name="email" class="mt-1 w-full border rounded px-3 py-2" />
+                <input type="email" name="email"
+                x-model="email"
+                @input="error = ''"
+                class="mt-1 w-full border rounded px-3 py-2" />
                 </div>
 
                 <div>
                 <label class="block text-sm font-medium">비밀번호</label>
-                <input type="password" name="pw" class="mt-1 w-full border rounded px-3 py-2" />
+                <input type="password" name="pw"
+                x-model="pw"
+                @input="error = ''"
+                class="mt-1 w-full border rounded px-3 py-2" />
                 </div>
 
                 <div>
                 <label class="block text-sm font-medium">비밀번호 확인</label>
-                <input type="password" name="pw_confirm" class="mt-1 w-full border rounded px-3 py-2" />
+                <input type="password" name="pw_confirm"
+                x-model="pw_confirm"
+                @input="error = ''"
+                class="mt-1 w-full border rounded px-3 py-2" />
                 </div>
 
                 <div>
                 <label class="block text-sm font-medium">사용자명</label>
-                <input name="username" class="mt-1 w-full border rounded px-3 py-2" />
+                <input name="username"
+                x-model="username"
+                @input="error = ''"
+                class="mt-1 w-full border rounded px-3 py-2" />
                 </div>
 
                 <div>
                 <label class="block text-sm font-medium">권한</label>
-                <!-- vector type이 sparse라면 metric은 dotproduct, dimension은 0으로 선택되어 전달-->
-                <select id="role" name="role" class="w-full border rounded p-2">
+                <select id="authority" name="authority" class="w-full border rounded p-2">
                     <option value="admin">admin</option>
                     <option value="employee">employee</option>
                     <option value="guest">guest</option>
@@ -141,7 +177,6 @@
 
                 <div>
                 <label class="block text-sm font-medium">부서</label>
-                <!-- vector type이 sparse라면 metric은 dotproduct, dimension은 0으로 선택되어 전달-->
                 <select id="department" name="department" class="w-full border rounded p-2">
                     <option value="development">development</option>
                     <option value="business_strategy">business_strategy</option>
@@ -149,8 +184,6 @@
                     <option value="administrator">administrator</option>
                 </select>
                 </div>
-
-
 
 
                 <div class="text-right space-x-2">
