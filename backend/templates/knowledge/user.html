@@ -210,6 +210,65 @@
     </tbody>
     </table>
     </div>
+    <!-- 페이징처리 시작 -->
+    <nav aria-label="Pagination" class="py-6">
+    <ul class="flex items-center justify-center space-x-2">
+        <!-- 이전 페이지 -->
+        {% if users.has_previous %}
+        <li>
+            <a href="?page={{ users.previous_page_number }}"
+                class="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100">
+                이전
+            </a>
+        </li>
+        {% else %}
+        <li>
+            <span
+                class="px-3 py-1 border border-gray-200 rounded-md text-gray-400 bg-gray-100 cursor-not-allowed">
+                이전
+            </span>
+        </li>
+        {% endif %}
+
+        <!-- 페이지 번호 -->
+        {% for page_number in users.paginator.page_range %}
+        {% if page_number >= users.number|add:-5 and page_number <= users.number|add:5 %}
+        {% if page_number == users.number %}
+        <li>
+            <span class="px-3 py-1 bg-blue-600 text-white border border-blue-600 rounded-md">
+            {{ page_number }}
+            </span>
+        </li>
+        {% else %}
+        <li>
+            <a href="?page={{ page_number }}"
+            class="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100">
+            {{ page_number }}
+            </a>
+        </li>
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+
+        <!-- 다음 페이지 -->
+        {% if users.has_next %}
+        <li>
+            <a href="?page={{ users.next_page_number }}"
+                class="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100">
+                다음
+            </a>
+        </li>
+        {% else %}
+        <li>
+            <span
+                class="px-3 py-1 border border-gray-200 rounded-md text-gray-400 bg-gray-100 cursor-not-allowed">
+                다음
+            </span>
+        </li>
+        {% endif %}
+    </ul>
+    </nav>
+    <!-- 페이징처리 끝 -->
     <style>
                         @container(max-width:120px) {
                         .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 {

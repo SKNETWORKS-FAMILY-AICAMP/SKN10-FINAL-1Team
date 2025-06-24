@@ -21,6 +21,7 @@ from accounts.models import User
 from django.conf import settings
 from django.db import connection
 from functools import lru_cache
+from django.core.paginator import Paginator 
                     
 def get_postgre_db() : 
     """PostgreSQL 데이터베이스 연결 정보 가져오는 함수"""
@@ -91,7 +92,6 @@ def get_index_lists() :
 
     # 1-3) 인덱스 목록 정보 가져오기
     results = []
-    print(pc.list_indexes())
     for idx in pc.list_indexes():               # idx는 IndexModel 객체
         name = idx.name                         # 문자열
         dim  = idx.dimension                    # 벡터 차원
@@ -181,12 +181,18 @@ def get_namespaces(index_name) :
     return flatten_namespaces
 
 
-def get_sessions() :
+def get_sessions(request) :
     """세션 목록을 가져오는 함수""" 
-    sessions = ChatSession.objects.all()
-    return sessions
+    sessions = ChatSession.objects.order_by("-started_at")
+    page = request.GET.get('page', '1')  # 페이지
+    paginator = Paginator(sessions, 10)  # 페이지당 10개씩 보여주기
+    selected_sessions = paginator.get_page(page) # 10개의 sessions
+    return selected_sessions
 
-def get_users() :
+def get_users(request) :
     """유저 목록을 가져오는 함수""" 
-    users = User.objects.all().order_by("-created_at")
-    return users
+    users = User.objects.order_by("-created_at")
+    page = request.GET.get('page', '1') # 페이지
+    paginator = Paginator(users, 10)  # 페이지당 10개씩 보여주기
+    selected_users = paginator.get_page(users) # 10개의 sessions
+    return selected_users

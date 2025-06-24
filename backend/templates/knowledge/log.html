@@ -1,7 +1,12 @@
 <div class="p-8">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
     <div class="mx-auto max-w-4xl">
     <section class="rounded-lg bg-white p-6 shadow-md border border-gray-200">
     <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em] mb-6">Session 정보</h3>
+    <p class="text-base font-medium text-[var(--text-primary)] py-4">총 <span class="text-orange-500 font-semibold">{{sessions.paginator.count}}</span>개의 테이블이 있습니다.</p>
     <div class="@container">
     <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
     <table class="min-w-full divide-y divide-[var(--border-color)]">
@@ -10,33 +15,196 @@
     <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
                             ID
                             </th>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
                             제목
                             </th>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
                             유저
                             </th>
     <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
                             세션 유형
                             </th>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-600 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
                             메시지 수
                             </th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-720 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            생성 일자
+                            </th>
+    
     </tr>
     </thead>
     <tbody class="divide-y divide-[var(--border-color)] bg-white">
     {% for session in sessions %}
         <tr>
         <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">{{session.id|truncatechars:5}}</td>    
-        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">{{session.title}}</td>
-        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{session.user}}</td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]"
+            x-data="{ open: false, messages : [], loaded: false }">
+            <!-- 텍스트 컴포넌트-->
+            <div @click="open = true">
+                <a href="{% url 'knowledge:session_detail' session.id %}"
+                @click.prevent="
+                    open = true;
+                    if (!loaded) {
+                        fetch('{% url 'knowledge:session_detail' session.id %}')
+                        .then(res => res.json())
+                        .then(data => {
+                        messages = data.messages;
+                        loaded = true;
+                    });
+                    }"
+                class="text-blue-500 hover:text-blue-700 underline">{{session.title}}</a>
+            </div>
+
+            <!-- 백그라운드 오버레이 -->
+            <div
+                x-show="open"
+                x-cloak
+                class="fixed inset-0 bg-black bg-opacity-50 z-40"
+                @click="open = false"
+            ></div>
+
+            <!-- 모달 -->
+            <div
+            x-show="open"
+            class="fixed inset-0 flex items-center justify-center z-50 p-4"
+            x-cloak>
+
+            <div class="bg-white rounded-lg shadow-lg
+                w-full             
+                max-w-4xl          
+                max-h-[90vh]      
+                overflow-y-auto    
+                overflow-x-hidden  
+                whitespace-normal  
+                break-words        
+                p-6                
+                ">
+            <div class="flex justify-between items-center px-4 py-4 border-b">
+                <h2 class="text-lg font-semibold">"<span class="text-red-500 mt-4">{{session.title}}</span>" 세션</h2>
+                <button @click="open = false" class="text-xl leading-none">&times;</button>
+            </div>
+            <div class="space-y-2">
+                <template x-if="!loaded">
+                    <p class="text-center text-gray-500">로딩 중…</p>
+                </template>
+                
+                <!-- 데이터 나왔을 때 -->
+                <div x-show="loaded" x-cloak>
+                <!-- 요약 -->
+                <p class="text-base mb-4 text-[var(--text-primary)]">
+                    총 <span class="text-red-500 font-semibold" 
+                        x-text="messages.length"></span>
+                    개의 메시지가 있습니다.
+                </p>
+
+                <!-- 세션 메타 -->
+                <p class="text-base"><strong>유저:</strong> {{ session.user }}</p>
+                <p class="text-base"><strong>Agent:</strong> {{ session.agent_type }}</p>
+                <p class="text-base"><strong>시작 날짜:</strong> {{ session.started_at|date:"F j, Y, g:i" }}</p>
+                <p class="text-base"><strong>제목:</strong> {{ session.title }}</p>
+                <p class="text-base"><strong>삭제 여부:</strong>{% if session.deleted_check %} O {% else %} X {% endif %}</p>
+
+                <!-- 메시지 리스트 -->
+                <template x-for="msg in messages" :key="msg.id">
+                    <!-- 1) flex 컨테이너로 좌/우 정렬 -->
+                    <div class="flex"
+                    :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+
+                    <!-- 2) 말풍선 박스 -->
+                    <div class="max-w-[70%] p-3 rounded-lg"
+                    :class="msg.role === 'user'
+                    ? 'bg-blue-500 text-white rounded-br-none'
+                    : 'bg-gray-100 text-black rounded-bl-none'"
+                    >
+
+                    <!-- 3) 내용 -->
+                    <p class="whitespace-normal break-words" x-text="msg.content"></p>
+
+                    <!-- 4) 타임스탬프 (버블 안쪽 오른쪽 하단) -->
+                    <p class="text-[10px] opacity-75 text-right mt-1" x-text="msg.created_at"></p>
+
+                    </div>
+                    </div>
+                </template>
+
+                <!-- 메시지 없을 때 -->
+                <template x-if="messages.length === 0">
+                    <p class="text-center text-gray-500">메시지가 없습니다.</p>
+                </template>
+                
+                </div>
+            </div>
+            </div>
+            </div>
+        </td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{session.user|truncatechars:12}}</td>
         <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{session.agent_type}}</td>
-        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]"> -1 </td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-600 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{session.messages.count}}</td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-720 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{session.started_at|date:"F j, Y, g:i"}}</td>
     </tr>
     {% endfor %}
     </tbody>
     </table>
     </div>
+    <!-- 페이징처리 시작 -->
+    <nav aria-label="Pagination" class="py-6">
+    <ul class="flex items-center justify-center space-x-2">
+        <!-- 이전 페이지 -->
+        {% if sessions.has_previous %}
+        <li>
+            <a href="?page={{ sessions.previous_page_number }}"
+                class="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100">
+                이전
+            </a>
+        </li>
+        {% else %}
+        <li>
+            <span
+                class="px-3 py-1 border border-gray-200 rounded-md text-gray-400 bg-gray-100 cursor-not-allowed">
+                이전
+            </span>
+        </li>
+        {% endif %}
+
+        <!-- 페이지 번호 -->
+        {% for page_number in sessions.paginator.page_range %}
+        {% if page_number >= sessions.number|add:-5 and page_number <= sessions.number|add:5 %}
+        {% if page_number == sessions.number %}
+        <li>
+            <span class="px-3 py-1 bg-blue-600 text-white border border-blue-600 rounded-md">
+            {{ page_number }}
+            </span>
+        </li>
+        {% else %}
+        <li>
+            <a href="?page={{ page_number }}"
+            class="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100">
+            {{ page_number }}
+            </a>
+        </li>
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+
+        <!-- 다음 페이지 -->
+        {% if sessions.has_next %}
+        <li>
+            <a href="?page={{ sessions.next_page_number }}"
+                class="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100">
+                다음
+            </a>
+        </li>
+        {% else %}
+        <li>
+            <span
+                class="px-3 py-1 border border-gray-200 rounded-md text-gray-400 bg-gray-100 cursor-not-allowed">
+                다음
+            </span>
+        </li>
+        {% endif %}
+    </ul>
+    </nav>
+    <!-- 페이징처리 끝 -->
     <style>
                         @container(max-width:120px) {
                         .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 {
