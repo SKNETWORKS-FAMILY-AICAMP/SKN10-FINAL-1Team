@@ -1,4 +1,5 @@
 {% load static %}
+{% load chat_extras %}
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -6,6 +7,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WorkAssist - 사내업무 보조 챗봇</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script>
         tailwind.config = {
@@ -25,6 +28,13 @@
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Roboto:wght@300;400;500;700&display=swap');
         body { font-family: 'Roboto', 'Noto Sans KR', sans-serif; background: #ffffff; color: #333333; }
         .sidebar-gradient { background: #f8f9fa; border-right: 1px solid #e0e0e0; }
+        #chart-modal {
+            transition: transform 0.3s ease-in-out;
+            transform: translateX(100%);
+        }
+        #chart-modal.is-open {
+            transform: translateX(0);
+        }
 
         /* --- Tool Usage UI --- */
         .tool-usage-container {
@@ -73,7 +83,7 @@
 
         /* --- Chat Bubbles & Typing Indicator --- */
         .chat-bubble-user { background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); color: white; }
-        .chat-bubble-ai { background: #f5f5f5; color: #1a365d; border: 1px solid #e0e0e0; }
+        .chat-bubble-ai { background: #f5f5f5; color: #1a365d; border: 1px solid #e0e0e0; overflow-x: auto; }
         .typing-indicator span {
             height: 8px; width: 8px; background-color: #3b82f6; /* secondary color */ border-radius: 50%;
             display: inline-block; animation: a 1.4s infinite ease-in-out both;
@@ -83,6 +93,38 @@
         @keyframes a {
             0%, 80%, 100% { transform: scale(0); }
             40% { transform: scale(1.0); }
+        }
+        
+        .markdown-content table {
+            display: block;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        .markdown-content pre {
+            overflow-x: auto;
+            white-space: pre;
+            background-color: #f3f4f6;
+            padding: 1rem;
+            border-radius: 0.5rem;
+        }
+        .markdown-content code {
+            white-space: inherit; /* Inherit from parent <pre> tag */
+        }
+
+        /* Custom scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #3b82f6;
+            border-radius: 10px;
+            box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
+        }
+        ::-webkit-scrollbar-track {
+            background-color: #f1f5f9;
+            border-radius: 10px;
+            box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
         }
     </style>
 </head>
@@ -158,38 +200,55 @@
                         {% if message.role == 'user' %}
                         <div class="flex justify-end">
                             <div class="max-w-xl">
-                                <div class="chat-bubble-user text-white p-4 rounded-2xl rounded-tr-none shadow-lg transition-all duration-200 hover:shadow-md">
-                                    <p>{{ message.content|linebreaksbr }}</p>
+                                <div class="chat-bubble-user text-white p-4 rounded-2xl rounded-tr-none shadow-lg">
+                                    <p>{{ message.content|safe|linebreaksbr }}</p>
                                 </div>
-                                <p class="text-xs text-gray-500 text-right mt-1">{{ message.created_at|date:"H:i" }}</p>
+                                <p class="text-xs text-gray-500 text-right mt-1">{{ message.created_at|date:"M d, H:i" }}</p>
                             </div>
                         </div>
                         {% elif message.role == 'assistant' %}
                         <div class="flex items-start gap-3 mb-4">
                             <div class="w-full max-w-xl">
-                                {% if message.processed_tool_events %}
-                                <details class="tool-usage-container" open>
-                                    <summary><i class="fas fa-cogs fa-fw"></i>Tool Usage</summary>
-                                    <div class="tool-usage-content">
-                                        {% for event in message.processed_tool_events %}
-                                        <div class="mb-3">
-                                            <div class="tool-call-item">
-                                                <div class="font-semibold"><i class="fas fa-wrench fa-fw"></i> {{ event.call.name }}</div>
-                                                <pre>{{ event.call.args_pretty }}</pre>
+                                {% if message.tool_calls %}
+                                    <div id="tool-ui-{{ message.id }}" class="mb-2">
+                                        <details class="tool-usage-container">
+                                            <summary><i class="fas fa-cogs fa-fw"></i>Tool Usage</summary>
+                                            <div class="tool-usage-content">
+                                            {% for tool_call in message.tool_calls %}
+                                                <div class="tool-call-item">
+                                                    <div class="font-semibold"><i class="fas fa-wrench fa-fw"></i> {{ tool_call.name }}</div>
+                                                    <pre>{{ tool_call.args_pretty }}</pre>
+                                                </div>
+                                                <div class="tool-output-item">
+                                                    <div class="font-semibold"><i class="fas fa-clipboard-check fa-fw"></i> Output</div>
+                                                    <div class="tool-call-output">
+                                                        <pre><code>{{ tool_call.output }}</code></pre>
+                                                    </div>
+                                                </div>
+                                            {% endfor %}
                                             </div>
-                                            <div class="tool-output-item">
-                                                <div class="font-semibold"><i class="fas fa-clipboard-check fa-fw"></i> Output</div>
-                                                <pre>{{ event.output }}</pre>
-                                            </div>
-                                        </div>
-                                        {% endfor %}
+                                        </details>
                                     </div>
-                                </details>
                                 {% endif %}
-                                <div class="chat-bubble-ai text-gray-800 p-4 rounded-2xl rounded-tl-none shadow-lg bg-gray-50 transition-all duration-200 hover:shadow-md">
-                                    <p>{{ message.content|linebreaksbr }}</p>
+                                <div class="chat-bubble-ai text-gray-800 p-4 rounded-2xl rounded-tl-none shadow-lg bg-gray-50">
+                                    <div class="markdown-content">{{ message.content }}</div>
                                 </div>
-                                <p class="text-xs text-gray-500 mt-1">{{ message.created_at|date:"H:i" }}</p>
+                                <p class="text-xs text-gray-500 mt-1">{{ message.created_at|date:"M d, H:i" }}</p>
+                                {% if message.tool_calls %}
+                                    {% for tool_call in message.tool_calls %}
+                                        {% if tool_call.name == 'ChartGenerator' or tool_call.name == 'analyst_chart_tool' %}
+                                            {% if 'canvas_html' in tool_call.output and 'script_js' in tool_call.output %}
+                                            {% with encoded_output=tool_call.output|encode_chart_data %}
+                                            <div class="mt-2">
+                                                <button class="view-chart-btn bg-primary text-white px-4 py-2 rounded-md text-sm hover:bg-secondary transition-colors flex items-center" data-chart-content="{{ encoded_output }}">
+                                                    <i class="fas fa-chart-pie fa-fw mr-2"></i> Open Canvas
+                                                </button>
+                                            </div>
+                                            {% endwith %}
+                                            {% endif %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
                             </div>
                         </div>
                         {% endif %}
@@ -232,8 +291,144 @@
         </main>
     </div>
 
+    <!-- Chart Modal -->
+    <div id="chart-modal" class="fixed top-0 right-0 h-full w-full md:w-1/2 lg:w-1/3 bg-white shadow-2xl z-50 p-6 border-l border-gray-200 flex flex-col transform transition-transform duration-300 ease-in-out translate-x-full">
+        <div class="flex justify-between items-center pb-4 border-b border-gray-200">
+            <h3 class="text-xl font-bold text-gray-800">Chart View</h3>
+            <button id="close-chart-modal" class="text-gray-500 hover:text-gray-800">
+                <i class="fas fa-times fa-lg"></i>
+            </button>
+        </div>
+        <div id="chart-modal-content" class="flex-1 overflow-y-auto mt-4">
+            <!-- Chart will be rendered here -->
+        </div>
+    </div>
+
     <script>
+        // Function to render markdown content
+        function renderMarkdown() {
+            // Configure marked.js options
+            marked.setOptions({
+                breaks: true,      // Interpret line breaks as <br>
+                gfm: true,         // Use GitHub Flavored Markdown
+                tables: true,      // Enable table support
+                sanitize: false    // Allow HTML
+            });
+            
+            // Find all markdown content containers and render them
+            document.querySelectorAll('.markdown-content').forEach(function(element) {
+                const markdownText = element.textContent.trim();
+                element.innerHTML = marked.parse(markdownText);
+            });
+        }
+
+        // Initial setup once the document is fully loaded
         document.addEventListener('DOMContentLoaded', function() {
+            // Render any existing markdown content
+            renderMarkdown();
+            function base64EncodeUnicode(str) {
+                const encoder = new TextEncoder();
+                const utf8Bytes = encoder.encode(str);
+                let binaryString = '';
+                for (let i = 0; i < utf8Bytes.length; i++) {
+                    binaryString += String.fromCharCode(utf8Bytes[i]);
+                }
+                return window.btoa(binaryString);
+            }
+            // --- CHART MODAL LOGIC ---
+            const chartModal = document.getElementById('chart-modal');
+            const closeChartModalBtn = document.getElementById('close-chart-modal');
+            const chartModalContent = document.getElementById('chart-modal-content');
+
+            // Delegated event listener for view-chart-btn
+            document.body.addEventListener('click', function(event) {
+                const viewChartButton = event.target.closest('.view-chart-btn');
+                if (viewChartButton) {
+                    const encodedContent = viewChartButton.dataset.chartContent;
+                    if (encodedContent) {
+                        try {
+                            const binaryString = window.atob(encodedContent);
+                            const bytes = new Uint8Array(binaryString.length);
+                            for (let i = 0; i < binaryString.length; i++) {
+                                bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            const decodedContent = new TextDecoder('utf-8').decode(bytes);
+
+                            try {
+                                // NEW FORMAT: Attempt to parse as JSON
+                                const chartData = JSON.parse(decodedContent);
+                                chartModalContent.innerHTML = chartData.canvas_html;
+                                const script = document.createElement('script');
+                                // FIX: Wrap in an IIFE to prevent global scope pollution and redeclaration errors.
+                                script.textContent = `(function() { ${chartData.script_js} })();`;
+                                chartModalContent.appendChild(script);
+                            } catch (jsonError) {
+                                // OLD FORMAT: If JSON parsing fails, it's raw HTML or a plain error string.
+                                const parser = new DOMParser();
+                                const doc = parser.parseFromString(decodedContent, 'text/html');
+                                const oldScript = doc.querySelector('script');
+
+                                if (oldScript) {
+                                    // Case 1: It's legacy chart HTML with a script.
+                                    let scriptText = oldScript.innerHTML;
+
+                                    // FINAL, ROBUST FIX: Find all unique invalid variable names and safely replace them.
+                                    const invalidVars = (scriptText.match(/const\s+([a-zA-Z0-9_-]+)\s*=/g) || [])
+                                        .map(decl => decl.match(/const\s+([a-zA-Z0-9_-]+)/)[1])
+                                        .filter(name => name.includes('-'));
+                                    const uniqueInvalidVars = [...new Set(invalidVars)];
+
+                                    if (uniqueInvalidVars.length > 0) {
+                                        uniqueInvalidVars.forEach(invalidVar => {
+                                            const validVar = invalidVar.replace(/-/g, '_');
+                                            // Use word boundaries (\b) for a safe, exact replacement.
+                                            const searchRegex = new RegExp('\\b' + invalidVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'g');
+                                            scriptText = scriptText.replace(searchRegex, validVar);
+                                        });
+                                    }
+
+                                    // Inject the non-script HTML part first.
+                                    oldScript.remove();
+                                    chartModalContent.innerHTML = doc.body.innerHTML;
+
+                                    // Now, create and append the corrected script to execute it.
+                                    const newScript = document.createElement('script');
+                                    // FIX: Wrap in an IIFE to prevent global scope pollution and redeclaration errors.
+                                    newScript.textContent = `(function() { ${scriptText} })();`;
+                                    chartModalContent.appendChild(newScript);
+                                } else {
+                                    // Case 2: It's a plain-text error message from the tool.
+                                    const escapedContent = decodedContent.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                                    chartModalContent.innerHTML = `<div class="p-4 text-red-700 bg-red-100 border border-red-400 rounded-md">${escapedContent}</div>`;
+                                }
+                            }
+                            
+                            chartModal.classList.add('is-open');
+
+                        } catch (e) {
+                            // This outer catch handles other errors, like Base64 decoding failure
+                            console.error('An unexpected error occurred while rendering the chart:', e);
+                            chartModalContent.innerHTML = '<p class="text-red-500">An unexpected error occurred while displaying the content.</p>';
+                            chartModal.classList.add('is-open');
+                        }
+                    }
+                }
+            });
+
+            // Event listener for the close button on the chart modal
+            if(closeChartModalBtn) {
+                closeChartModalBtn.addEventListener('click', () => {
+                    chartModal.classList.remove('is-open');
+                    
+                    // Clear content after the animation finishes to prevent visual glitches
+                    setTimeout(() => {
+                        if (chartModalContent) {
+                            chartModalContent.innerHTML = '';
+                        }
+                    }, 300); // This duration should match the CSS transition time
+                });
+            }
+            
             // --- UTILITY FUNCTIONS ---
             function getActiveSessionId() {
                 return document.body.dataset.activeSessionId || null;
@@ -411,20 +606,26 @@
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
                     typingIndicator.style.display = 'none';
-                    
+
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder();
                     let buffer = '';
-                    let isFirstChunk = true;
                     let isFirstTitleChunk = true;
+                    let final_ai_content = '';
+                    let lastMessageId = assistantMessageId;
+                    let accumulatedMessages = {};
+                    let isStreaming = true;
 
-                    while (true) {
+                    while (isStreaming) {
                         const { done, value } = await reader.read();
-                        if (done) break;
+                        if (done) {
+                            isStreaming = false;
+                            break;
+                        }
 
                         buffer += decoder.decode(value, { stream: true });
                         const lines = buffer.split('\n');
-                        buffer = lines.pop(); 
+                        buffer = lines.pop();
 
                         for (const line of lines) {
                             if (!line.startsWith('data: ')) continue;
@@ -432,30 +633,44 @@
                                 const rawJson = line.substring(6).trim();
                                 if (!rawJson) continue;
                                 const payload = JSON.parse(rawJson);
-                                
-                                if (payload.event === 'message_chunk') {
-                                    if (isFirstChunk) {
-                                        assistantMessageP.innerHTML = '';
-                                        isFirstChunk = false;
-                                    }
-                                    assistantMessageP.innerHTML += payload.data.replace(/\n/g, '<br>');
-                                } else if (payload.event === 'tool_update') {
+
+                                if (payload.event === 'message_chunk' && payload.data) {
+                                    final_ai_content += payload.data;
+                                    accumulatedMessages[lastMessageId] = final_ai_content;
+                                    assistantMessageP.innerHTML = marked.parse(final_ai_content);
+                                } else if (payload.event === 'tool_update' && payload.data) {
                                     if (toolContainer) {
                                         toolContainer.style.display = 'block';
                                         updateToolUI(payload.data, toolContainer);
+                                        const messageWrapper = document.getElementById(`message-wrapper-${assistantMessageId}`);
+                                        injectChartButton(messageWrapper);
                                     }
-                                } else if (payload.event === 'title_chunk') {
+                                } else if (payload.event === 'title_chunk' && payload.data) {
                                     const headerTitle = document.getElementById('chat-header-title');
                                     const sidebarTitle = document.getElementById(`session-title-${sessionId}`);
                                     if (isFirstTitleChunk) {
-                                        if(headerTitle) headerTitle.textContent = '';
-                                        if(sidebarTitle) sidebarTitle.textContent = '';
+                                        if (headerTitle) headerTitle.textContent = '';
+                                        if (sidebarTitle) sidebarTitle.textContent = '';
                                         isFirstTitleChunk = false;
                                     }
                                     if (headerTitle) headerTitle.textContent += payload.data;
                                     if (sidebarTitle) sidebarTitle.textContent += payload.data;
+                                } else if (payload.event === 'stream_end') {
+                                    isStreaming = false;
+                                    console.log('Stream ended:', payload);
+                                    const messageWrapper = document.getElementById(`message-wrapper-${assistantMessageId}`);
+                                    if (messageWrapper) {
+                                        const lastMessageP = messageWrapper.querySelector(`#assistant-message-${assistantMessageId}`);
+                                        if (lastMessageP) {
+                                            lastMessageP.innerHTML = marked.parse(lastMessageP.innerHTML.replace(/<br\s*\/?>/gi, '\n'));
+                                        }
+                                        injectChartButton(messageWrapper);
+                                    }
+                                    if (lastMessageId) delete accumulatedMessages[lastMessageId];
+                                    break;
                                 } else if (payload.event === 'error') {
                                     assistantMessageP.innerHTML = `<span class="text-red-500">Error: ${payload.data}</span>`;
+                                    isStreaming = false;
                                     break;
                                 }
                                 scrollToBottom();
@@ -480,17 +695,54 @@
                 }
             }
 
-            function updateToolUI(data, container) {
-                if (!container || !data || !data.assistant || !data.assistant.messages) {
-                    return;
+            function injectChartButton(messageWrapper) {
+                console.log('[DEBUG] Attempting to inject chart button for a specific message...');
+                try {
+                    if (!messageWrapper) {
+                        console.log('[DEBUG] Message wrapper not provided for chart button injection.');
+                        return;
+                    }
+
+                    if (messageWrapper.dataset.chartButtonInjected === 'true') {
+                        return;
+                    }
+
+                    const toolOutputPre = messageWrapper.querySelector('.tool-output-item pre');
+                    if (!toolOutputPre) {
+                        return; 
+                    }
+
+                    const chartData = toolOutputPre.textContent;
+                    if (!isValidChartData(chartData)) {
+                        return;
+                    }
+
+                    messageWrapper.dataset.chartButtonInjected = 'true';
+
+                    if (messageWrapper.querySelector('.chart-button-container')) {
+                        return;
+                    }
+
+                    const buttonContainer = document.createElement('div');
+                    buttonContainer.className = 'mt-2 chart-button-container';
+                    const encodedOutput = base64EncodeUnicode(chartData);
+                    const button = document.createElement('button');
+                    button.className = 'view-chart-btn bg-primary text-white px-4 py-2 rounded-md text-sm hover:bg-secondary transition-colors flex items-center';
+                    button.dataset.chartContent = encodedOutput;
+                    button.innerHTML = `<i class="fas fa-chart-pie fa-fw mr-2"></i> Open Canvas`;
+                    buttonContainer.appendChild(button);
+                    messageWrapper.appendChild(buttonContainer);
+                    console.log('[DEBUG] Successfully added chart button container.');
+                } catch (e) {
+                    console.error('[DEBUG] Error injecting chart button:', e);
                 }
-                
-                let contentHtml = '';
-                const messages = data.assistant.messages;
+            }
+
+            function updateToolUI(data, container) {
+                if (!container || !data || !data.assistant || !data.assistant.messages) return;
 
                 const toolCalls = {};
-
-                messages.forEach(msg => {
+                data.assistant.messages.forEach(msg => {
                     if (msg.type === 'ai' && msg.tool_calls && msg.tool_calls.length > 0) {
                         msg.tool_calls.forEach(call => {
                             toolCalls[call.id] = { name: call.name, args: call.args, output: '<i>Pending...</i>' };
@@ -502,19 +754,20 @@
                     }
                 });
 
+                let contentHtml = '';
                 for (const id in toolCalls) {
                     const call = toolCalls[id];
-                    let args_pretty, output_pretty;
+                    let args_pretty;
                     try {
                         args_pretty = JSON.stringify(JSON.parse(call.args || '{}'), null, 2);
-                    } catch {
-                        args_pretty = call.args;
+                    } catch { args_pretty = call.args; }
+
+                    let output_text = call.output;
+                    if (typeof output_text !== 'string') {
+                        output_text = JSON.stringify(output_text, null, 2);
                     }
-                    try {
-                        output_pretty = JSON.stringify(JSON.parse(call.output || '""'), null, 2);
-                    } catch {
-                        output_pretty = call.output;
-                    }
+                    const escaped_output = output_text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    const output_html = `<pre>${escaped_output}</pre>`;
 
                     contentHtml += `
                         <div class="tool-call-item">
@@ -523,11 +776,11 @@
                         </div>
                         <div class="tool-output-item">
                             <div class="font-semibold"><i class="fas fa-clipboard-check fa-fw"></i> Output</div>
-                            <pre>${output_pretty}</pre>
+                            ${output_html}
                         </div>`;
                 }
 
-                if (contentHtml) {
+                if (Object.keys(toolCalls).length > 0) {
                     container.innerHTML = `
                         <details class="tool-usage-container" open>
                             <summary><i class="fas fa-cogs fa-fw"></i>Tool Usage</summary>
@@ -535,23 +788,22 @@
                                 ${contentHtml}
                             </div>
                         </details>`;
+                    container.style.display = 'block';
+                } else {
+                    container.style.display = 'none';
+                    container.innerHTML = '';
                 }
             }
 
             // --- INITIALIZATION ---
             scrollToBottom();
+            if (messageInput) {
+                messageInput.addEventListener('input', () => {
+                    messageInput.style.height = 'auto';
+                    messageInput.style.height = (messageInput.scrollHeight) + 'px';
+                });
+            }
         });
-    </script>
-        if (messageInput) {
-            messageInput.addEventListener('input', () => {
-                messageInput.style.height = 'auto';
-                messageInput.style.height = (messageInput.scrollHeight) + 'px';
-            });
-        }
-        
-        // Initial scroll to bottom
-        scrollToBottom();
-    });
     </script>
 </body>
 </html>

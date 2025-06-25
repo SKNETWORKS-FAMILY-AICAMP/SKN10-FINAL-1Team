@@ -11,7 +11,7 @@ import pandas as pd
 import joblib
 import numpy as np
 from pydantic import BaseModel, Field
-from langchain_core.tools import Tool
+from langchain_core.tools import Tool, StructuredTool
 from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
 from sklearn.preprocessing import LabelEncoder
 from sklearn.impute import SimpleImputer
@@ -43,22 +43,32 @@ from openai import OpenAI as OpenAIClient # For embeddings
 from pinecone import Pinecone as PineconeClient # For vector search
 
 # --- Analyst Chart Tool ---
-def generate_chart_html(chart_type: str, data: dict, options: dict = None, chart_id: str = None) -> str:
-    if chart_id is None:
-        chart_id = f"chart-{uuid.uuid4().hex[:8]}"
-    if options is None:
-        options = {}
+def generate_chart_html(title: str, chart_type: str, data: dict, options: Optional[Dict[str, Any]] = None) -> str:
+    """Generates chart data as a JSON string containing HTML for the canvas and JS for the script."""
+    chart_id = f"chart-{uuid.uuid4().hex[:8]}"
+    
+    chart_options = {
+        'responsive': True,
+        'plugins': {
+            'title': {
+                'display': True,
+                'text': title
+            }
+        }
+    }
+    if options:
+        chart_options.update(options)
+
     data_json = json.dumps(data)
-    options_json = json.dumps(options)
-    html_template = f"""
-    <div>
-      <canvas id='{chart_id}'></canvas>
-    </div>
-    <script src='https://cdn.jsdelivr.net/npm/chart.js'></script>
-    <script>
-      const ctx_{chart_id} = document.getElementById('{chart_id}');
-      if (ctx_{chart_id}) {{
-        new Chart(ctx_{chart_id}, {{
+    options_json = json.dumps(chart_options)
+    
+    canvas_html = f"<div><canvas id='{chart_id}'></canvas></div>"
+    
+    chart_id_js_safe = chart_id.replace('-', '_')
+    script_js = f"""
+      const ctx_{chart_id_js_safe} = document.getElementById('{chart_id}');
+      if (ctx_{chart_id_js_safe}) {{
+        new Chart(ctx_{chart_id_js_safe}, {{
           type: '{chart_type}',
           data: {data_json},
           options: {options_json}
@@ -66,28 +76,25 @@ def generate_chart_html(chart_type: str, data: dict, options: dict = None, chart
       }} else {{
         console.error('Failed to find canvas element with ID: {chart_id}');
       }}
-    </script>
     """
-    return html_template
+    
+    output = {
+        "canvas_html": canvas_html,
+        "script_js": script_js
+    }
+    return json.dumps(output)
 
 class ChartInputArgs(BaseModel):
+    title: str = Field(..., description="The title for the chart.")
     chart_type: str = Field(..., description="Type of chart (e.g., 'bar', 'line', 'pie').")
-    data: Dict[str, Any] = Field(..., description="Data for the chart (labels, datasets). Example: {'labels': ['A', 'B'], 'datasets': [{'label': 'Series 1', 'data': [10, 20]}]}")
-    options: Dict[str, Any] = Field(default={}, description="Chart.js options.")
+    data: Dict[str, Any] = Field(..., description="Data for the chart, following Chart.js structure (labels, datasets).")
+    options: Optional[Dict[str, Any]] = Field(None, description="Optional Chart.js options to override defaults.")
 
-def create_chart_tool_function(chart_type: str, data: Dict[str, Any], options: Dict[str, Any] = None) -> str:
-    try:
-        if not chart_type or not data:
-            return "Error: 'chart_type' and 'data' are required."
-        return generate_chart_html(chart_type=chart_type, data=data, options=options or {})
-    except Exception as e:
-        return f"Error during chart generation: {str(e)}"
-
-analyst_chart_tool = Tool(
+analyst_chart_tool = StructuredTool.from_function(
+    func=generate_chart_html,
     name="ChartGenerator",
-    func=create_chart_tool_function,
-    description="Generates an HTML/JavaScript chart snippet from structured data. Input should include chart_type, data (with labels and datasets), and optional options.",
-    args_schema=ChartInputArgs
+    description="Generates the necessary HTML and JavaScript for a chart. Returns a JSON string with 'canvas_html' and 'script_js' keys.",
+    args_schema=ChartInputArgs,
 )
 
 # --- Customer Churn Prediction Tool ---

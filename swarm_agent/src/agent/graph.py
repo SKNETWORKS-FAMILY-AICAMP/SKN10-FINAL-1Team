@@ -252,12 +252,12 @@ analyst_assistant = create_react_agent(
              - `sql_db_list_tables`: To see all available data tables.
              - `sql_db_schema`: To understand the structure (columns, types) of specific tables.
              - `sql_db_query`: To execute a SQL query to retrieve data.
-             - `sql_db_query_checker`: To validate the syntax of a SQL query before execution.
-           - **Required Workflow:** Always follow this sequence for database tasks: `list_tables` -> `schema` -> `query_checker` -> `query`.
+           - **Required Workflow:** Always follow this sequence for database tasks: `list_tables` -> `schema` -> `query`.
 
         **2. Chart Generation:**
            - You can create data visualizations using the `analyst_chart_tool`.
            - This tool requires a title, the data (in a suitable format), and the desired chart type.
+           - The chart will be displayed in the canvas. so you don't need to return the chart in message.
 
         **Your Workflow:**
         1. **Analyze the Request:** Determine if the task requires database analysis, chart generation, or both.
