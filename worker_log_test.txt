@@ -1,0 +1,9 @@
+LLM worker process started.
+Initializing OpenAI client...
+OpenAI client initialized.
+Data summary created.
+Prompt created.
+Sending request to OpenAI API...
+Received response from OpenAI API.
+Extracted result from response.
+Put result into the queue.

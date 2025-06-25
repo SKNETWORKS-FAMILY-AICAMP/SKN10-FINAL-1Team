@@ -84,6 +84,12 @@
             0%, 80%, 100% { transform: scale(0); }
             40% { transform: scale(1.0); }
         }
+
+        /* --- Drag and Drop UI --- */
+        #input-area.drag-over {
+            border-top: 2px dashed #2563eb;
+            background-color: rgba(37, 99, 235, 0.05);
+        }
     </style>
 </head>
 <body class="min-h-screen text-gray-100 overflow-hidden" data-active-session-id="{{ active_session_id|default:'' }}">
@@ -218,12 +224,18 @@
             </div>
 
             <!-- 입력 영역 -->
-            <div class="bg-white/95 backdrop-blur-sm border-t border-gray-200 p-4 sticky bottom-0">
+            <div id="input-area" class="bg-white/95 backdrop-blur-sm border-t border-gray-200 p-4 sticky bottom-0 transition-colors duration-200">
                 <div class="max-w-4xl mx-auto">
                     <form id="chat-form" class="flex items-center gap-2">
                         {% csrf_token %}
-                        <input type="text" id="message-input" name="message" placeholder="업무 내용을 입력하세요..." class="flex-1 bg-white border border-gray-200 rounded-full py-3 px-5 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:opacity-50 text-gray-800 shadow-sm transition-all duration-200 hover:shadow-md" {% if not active_session_id %}disabled{% endif %}>
-                        <button type="submit" id="send-button" class="bg-gradient-to-r from-primary to-secondary hover:from-blue-500 hover:to-blue-600 w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg" {% if not active_session_id %}disabled{% endif %}>
+                        <input type="file" id="csv-upload-input" accept=".csv" class="hidden">
+                        <label for="csv-upload-input" class="cursor-pointer">
+                            <div id="csv-upload-btn" class="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-all bg-gray-100 hover:bg-gray-200" title="CSV 파일 업로드">
+                                <i class="fas fa-file-csv text-gray-500 text-xl"></i>
+                            </div>
+                        </label>
+                        <input type="text" id="message-input" name="message" placeholder="업무 내용을 입력하거나 CSV 파일을 드래그하세요..." class="flex-1 bg-white border border-gray-200 rounded-full py-3 px-5 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:opacity-50 text-gray-800 shadow-sm transition-all duration-200 hover:shadow-md" {% if not active_session_id %}disabled{% endif %}>
+                        <button type="submit" id="send-button" class="bg-gradient-to-r from-primary to-secondary hover:from-blue-500 hover:to-blue-600 w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg" {% if not active_session_id %}disabled{% endif %}>
                             <i class="fas fa-paper-plane text-white text-xl"></i>
                         </button>
                     </form>
@@ -250,6 +262,37 @@
                 }
             }
 
+            function addSystemMessage(message, type = 'info') {
+                const chatMessages = document.getElementById('chat-messages');
+                if (!chatMessages) return;
+
+                let iconClass = 'fa-info-circle';
+                let bgColor = 'bg-blue-50';
+                let textColor = 'text-blue-800';
+                let borderColor = 'border-blue-200';
+
+                if (type === 'success') {
+                    iconClass = 'fa-check-circle';
+                    bgColor = 'bg-green-50';
+                    textColor = 'text-green-800';
+                    borderColor = 'border-green-200';
+                } else if (type === 'error') {
+                    iconClass = 'fa-exclamation-triangle';
+                    bgColor = 'bg-red-50';
+                    textColor = 'text-red-800';
+                    borderColor = 'border-red-200';
+                }
+
+                const messageHtml = `
+                    <div class="my-4 p-3 rounded-lg border ${borderColor} ${bgColor} ${textColor} text-sm flex items-center gap-3">
+                        <i class="fas ${iconClass} text-lg"></i>
+                        <span>${message}</span>
+                    </div>`;
+                
+                chatMessages.insertAdjacentHTML('beforeend', messageHtml);
+                scrollToBottom();
+            }
+
             // --- GLOBAL STATE ---
             let controller = new AbortController();
 
@@ -262,6 +305,9 @@
             const sendButton = document.getElementById('send-button');
             const typingIndicator = document.getElementById('typing-indicator');
             const chatMessages = document.getElementById('chat-messages');
+            const csvUploadInput = document.getElementById('csv-upload-input');
+            const dropZone = document.getElementById('app-container');
+            const inputArea = document.getElementById('input-area');
 
             // --- EVENT LISTENERS ---
 
@@ -308,6 +354,7 @@
             if (headerDeleteBtn) {
                 headerDeleteBtn.addEventListener('click', async () => {
                     const sessionId = headerDeleteBtn.dataset.sessionId;
+                    if (!confirm('정말로 이 세션을 삭제하시겠습니까?')) return;
                     try {
                         const response = await fetch(`/conversations/api/session/delete/${sessionId}/`, {
                             method: 'POST',
@@ -333,7 +380,24 @@
             if (chatForm) {
                 chatForm.addEventListener('submit', function(e) {
                     e.preventDefault();
-                    handleChatSubmission();
+                    const sessionId = getActiveSessionId();
+                    if (!sessionId) return;
+
+                    const userMessage = messageInput.value.trim();
+                    console.log("[DEBUG] Form submit: userMessage =", userMessage);
+                    if (!userMessage) return;
+
+                    const filePath = sessionStorage.getItem('csv_file_path');
+                    console.log("[DEBUG] Form submit: filePath =", filePath);
+
+                    // Pass userMessage and filePath to the handler separately
+                    handleChatSubmission(userMessage, filePath);
+
+                    messageInput.value = '';
+                    if (filePath) {
+                        sessionStorage.removeItem('csv_file_path');
+                        messageInput.placeholder = '업무 내용을 입력하거나 CSV 파일을 드래그하세요...';
+                    }
                 });
             }
 
@@ -347,55 +411,126 @@
                 });
             }
             
-            // --- MAIN CHAT LOGIC ---
-            async function handleChatSubmission() {
-                const messageText = messageInput.value.trim();
-                if (!messageText) return;
+            // 6. CSV Upload Logic
+            if (csvUploadInput) {
+                csvUploadInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        handleFileUpload(file);
+                    }
+                });
+            }
 
+            // 7. Drag and Drop Upload
+            if (dropZone && inputArea) {
+                dropZone.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    inputArea.classList.add('drag-over');
+                });
+
+                dropZone.addEventListener('dragleave', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!inputArea.contains(e.relatedTarget)) {
+                         inputArea.classList.remove('drag-over');
+                    }
+                });
+
+                dropZone.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    inputArea.classList.remove('drag-over');
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        const csvFile = Array.from(files).find(file => file.type === 'text/csv' || file.name.endsWith('.csv'));
+                        if (csvFile) {
+                            handleFileUpload(csvFile);
+                        } else {
+                            addSystemMessage('CSV 파일만 업로드할 수 있습니다.', 'error');
+                        }
+                    }
+                });
+            }
+
+            // --- CORE FUNCTIONS ---
+            async function handleFileUpload(file) {
                 const sessionId = getActiveSessionId();
                 if (!sessionId) {
-                    alert('Please start a new session first.');
+                    addSystemMessage('파일을 업로드하려면 먼저 새 세션을 시작해주세요.', 'error');
                     return;
                 }
+
+                addSystemMessage(`'${file.name}' 파일 업로드를 시작합니다...`, 'info');
+
+                const formData = new FormData();
+                formData.append('csv_file', file);
+                formData.append('session_id', sessionId);
+
+                try {
+                    const response = await fetch("{% url 'conversations:upload_csv' %}", {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': getCsrfToken(),
+                        },
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok && data.file_path) {
+                        sessionStorage.setItem('csv_file_path', data.file_path);
+                        addSystemMessage(`✅ 파일이 성공적으로 업로드되었습니다. 이제 파일 내용에 대해 질문할 수 있습니다.`, 'success');
+                        messageInput.placeholder = `'${file.name}'에 대해 질문해보세요...`;
+                    } else {
+                        throw new Error(data.error || '파일 업로드에 실패했습니다.');
+                    }
+                } catch (error) {
+                    console.error('File upload error:', error);
+                    addSystemMessage(`❌ 파일 업로드 중 오류가 발생했습니다: ${error.message}`, 'error');
+                } finally {
+                    if (csvUploadInput) csvUploadInput.value = ''; // Reset file input
+                }
+            }
+
+            async function handleChatSubmission(userMessage) {
+                const filePath = sessionStorage.getItem('csv_file_path');
+                console.log("[DEBUG] handleChatSubmission: userMessage =", userMessage);
+                console.log("[DEBUG] handleChatSubmission: filePath =", filePath);
+                const sessionId = getActiveSessionId();
+                if (!sessionId) return;
 
                 controller = new AbortController();
                 const signal = controller.signal;
 
+                messageInput.value = '';
                 messageInput.disabled = true;
                 sendButton.disabled = true;
+                typingIndicator.style.display = 'flex';
 
-                const userMessageHtml = `
-                    <div class="flex justify-end">
-                        <div class="max-w-xl">
-                            <div class="chat-bubble-user text-white p-4 rounded-2xl rounded-tr-none shadow-lg">
-                                <p>${messageText.replace(/\n/g, '<br>')}</p>
+                addMessageToChat('user', userMessage);
+
+                // Create a placeholder for the AI response
+                const aiMessageId = `ai-msg-${Date.now()}`;
+                const aiMessageHtml = `
+                    <div class="flex items-start gap-3 mb-4">
+                        <div class="w-full max-w-xl">
+                            <div id="${aiMessageId}-container"></div>
+                            <div class="chat-bubble-ai text-gray-800 p-4 rounded-2xl rounded-tl-none shadow-lg bg-gray-50">
+                                <p id="${aiMessageId}"></p>
                             </div>
-                            <p class="text-xs text-gray-500 text-right mt-1">Now</p>
+                            <p class="text-xs text-gray-500 mt-1">Just now</p>
                         </div>
                     </div>`;
-                chatMessages.innerHTML += userMessageHtml;
-                messageInput.value = '';
+                chatMessages.insertAdjacentHTML('beforeend', aiMessageHtml);
                 scrollToBottom();
+                const aiMessageElement = document.getElementById(aiMessageId);
+                const toolContainer = document.getElementById(`${aiMessageId}-container`);
 
-                typingIndicator.style.display = 'flex';
-                const assistantMessageId = `assistant-message-${Date.now()}`;
-                const toolUiId = `tool-ui-${Date.now()}`;
-                const assistantMessageHtml = `
-                    <div class="flex items-start gap-3 mb-4">
-                         <div class="w-full max-w-xl">
-                             <div id="${toolUiId}"></div>
-                             <div class="chat-bubble-ai text-gray-800 p-4 rounded-2xl rounded-tl-none shadow-lg bg-gray-50">
-                                 <p id="${assistantMessageId}"></p>
-                             </div>
-                             <p class="text-xs text-gray-500 mt-1">Just now</p>
-                         </div>
-                     </div>`;
-                chatMessages.innerHTML += assistantMessageHtml;
-                scrollToBottom();
-                
-                const assistantMessageP = document.getElementById(assistantMessageId);
-                const toolContainer = document.getElementById(toolUiId);
-                toolContainer.style.display = 'none';
+                const payload = { message: userMessage };
+                if (filePath) {
+                    payload.file_path = filePath;
+                }
 
                 try {
                     const response = await fetch(`/conversations/api/chat/stream/${sessionId}/`, {
@@ -404,19 +539,18 @@
                             'Content-Type': 'application/json',
                             'X-CSRFToken': getCsrfToken()
                         },
-                        body: JSON.stringify({ message: messageText }),
-                        signal
+                        body: JSON.stringify(payload),
+                        signal: signal
                     });
 
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Server error');
+                    }
 
-                    typingIndicator.style.display = 'none';
-                    
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder();
                     let buffer = '';
-                    let isFirstChunk = true;
-                    let isFirstTitleChunk = true;
 
                     while (true) {
                         const { done, value } = await reader.read();
@@ -424,55 +558,33 @@
 
                         buffer += decoder.decode(value, { stream: true });
                         const lines = buffer.split('\n');
-                        buffer = lines.pop(); 
+                        buffer = lines.pop(); // Keep the last partial line
 
                         for (const line of lines) {
-                            if (!line.startsWith('data: ')) continue;
-                            try {
-                                const rawJson = line.substring(6).trim();
-                                if (!rawJson) continue;
-                                const payload = JSON.parse(rawJson);
-                                
-                                if (payload.event === 'message_chunk') {
-                                    if (isFirstChunk) {
-                                        assistantMessageP.innerHTML = '';
-                                        isFirstChunk = false;
+                            if (line.startsWith('data: ')) {
+                                const jsonString = line.substring(6);
+                                if (jsonString.trim() === '[DONE]') continue;
+                                try {
+                                    const data = JSON.parse(jsonString);
+                                    if (data.event === 'on_chat_model_stream' && data.data.chunk.content) {
+                                        aiMessageElement.innerHTML += data.data.chunk.content.replace(/\n/g, '<br>');
+                                        scrollToBottom();
+                                    } else if (data.event === 'on_tool_end' && data.name === 'LangGraph') {
+                                        updateToolUI(data, toolContainer);
+                                        scrollToBottom();
                                     }
-                                    assistantMessageP.innerHTML += payload.data.replace(/\n/g, '<br>');
-                                } else if (payload.event === 'tool_update') {
-                                    if (toolContainer) {
-                                        toolContainer.style.display = 'block';
-                                        updateToolUI(payload.data, toolContainer);
-                                    }
-                                } else if (payload.event === 'title_chunk') {
-                                    const headerTitle = document.getElementById('chat-header-title');
-                                    const sidebarTitle = document.getElementById(`session-title-${sessionId}`);
-                                    if (isFirstTitleChunk) {
-                                        if(headerTitle) headerTitle.textContent = '';
-                                        if(sidebarTitle) sidebarTitle.textContent = '';
-                                        isFirstTitleChunk = false;
-                                    }
-                                    if (headerTitle) headerTitle.textContent += payload.data;
-                                    if (sidebarTitle) sidebarTitle.textContent += payload.data;
-                                } else if (payload.event === 'error') {
-                                    assistantMessageP.innerHTML = `<span class="text-red-500">Error: ${payload.data}</span>`;
-                                    break;
+                                } catch (e) {
+                                    console.error('Error parsing stream data:', e, 'Raw line:', line);
                                 }
-                                scrollToBottom();
-                            } catch (e) {
-                                console.error('Error parsing stream data:', e, 'line:', line);
                             }
                         }
                     }
                 } catch (error) {
-                    if (error.name === 'AbortError') {
-                        console.log('Stream fetch aborted.');
-                        assistantMessageP.innerHTML += '<br><i class="text-gray-500">...stream stopped.</i>';
-                    } else {
-                        console.error('Fetch error:', error);
-                        assistantMessageP.innerHTML = `<span class="text-red-500">An error occurred. Please try again.</span>`;
+                    if (error.name !== 'AbortError') {
+                        aiMessageElement.innerHTML = `<span class="text-red-500">오류가 발생했습니다: ${error.message}</span>`;
                     }
                 } finally {
+                    typingIndicator.style.display = 'none';
                     messageInput.disabled = false;
                     sendButton.disabled = false;
                     typingIndicator.style.display = 'none';

@@ -1,4 +1,6 @@
 fastapi
+boto3
+s3fs
 uvicorn[standard]
 gunicorn
 langgraph>=0.2.6
@@ -21,3 +23,4 @@ langchain_openai
 langgraph-checkpoint-postgres
 psycopg[binary,pool]
 psycopg2-binary
+langgraph_supervisor

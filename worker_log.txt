@@ -1,0 +1,12 @@
+LLM worker process started.
+Reading CSV from path: temp_a69e68c2-4ada-48c1-9755-1219f6ce0195.csv
+Successfully read CSV to DataFrame in worker.
+Initializing OpenAI client...
+OpenAI client initialized.
+Data summary created.
+Prompt created.
+Sending request to OpenAI API...
+Received response from OpenAI API.
+Extracted result from response.
+Put result into the queue.
+Worker removed temp file: temp_a69e68c2-4ada-48c1-9755-1219f6ce0195.csv

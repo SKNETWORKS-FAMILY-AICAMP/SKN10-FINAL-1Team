@@ -21,3 +21,4 @@ tqdm>=4.65.0
 pinecone
 uvicorn
 gunicorn
+input_variables
