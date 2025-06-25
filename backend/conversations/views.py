@@ -20,35 +20,41 @@ def chatbot_view(request, session_id=None):
         initial_messages = ChatMessage.objects.filter(session_id=session_id).order_by('created_at')
         
         for message in initial_messages:
-            message.processed_tool_events = []
+            message.tool_calls = []
             if message.role == 'assistant' and isinstance(message.tool_data, dict):
                 tool_events = {}
+                # This loop finds all tool calls and their arguments
                 for agent_state in message.tool_data.values():
                     if isinstance(agent_state, dict) and 'messages' in agent_state:
-                        # First pass: collect tool calls
                         for msg in agent_state.get('messages', []):
                             if isinstance(msg, dict) and msg.get('type') == 'ai' and msg.get('tool_calls'):
                                 for tc in msg.get('tool_calls', []):
                                     if isinstance(tc, dict) and 'id' in tc:
-                                        # Pretty print args for template
-                                        tc['args_pretty'] = json.dumps(tc.get('args', {}), indent=2)
+                                        try:
+                                            args_pretty = json.dumps(tc.get('args', {}), indent=2, ensure_ascii=False)
+                                        except (TypeError, json.JSONDecodeError):
+                                            args_pretty = str(tc.get('args', {}))
+                                        tc['args_pretty'] = args_pretty
                                         tool_events[tc['id']] = {'call': tc, 'output': 'Pending...'}
-                        
-                        # Second pass: collect tool outputs
+                
+                # This loop finds the output for each tool call
+                for agent_state in message.tool_data.values():
+                    if isinstance(agent_state, dict) and 'messages' in agent_state:
                         for msg in agent_state.get('messages', []):
                             if isinstance(msg, dict) and msg.get('type') == 'tool' and 'tool_call_id' in msg:
                                 tool_call_id = msg['tool_call_id']
                                 if tool_call_id in tool_events:
-                                    output_content = msg.get('content', '')
-                                    try:
-                                        # Pretty-print JSON if possible
-                                        parsed_json = json.loads(output_content)
-                                        tool_events[tool_call_id]['output'] = json.dumps(parsed_json, indent=2)
-                                    except (json.JSONDecodeError, TypeError):
-                                        tool_events[tool_call_id]['output'] = output_content
-                
+                                    tool_events[tool_call_id]['output'] = msg.get('content', '')
+
+                # This formats the data for the template
                 if tool_events:
-                    message.processed_tool_events = list(tool_events.values())
+                    processed_calls = []
+                    for event in tool_events.values():
+                        call_data = event.get('call', {})
+                        # Combine the 'call' dict with the 'output' key
+                        call_data['output'] = event.get('output', '')
+                        processed_calls.append(call_data)
+                    message.tool_calls = processed_calls
 
         active_session_id = session_id
     else:
@@ -244,6 +250,34 @@ async def chat_stream(request, session_id):
                         content=final_ai_content.strip(),
                         tool_data=final_tool_data
                     )
+
+                    # Yield a final event with all tool calls for this message
+                    if final_tool_data:
+                        processed_calls = []
+                        tool_events = {}
+                        # This logic mirrors the historical message processing in chatbot_view
+                        for agent_state in final_tool_data.values():
+                            if isinstance(agent_state, dict) and 'messages' in agent_state:
+                                for msg in agent_state.get('messages', []):
+                                    if isinstance(msg, dict) and msg.get('type') == 'ai' and msg.get('tool_calls'):
+                                        for tc in msg.get('tool_calls', []):
+                                            if isinstance(tc, dict) and 'id' in tc:
+                                                tool_events[tc['id']] = {'call': tc, 'output': None}
+                        
+                        for agent_state in final_tool_data.values():
+                            if isinstance(agent_state, dict) and 'messages' in agent_state:
+                                for msg in agent_state.get('messages', []):
+                                    if isinstance(msg, dict) and msg.get('type') == 'tool' and 'tool_call_id' in msg:
+                                        tool_call_id = msg['tool_call_id']
+                                        if tool_call_id in tool_events:
+                                            tool_events[tool_call_id]['output'] = msg.get('content', '')
+                        
+                        for event in tool_events.values():
+                            call_data = event.get('call', {})
+                            call_data['output'] = event.get('output', '')
+                            processed_calls.append(call_data)
+
+                        yield f"data: {json.dumps({'event': 'stream_end', 'tool_calls': processed_calls})}\n\n"
 
             except httpx.RequestError as e:
                 print(f"---[HTTPX STREAM ERROR] An error occurred: {e}")

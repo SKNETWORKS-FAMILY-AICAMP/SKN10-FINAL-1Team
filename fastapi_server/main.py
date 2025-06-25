@@ -14,7 +14,7 @@ load_dotenv()
 import os
 from contextlib import asynccontextmanager
 from collections import ChainMap
-from agent.graph import get_graph
+from agent.graph import get_swarm_graph
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 app = FastAPI(
@@ -79,10 +79,12 @@ async def invoke_agent(invocation_request: InvocationRequest):
     async def event_stream():
         # Create the checkpointer and graph for each request to isolate lifecycles.
         async with AsyncPostgresSaver.from_conn_string(os.environ["DB_URI"]) as checkpointer:
-            graph = get_graph(checkpointer)
+            graph = get_swarm_graph(checkpointer)
             async for chunk in graph.astream(
                 {"messages": messages},
                 config=invocation_request.config,
+                # 클라이언트(Django)가 'updates' 스트림도 기대하므로, 이를 추가하여 상태 동기화를 보장합니다.
+                # 'coding_assistant'의 복잡한 도구는 상태 추적을 위해 'updates' 스트림이 필수적입니다.
                 stream_mode=["messages"]
             ):
                 try:

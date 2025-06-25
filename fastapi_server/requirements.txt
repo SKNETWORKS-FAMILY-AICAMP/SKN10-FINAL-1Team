@@ -21,3 +21,6 @@ langchain_openai
 langgraph-checkpoint-postgres
 psycopg[binary,pool]
 psycopg2-binary
+langchain-pinecone
+langchain-experimental
+PyGithub
