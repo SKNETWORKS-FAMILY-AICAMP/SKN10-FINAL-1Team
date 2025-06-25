@@ -46,7 +46,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework', 'rest_framework_simplejwt', 'corsheaders',
     'accounts', 'knowledge', 'conversations', 'mlops',
-    'pgvector.django'
+    'pgvector.django',
+    'django_nextjs'
 ]
 
 # Custom user model
@@ -205,4 +206,10 @@ SIMPLE_JWT = {
 # Login and Logout URLs for session-based authentication
 LOGIN_URL = 'accounts:login_page'
 LOGOUT_REDIRECT_URL = 'home'
+
+
+# django-nextjs settings
+NEXTJS_SETTINGS = {
+    "nextjs_server_url": "http://127.0.0.1:3000"
+}
 
