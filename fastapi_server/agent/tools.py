@@ -2,11 +2,12 @@
 import json
 import uuid
 import base64
+import re
 from typing import Dict, Any, List, Optional
 import os
 import sys
 import traceback
-import traceback
+import re
 from io import StringIO
 from pathlib import Path
 
@@ -332,15 +333,39 @@ def analyze_csv_with_churn_prediction(query: str, csv_file_content: str) -> str:
             error_msg = f"Prediction failed. Details: {prediction_summary}"
             print(f"[Tool Error] {error_msg}")
             return error_msg
+        elif (match := re.search(r'(\d+)\s*명', query)) and ('상위' in query or '높은' in query):
+            n = int(match.group(1))
+            print(f"[Tool] ROUTE: MANUAL TOP {n}. Bypassing agent.")
+            
+            id_col = 'customerid'
+            prob_col = 'Churn Probability'
 
-        print("[Tool] 7. Initializing LLM for Pandas Agent...")
-        llm = ChatOpenAI(temperature=0, model="gpt-4-turbo")
-        
-        KOREAN_PROMPT_PREFIX = """
-너는 매우 친절하고 유능한 데이터 분석 전문가야.
+            # Sort and get top N from the entire dataframe
+            top_n_df = result_df.sort_values(by=prob_col, ascending=False).head(n)
+            
+            response_lines = [f"이탈 확률이 가장 높은 상위 {n}명의 고객 정보는 다음과 같습니다:\n"]
+            for i, (_, row) in enumerate(top_n_df.iterrows(), 1):
+                customer_id = row[id_col]
+                churn_prob = row[prob_col]
+                response_lines.append(f"{i}. 고객 ID '{customer_id}'의 이탈 확률은 약 {churn_prob*100:.2f}%입니다.")
+                
+            final_response = "\n".join(response_lines)
+            print("[Tool] Manually formatted top N response assembled.")
+            return final_response
+
+        else:
+            print("[Tool] ROUTE: PANDAS AGENT. Query did not match prediction keyword.")
+            # For follow-up questions, use the Pandas Agent.
+            print("[Tool] 7. Initializing LLM for Pandas Agent for follow-up query...")
+            llm = ChatOpenAI(temperature=0, model="gpt-4-turbo")
+            
+            KOREAN_PROMPT_PREFIX = """
+너는 매우 유능한 데이터 분석 전문가야.
 주어진 데이터프레임을 사용하여 사용자의 질문에 한국어로 답변해야 해.
-답변은 항상 명확하고, 사용자가 이해하기 쉽게, 그리고 친근한 챗봇 스타일로 작성해줘.
-예를 들어, "상위 5명의 고객"을 묻는다면, 단순히 데이터를 나열하는 대신, "이탈 확률이 가장 높은 상위 5명의 고객 정보는 다음과 같아요." 와 같이 자연스러운 문장으로 설명해줘.
+답변은 항상 명확하고, 사용자가 이해하기 쉽게, 그리고 사무적인 챗봇 스타일로 작성해줘.
+각 고객들에 대해 너무 자세히 설명 할 필요는 없고, 고객 ID랑 이탈 확률만 알려줘
+예를 들어, "상위 5명의 고객"을 묻는다면, 전체 고객중에 이탈 확률이 높은 순서대로 알려주고, 
+단순히 데이터를 나열하는 대신, "이탈 확률이 가장 높은 상위 5명의 고객 정보는 다음과 같습니다다." 와 같이 자연스러운 문장으로 설명해줘.
 """
 
         pandas_agent = create_pandas_dataframe_agent(
