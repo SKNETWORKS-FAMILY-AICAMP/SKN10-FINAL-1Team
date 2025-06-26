@@ -34,10 +34,11 @@
     <section class="p-4 @container">
     <div class="flex w-full flex-col gap-6 @[520px]:flex-row @[520px]:justify-between @[520px]:items-center border-b border-[var(--secondary-color)] pb-6 mb-6">
     <div class="flex items-center gap-4">
-    <div class="relative bg-center bg-no-repeat aspect-square bg-cover rounded-full min-h-32 w-32 border-2 border-gray-200 group" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCNGSfTOpAE7zw6ZVAz0qQx2V3dCLRf2xqHRD_ArU2UecfaBnG79Ft7ks7_C9qaEvNv6jj4SxgkUsR-r45h2Emif6ozKCOsKy7PM3O-aq8L5hPKLh9hj6bVrSyYfOV7T9aOXW8JcSO9qwlsonqOlZvHDbUGXdfDuZYpG8F3JuJYl2sZ_GhUNJVqMzna9Iqy1gSMBsiC1reWysP4NOSqIz4WzmVxTIfBnnMd9vYnGsG_cLI8IbQW7u1ZvmomtXDbTJRVyQFIMLTmTZcv");'>
-    <button class="absolute bottom-1 right-1 bg-[var(--primary-color)] text-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] focus:ring-offset-2">
-    <span class="material-icons text-sm">edit</span>
-    </button>
+    <div class="relative w-32 h-32 group">
+        <img id="profileImage" src="{% if user.profile_image %}{{ user.profile_image.url }}{% else %}https://via.placeholder.com/128{% endif %}" alt="Profile Image" class="w-full h-full rounded-full object-cover border-2 border-gray-200">
+        <button class="absolute bottom-1 right-1 bg-[var(--primary-color)] text-white rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] focus:ring-offset-2">
+            <span class="material-icons text-sm">edit</span>
+        </button>
     </div>
     <div class="flex flex-col justify-center">
         {% if user.name %}
@@ -48,7 +49,7 @@
     </div>
     </div>
     </section>
-    <form class="space-y-6 px-4" method="POST">
+    <form id="profileForm" method="post" enctype="multipart/form-data" class="mt-8 space-y-6 px-4">
         {% csrf_token %}
     <div>
     <h3 class="text-[var(--text-primary)] text-xl font-semibold leading-tight tracking-[-0.015em] mb-4">Profile Information</h3>
@@ -57,15 +58,21 @@
     <p class="text-[var(--text-primary)] text-sm font-medium leading-normal pb-2">Nickname</p>
     <input class="form-input flex w-full max-w-md min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-color)] border border-[#dbe1e6] bg-white focus:border-transparent h-12 placeholder:text-[var(--text-secondary)] p-3 text-base font-normal leading-normal transition-colors" placeholder="Enter your nickname" value="{{ user.name }}" name="name"/>
     </label>
-    <label class="flex flex-col">
-    <p class="text-[var(--text-primary)] text-sm font-medium leading-normal pb-2">Profile Photo URL</p>
-    <div class="flex w-full max-w-md flex-1 items-stretch rounded-lg border border-[#dbe1e6] focus-within:ring-2 focus-within:ring-[var(--primary-color)] focus-within:border-transparent transition-all">
-    <input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden text-[var(--text-primary)] bg-white h-12 placeholder:text-[var(--text-secondary)] p-3 rounded-l-lg border-0 focus:ring-0 text-base font-normal leading-normal" placeholder="Enter image URL or upload" value=""/>
-    <button class="text-[var(--text-secondary)] hover:text-[var(--primary-color)] flex bg-gray-50 items-center justify-center px-4 rounded-r-lg border-l border-[#dbe1e6] transition-colors" type="button">
-    <span class="material-icons">upload_file</span>
-    </button>
+    <div>
+        <label for="profile_image" class="block text-sm font-medium text-gray-700">Upload new photo</label>
+        <input type="file" name="profile_image" id="profile_image" class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
     </div>
-    </label>
+
+    <div class="relative flex items-center">
+        <div class="flex-grow border-t border-gray-300"></div>
+        <span class="flex-shrink mx-4 text-gray-400 text-sm">OR</span>
+        <div class="flex-grow border-t border-gray-300"></div>
+    </div>
+
+    <div>
+        <label for="photo_url" class="block text-sm font-medium text-gray-700">Enter image URL</label>
+        <input type="text" id="photo_url" name="photo_url" class="mt-1 w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" placeholder="https://example.com/image.jpg">
+    </div>
     </div>
     </div>
     <div class="flex pt-4 justify-end border-t border-[var(--secondary-color)]">
@@ -80,36 +87,85 @@
     </div>
     
     <script>
-        function loadHeader() {
-            fetch('/_header.html')
-                .then(response => response.text())
-                .then(data => {
-                    document.getElementById('header-placeholder').innerHTML = data;
-                    const mobileSidebarToggle = document.getElementById('open-sidebar-mobile');
-                    if (mobileSidebarToggle) {
-                      mobileSidebarToggle.style.display = 'none';
-                    }
-                    // Set active link
-                    const currentPage = window.location.pathname.split('/').pop().replace('.html', '');
-                    // Use 'profile' as the data-navlink value for profile.html
-                    const navLink = document.querySelector(`nav a[data-navlink='profile']`); 
-                    if (navLink) {
-                        navLink.classList.add('text-[var(--text-primary)]', 'bg-[var(--secondary-color)]');
-                        navLink.classList.remove('text-[var(--text-secondary)]');
-                    }
+        document.addEventListener('DOMContentLoaded', function () {
+            // Function to load the header
+            function loadHeader() {
+                fetch('/_header.html')
+                    .then(response => response.text())
+                    .then(data => {
+                        document.getElementById('header-placeholder').innerHTML = data;
+                        const mobileSidebarToggle = document.getElementById('open-sidebar-mobile');
+                        if (mobileSidebarToggle) {
+                            mobileSidebarToggle.style.display = 'none';
+                        }
+                        // Set active link for profile page
+                        const navLink = document.querySelector(`nav a[data-navlink='profile']`);
+                        if (navLink) {
+                            navLink.classList.add('text-[var(--text-primary)]', 'bg-[var(--secondary-color)]');
+                            navLink.classList.remove('text-[var(--text-secondary)]');
+                        }
+                    })
+                    .catch(error => console.error('Error loading header:', error));
+            }
 
-                    // Handle mobile sidebar toggle if specific JS exists for profile.html's sidebar
-                    const openSidebarMobileButton = document.getElementById('open-sidebar-mobile');
-                    if (openSidebarMobileButton) {
-                        // if (typeof openMobileProfileSidebar === 'function') { // Example function name
-                        //    openSidebarMobileButton.addEventListener('click', openMobileProfileSidebar);
-                        // } else {
-                           console.log('Mobile menu button present in header on profile.html, but no specific action is configured yet.');
-                        // }
-                    }
-                })
-                .catch(error => console.error('Error loading header:', error));
-        }
-        document.addEventListener('DOMContentLoaded', loadHeader);
+            // Load the header
+            loadHeader();
+
+            // Handle profile form submission with AJAX
+            const profileForm = document.getElementById('profileForm');
+            if (profileForm) {
+                profileForm.addEventListener('submit', function (event) {
+                    event.preventDefault(); // Prevent default page reload
+
+                    const formData = new FormData(profileForm);
+                    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                    const saveButton = profileForm.querySelector('button[type="submit"]');
+                    const buttonOriginalHTML = saveButton.innerHTML;
+
+                    // Disable button and show loading state
+                    saveButton.disabled = true;
+                    saveButton.innerHTML = `<span class="truncate">Saving...</span>`;
+
+                    fetch(window.location.href, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-CSRFToken': csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest' // To help backend identify AJAX request
+                        }
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            // Try to get error message from backend if available
+                            return response.json().then(err => { throw err; });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.status === 'success' && data.profile_image_url) {
+                            const profileImage = document.getElementById('profileImage');
+                            if (profileImage) {
+                                // Update image src. Add a timestamp to prevent caching issues.
+                                profileImage.src = data.profile_image_url + '?' + new Date().getTime();
+                            }
+                            // Optionally, display a success message to the user
+                            alert('Profile updated successfully!'); 
+                        } else {
+                            // Handle cases where status is not 'success' or URL is missing
+                            alert(data.message || 'An error occurred while updating the profile.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Failed to update profile. ' + (error.message || 'Please check the console for details.'));
+                    })
+                    .finally(() => {
+                        // Restore button state
+                        saveButton.disabled = false;
+                        saveButton.innerHTML = buttonOriginalHTML;
+                    });
+                });
+            }
+        });
     </script>
     </body></html>

@@ -13,10 +13,15 @@ import os
 from dotenv import load_dotenv
 from pathlib import Path
 
-load_dotenv()
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Explicitly load the .env file from the backend directory (BASE_DIR)
+dotenv_path = BASE_DIR / '.env'
+print(f"--- Attempting to load .env from: {dotenv_path} ---")
+# Use override=True to ensure this .env file's values are used.
+loaded = load_dotenv(dotenv_path=dotenv_path, override=True)
+print(f"--- .env file at {dotenv_path} loaded: {loaded} ---")
 
 
 # Quick-start development settings - unsuitable for production
@@ -46,7 +51,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework', 'rest_framework_simplejwt', 'corsheaders',
     'accounts', 'knowledge', 'conversations', 'mlops',
-    'pgvector.django'
+    'pgvector.django',
+    'storages', # For AWS S3 storage
 ]
 
 # Custom user model
@@ -201,6 +207,45 @@ SIMPLE_JWT = {
 #     'http://localhost:3000',  # Next.js frontend
 # ]
 # CORS_ALLOW_CREDENTIALS = True
+
+# AWS S3 Storage Settings
+# ------------------------------------------------------------------------------
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('S3_BUCKET_NAME')
+AWS_S3_REGION_NAME = os.getenv('AWS_DEFAULT_REGION', 'ap-northeast-2') # Default to Seoul region
+
+
+
+# --- DEBUGGING PRINT STATEMENTS ---
+print("--- AWS S3 SETTINGS DEBUG ---")
+print(f"AWS_ACCESS_KEY_ID: {'Loaded' if os.getenv('AWS_ACCESS_KEY_ID') else 'Not Loaded'}")
+print(f"AWS_STORAGE_BUCKET_NAME: {os.getenv('S3_BUCKET_NAME')}")
+print(f"AWS_S3_REGION_NAME: {os.getenv('AWS_DEFAULT_REGION')}")
+print("-----------------------------")
+
+# Media files storage configuration using django-storages
+AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400', # Cache static files for 1 day
+}
+AWS_LOCATION = 'media' # Subfolder for media files within the S3 bucket
+
+# Django 4.2+ requires the STORAGES setting. DEFAULT_FILE_STORAGE is deprecated.
+STORAGES = {
+    # Media files (user uploads)
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+    },
+    # Static files (CSS, JS, etc.) - using standard storage for now
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/'
+# MEDIA_ROOT is not needed when using S3 for media storage
+
 
 # Login and Logout URLs for session-based authentication
 LOGIN_URL = 'accounts:login_page'

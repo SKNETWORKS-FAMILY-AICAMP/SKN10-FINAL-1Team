@@ -9,3 +9,8 @@ langgraph_sdk
 uvicorn
 gunicorn
 openai
+boto3
+django-storages
+Pillow
+requests
+python-dotenv

@@ -5,6 +5,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 
 
+
 class UserRole(models.TextChoices):
     ADMIN = "admin", "Admin"
     ENGINEER = "engineer", "Engineer"
@@ -56,6 +57,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=100, blank=True)
     role = models.CharField(max_length=20, choices=UserRole.choices, default=UserRole.GUEST)
+    profile_image = models.ImageField(upload_to='profile_images/', null=True, blank=True, verbose_name="Profile Image")
     created_at = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(null=True, blank=True)
 

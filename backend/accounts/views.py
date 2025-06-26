@@ -10,6 +10,8 @@ from django.shortcuts import render, redirect # Added for template rendering and
 from django.contrib.auth.decorators import login_required # Added for view protection
 from django.contrib.auth import login as auth_login, logout as auth_logout # For session auth
 from django.http import JsonResponse # For AJAX responses
+import requests
+from django.core.files.base import ContentFile
 
 # API Login view (SimpleJWT)
 @api_view(['POST'])
@@ -100,12 +102,50 @@ def update_profile(request):
 @login_required
 def profile_view(request):
     """Renders the user profile page and handles profile updates."""
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+
     if request.method == 'POST':
-        user = request.user
-        user.name = request.POST.get('name', user.name)
-        user.save()
-        return redirect('accounts:profile')
-    
+        user = request.user  # Define user here to have it in scope for the exception block
+        try:
+            user.name = request.POST.get('name', user.name)
+
+            profile_image_file = request.FILES.get('profile_image')
+            photo_url = request.POST.get('photo_url')
+
+            if profile_image_file:
+                user.profile_image = profile_image_file
+            elif photo_url:
+                try:
+                    response = requests.get(photo_url, stream=True)
+                    response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
+                    file_name = photo_url.split('/')[-1].split('?')[0] # Basic file name extraction
+                    user.profile_image.save(file_name, ContentFile(response.content), save=True)
+                except requests.exceptions.RequestException as e:
+                    if is_ajax:
+                        return JsonResponse({'status': 'error', 'message': f'Failed to fetch image from URL: {e}'}, status=400)
+                    else:
+                        # For non-AJAX, you might use Django's messages framework
+                        print(f"Error fetching image from URL: {e}")
+                        # Fall through to redirect, but the image won't be updated.
+
+            user.save()
+
+            if is_ajax:
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Profile updated successfully!',
+                    'profile_image_url': user.profile_image.url if user.profile_image else ''
+                })
+            else:
+                return redirect('accounts:profile')
+
+        except Exception as e:
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+            else:
+                # Handle non-AJAX error, maybe with Django messages framework and redirect
+                return redirect('accounts:profile')
+
     return render(request, 'accounts/profile.html', {'user': request.user})
 
 @login_required
