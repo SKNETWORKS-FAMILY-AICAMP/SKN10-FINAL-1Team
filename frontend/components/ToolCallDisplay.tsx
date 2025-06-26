@@ -80,22 +80,12 @@ export function ToolCallDisplay({ toolCalls, forceRefresh = false }: ToolCallDis
       console.log("🔄 ToolCallDisplay 강제 리프레시 실행")
       setRefreshKey(prev => prev + 1)
       
-      // 강제 리프레시 후 도구 상태 재확인 (더 긴 지연)
+      // 강제 리프레시 후 도구 상태 재확인
       setTimeout(() => {
         const completedCount = toolCalls.filter(call => call.output).length
         const totalCount = toolCalls.length
         console.log(`🔍 강제 리프레시 후 도구 상태: ${completedCount}/${totalCount} 완료`)
-        
-        // 만약 여전히 완료되지 않은 도구가 있다면 추가 확인
-        if (completedCount < totalCount && totalCount > 0) {
-          console.log("⚠️ 일부 도구가 아직 완료되지 않았습니다. 추가 확인 필요.")
-          // 추가 지연 후 한 번 더 확인
-          setTimeout(() => {
-            const finalCompletedCount = toolCalls.filter(call => call.output).length
-            console.log(`🔍 최종 확인 - 도구 상태: ${finalCompletedCount}/${totalCount} 완료`)
-          }, 500)
-        }
-      }, 300)
+      }, 100)
     }
     prevForceRefresh.current = forceRefresh
   }, [forceRefresh, toolCalls])

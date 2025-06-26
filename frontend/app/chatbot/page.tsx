@@ -15,6 +15,7 @@ import { LoadingIndicator } from "@/components/LoadingIndicator"
 import { MessageInput } from "@/components/MessageInput"
 import { ChartModal } from "@/components/ChartModal"
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog"
+import { ChartSidebar } from "@/components/ChartSidebar"
 
 export default function ChatbotPage() {
   const { sessions, activeSessionId, setActiveSessionId, createNewSession, deleteSession, updateSessionTitle } = useChatSessions()
@@ -28,6 +29,7 @@ export default function ChatbotPage() {
   const [isChartModalOpen, setChartModalOpen] = useState(false)
   const [chartContent, setChartContent] = useState<ChartContent | null>(null)
   const [forceRefresh, setForceRefresh] = useState(false)
+  const [isChartSidebarOpen, setChartSidebarOpen] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -207,6 +209,12 @@ export default function ChatbotPage() {
                     console.error("Failed to parse chart data:", e)
                   }
                 }
+
+                // 6. 디버깅 로그 추가
+                console.log(`🔧 Tool update received: ${finalToolCalls.length} tools`)
+                finalToolCalls.forEach((call, index) => {
+                  console.log(`  ${index + 1}. ${call.name}: ${call.output ? '완료' : '진행 중'}`)
+                })
               } else if (json.event === "title_start") {
                 isTitleStarted = true
                 if (activeSessionId) {
@@ -296,7 +304,10 @@ export default function ChatbotPage() {
                 key={message.id}
                 message={message}
                 chartContent={chartContent}
-                onOpenChart={() => setChartModalOpen(true)}
+                onOpenChart={(chartData) => {
+                  setChartContent(chartData);
+                  setChartSidebarOpen(true);
+                }}
                 forceRefresh={forceRefresh}
               />
             ))}
@@ -318,7 +329,11 @@ export default function ChatbotPage() {
         />
       </div>
 
-      <ChartModal isOpen={isChartModalOpen} onClose={() => setChartModalOpen(false)} chartContent={chartContent} />
+      <ChartSidebar
+        isOpen={isChartSidebarOpen}
+        onClose={() => setChartSidebarOpen(false)}
+        chartContent={chartContent}
+      />
 
       <DeleteConfirmDialog
         isOpen={!!showDeleteConfirm}

@@ -9,7 +9,7 @@ from django.http import StreamingHttpResponse, Http404, JsonResponse
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods, require_POST
+from django.views.decorators.http import require_POST
 from .models import ChatSession, ChatMessage, AgentType
 
 @login_required
@@ -71,126 +71,28 @@ def chatbot_view(request, session_id=None):
 
 
 @login_required
-def session_list_view(request):
-    """
-    API view to list all non-deleted chat sessions for the logged-in user.
-    """
-    if request.method == 'GET':
-        user = request.user
-        sessions = ChatSession.objects.filter(user=user, deleted_check=False).order_by('-started_at')
-        
-        sessions_data = [
-            {
-                'id': str(session.id),
-                'title': session.title,
-                'started_at': session.started_at.isoformat()
-            }
-            for session in sessions
-        ]
-        
-        return JsonResponse(sessions_data, safe=False)
-    return JsonResponse({'error': 'Invalid request method'}, status=405)
-
-
-@login_required
-def message_list_view(request, session_id):
-    """
-    API view to list all messages for a specific chat session, including processed tool data.
-    """
-    if request.method == 'GET':
-        user = request.user
-        # Ensure the session exists and belongs to the logged-in user to prevent unauthorized access.
-        get_object_or_404(ChatSession, id=session_id, user=user)
-        
-        messages_query = ChatMessage.objects.filter(session_id=session_id).order_by('created_at')
-        
-        messages_data = []
-        for message in messages_query:
-            tool_calls_data = []
-            if message.role == 'assistant' and isinstance(message.tool_data, dict):
-                # This logic is adapted from chatbot_view to process tool data for the API response.
-                tool_events = {}
-                # First pass: find all tool calls and their arguments.
-                for agent_state in message.tool_data.values():
-                    if isinstance(agent_state, dict) and 'messages' in agent_state:
-                        for msg in agent_state.get('messages', []):
-                            if isinstance(msg, dict) and msg.get('type') == 'ai' and msg.get('tool_calls'):
-                                for tc in msg.get('tool_calls', []):
-                                    if isinstance(tc, dict) and 'id' in tc:
-                                        tool_events[tc['id']] = {'call': tc, 'output': 'Pending...'}
-                
-                # Second pass: find the output for each tool call.
-                for agent_state in message.tool_data.values():
-                    if isinstance(agent_state, dict) and 'messages' in agent_state:
-                        for msg in agent_state.get('messages', []):
-                            if isinstance(msg, dict) and msg.get('type') == 'tool' and 'tool_call_id' in msg:
-                                tool_call_id = msg['tool_call_id']
-                                if tool_call_id in tool_events:
-                                    tool_events[tool_call_id]['output'] = msg.get('content', '')
-
-                # Third pass: format the data for the frontend.
-                if tool_events:
-                    for event in tool_events.values():
-                        call_data = event.get('call', {})
-                        call_data['output'] = event.get('output', '')
-                        tool_calls_data.append({
-                            'name': call_data.get('name'),
-                            'args': call_data.get('args'),
-                            'output': call_data.get('output')
-                        })
-
-            messages_data.append({
-                'id': str(message.id),
-                'role': message.role,
-                'content': message.content,
-                'createdAt': message.created_at.isoformat(),
-                'tool_calls': tool_calls_data,
-            })
-            
-        return JsonResponse(messages_data, safe=False)
-    return JsonResponse({'error': 'Invalid request method'}, status=405)
-
-
-@login_required
 @require_POST
 async def session_create_view(request):
-    try:
-        data = json.loads(request.body)
-        title = data.get('title', '새로운 채팅')
-    except json.JSONDecodeError:
-        title = '새로운 채팅'
-
     user = request.user
-    session = await ChatSession.objects.acreate(user=user, title=title)
-    
-    session_data = {
-        'id': str(session.id),
-        'title': session.title,
-        'started_at': session.started_at.isoformat()
-    }
-    return JsonResponse(session_data, status=201)
+    # 기본 에이전트 타입으로 새 세션 생성
+    session = await ChatSession.objects.acreate(user=user, agent_type=AgentType.DEFAULT)
+    return JsonResponse({'session_id': str(session.id)})
 
 
 @require_POST
 @csrf_exempt
 async def chat_stream(request, session_id):
     try:
-        user_message = None
-        if 'application/json' in request.content_type:
-            data = json.loads(request.body)
-            user_message = data.get("message")
-        else:  # Assumes multipart/form-data
-            user_message = request.POST.get("message")
-            # Files are in request.FILES but are not yet processed.
-            # This change is to prevent the 400 error.
+        data = json.loads(request.body)
+        message_content = data.get('message')
         user = request.user
 
-        if not user_message:
+        if not message_content:
             return JsonResponse({"error": "Message content is empty."}, status=400)
 
         session = await ChatSession.objects.aget(id=session_id, user=user)
         # Save user message first
-        await ChatMessage.objects.acreate(session=session, role='user', content=user_message)
+        await ChatMessage.objects.acreate(session=session, role='user', content=message_content)
         
         # Check if this is the first message to generate a title
         is_first_message = await ChatMessage.objects.filter(session=session).acount() == 1
@@ -205,14 +107,14 @@ async def chat_stream(request, session_id):
         async def event_stream():
             # Stream title first if it's the first message
             if is_first_message:
-                async for title_event in _stream_and_save_title(session, user_message):
+                async for title_event in _stream_and_save_title(session, message_content):
                     yield title_event
 
             # Then, proceed with the main agent response streaming
             final_ai_content = ""
             final_tool_data = None
             current_tool_state = {"assistant": {"messages": []}}
-            active_tool_calls = {}  # Use index as key for simplicity
+            active_tool_calls = {}
             known_tool_call_ids = set()
 
             try:
@@ -220,7 +122,7 @@ async def chat_stream(request, session_id):
                 headers = {"X-Internal-Secret": internal_secret} if internal_secret else {}
                 async with httpx.AsyncClient() as client:
                     payload = {
-                        "input": {"messages": [{"role": "user", "content": user_message}]},
+                        "input": {"messages": [{"role": "user", "content": message_content}]},
                         "config": {
                             "configurable": {"thread_id": thread_id},
                             "stream_mode": ["messages", "updates"]
@@ -235,12 +137,6 @@ async def chat_stream(request, session_id):
                                     raw_data = line[len("data: "):].strip()
                                     if not raw_data:
                                         continue
-                                    
-                                    # JSON 파싱 전에 기본적인 유효성 검사
-                                    if not raw_data.startswith('[') and not raw_data.startswith('{'):
-                                        print(f"---[INVALID JSON] Skipping invalid data: {raw_data[:100]}...")
-                                        continue
-                                    
                                     chunk = json.loads(raw_data)
                                     event_type, payload = chunk[0], chunk[1]
 
@@ -334,7 +230,6 @@ async def chat_stream(request, session_id):
 
                                 except (json.JSONDecodeError, IndexError) as e:
                                     print(f"---[STREAM PARSE ERROR] {e} on line: {raw_data}")
-                                    # JSON 파싱 오류 시에도 스트리밍을 계속 진행
                                     continue
                 
                 if final_ai_content or final_tool_data:
@@ -356,24 +251,33 @@ async def chat_stream(request, session_id):
                         tool_data=final_tool_data
                     )
 
-                    # 최종 도구 상태를 한 번 더 전송하여 확실히 완료 상태 전달
+                    # Yield a final event with all tool calls for this message
                     if final_tool_data:
-                        print(f"---[FINAL UPDATE] Sending final tool state")
-                        try:
-                            # JSON 직렬화 전에 유효성 검사
-                            final_data = {"event": "tool_update", "data": final_tool_data}
-                            json_str = json.dumps(final_data, ensure_ascii=False)
-                            yield f'data: {json_str}\n\n'
-                            print(f"---[FINAL UPDATE] Successfully sent final tool state")
-                        except Exception as e:
-                            print(f"---[FINAL UPDATE ERROR] Failed to send final tool state: {e}")
-                    
-                    # 스트리밍 완료 이벤트 전송
-                    try:
-                        yield f"data: {json.dumps({'event': 'stream_end'})}\n\n"
-                        print(f"---[STREAM END] Streaming completed successfully")
-                    except Exception as e:
-                        print(f"---[STREAM END ERROR] Failed to send stream_end: {e}")
+                        processed_calls = []
+                        tool_events = {}
+                        # This logic mirrors the historical message processing in chatbot_view
+                        for agent_state in final_tool_data.values():
+                            if isinstance(agent_state, dict) and 'messages' in agent_state:
+                                for msg in agent_state.get('messages', []):
+                                    if isinstance(msg, dict) and msg.get('type') == 'ai' and msg.get('tool_calls'):
+                                        for tc in msg.get('tool_calls', []):
+                                            if isinstance(tc, dict) and 'id' in tc:
+                                                tool_events[tc['id']] = {'call': tc, 'output': None}
+                        
+                        for agent_state in final_tool_data.values():
+                            if isinstance(agent_state, dict) and 'messages' in agent_state:
+                                for msg in agent_state.get('messages', []):
+                                    if isinstance(msg, dict) and msg.get('type') == 'tool' and 'tool_call_id' in msg:
+                                        tool_call_id = msg['tool_call_id']
+                                        if tool_call_id in tool_events:
+                                            tool_events[tool_call_id]['output'] = msg.get('content', '')
+                        
+                        for event in tool_events.values():
+                            call_data = event.get('call', {})
+                            call_data['output'] = event.get('output', '')
+                            processed_calls.append(call_data)
+
+                        yield f"data: {json.dumps({'event': 'stream_end', 'tool_calls': processed_calls})}\n\n"
 
             except httpx.RequestError as e:
                 print(f"---[HTTPX STREAM ERROR] An error occurred: {e}")
@@ -432,7 +336,7 @@ async def _stream_and_save_title(session, user_message):
 
 
 @login_required
-@require_http_methods(["DELETE"])
+@require_POST
 async def session_delete_view(request, session_id):
     try:
         session = await ChatSession.objects.aget(id=session_id, user=request.user)
