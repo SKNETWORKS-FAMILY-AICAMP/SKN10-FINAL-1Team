@@ -357,7 +357,7 @@ def analyze_csv_with_churn_prediction(query: str, csv_file_content: str) -> str:
             print("[Tool] ROUTE: PANDAS AGENT. Query did not match prediction keyword.")
             # For follow-up questions, use the Pandas Agent.
             print("[Tool] 7. Initializing LLM for Pandas Agent for follow-up query...")
-            llm = ChatOpenAI(temperature=0, model="gpt-4-turbo")
+            llm = ChatOpenAI(temperature=0, model="gpt-4o")
             
             KOREAN_PROMPT_PREFIX = """
 너는 매우 유능한 데이터 분석 전문가야.
@@ -365,6 +365,7 @@ def analyze_csv_with_churn_prediction(query: str, csv_file_content: str) -> str:
 답변은 항상 명확하고, 사용자가 이해하기 쉽게, 그리고 사무적인 챗봇 스타일로 작성해줘.
 각 고객들에 대해 너무 자세히 설명 할 필요는 없고, 고객 ID랑 이탈 확률만 알려줘
 예를 들어, "상위 5명의 고객"을 묻는다면, 전체 고객중에 이탈 확률이 높은 순서대로 알려주고, 
+"상위 몇명 고객"을 묻지 않으면, 전체 고객 이탈 확률을 알려주고,
 단순히 데이터를 나열하는 대신, "이탈 확률이 가장 높은 상위 5명의 고객 정보는 다음과 같습니다다." 와 같이 자연스러운 문장으로 설명해줘.
 """
 
