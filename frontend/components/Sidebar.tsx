@@ -51,14 +51,18 @@ export function Sidebar({
 
       {/* 네비게이션 메뉴 */}
       <div className="p-4 space-y-2">
-        <Button variant="ghost" className="w-full justify-start text-gray-700 hover:bg-blue-50 hover:text-blue-600">
-          <Home className="mr-3 h-4 w-4" />홈
-        </Button>
+        <a href="/">
+          <Button variant="ghost" className="w-full justify-start text-gray-700 hover:bg-blue-50 hover:text-blue-600">
+            <Home className="mr-3 h-4 w-4" />홈
+          </Button>
+        </a>
 
-        <Button variant="ghost" className="w-full justify-start text-gray-700 hover:bg-blue-50 hover:text-blue-600">
-          <Settings className="mr-3 h-4 w-4" />
-          설정
-        </Button>
+        <a href="/accounts/settings/">
+          <Button variant="ghost" className="w-full justify-start text-gray-700 hover:bg-blue-50 hover:text-blue-600">
+            <Settings className="mr-3 h-4 w-4" />
+            설정
+          </Button>
+        </a>
 
         <Button onClick={onNewSession} className="w-full justify-start bg-blue-600 text-white hover:bg-blue-700">
           <Plus className="mr-3 h-4 w-4" />새 세션 추가

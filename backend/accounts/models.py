@@ -58,6 +58,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     role = models.CharField(max_length=20, choices=UserRole.choices, default=UserRole.GUEST)
     created_at = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(null=True, blank=True)
+    github_access_token = models.CharField(max_length=255, blank=True, null=True)  # GitHub 액세스 토큰 필드
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

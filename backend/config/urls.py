@@ -33,7 +33,7 @@ def home_view(request):
 
 api_urlpatterns = [
     path('health-check/', health_check, name='health-check'),
-    path('accounts/', include('accounts.urls')),
+    # path('accounts/', include('accounts.urls')), # Moved to main urlpatterns
     path('conversations/', include('conversations.urls')),
     path('knowledge/', include('knowledge.urls')),
 ]
@@ -41,6 +41,7 @@ api_urlpatterns = [
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(api_urlpatterns)),
+    path('accounts/', include('accounts.urls')), # Added accounts urls here
     
     # Django template views
     path('', home_view, name='home'),  # Django home template
@@ -53,5 +54,5 @@ urlpatterns = [
     path('nextjs/', nextjs_page(stream=True), name='nextjs_root'),
     
     # Catch-all for remaining Next.js pages (keep this last)
-    re_path(r'^(?!api/|admin/|_header\.html|nextjs/).*$', nextjs_page(stream=True)),
+    re_path(r'^(?!api/|admin/|accounts/|_header\.html|nextjs/).*$', nextjs_page(stream=True)),
 ]
