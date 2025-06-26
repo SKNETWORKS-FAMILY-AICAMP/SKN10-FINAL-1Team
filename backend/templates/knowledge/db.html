@@ -178,17 +178,6 @@
             });
             
         },
-        showDocuments(name) {
-            this.namespaceName  = name;
-            this.loading = true;
-            fetch(`/knowledge/dashboard/index_detail/${this.indexName}/${name}/`)
-            .then(res => res.json())
-            .then(data => {
-            this.documents = data.documents;
-            this.loading = false;
-            });
-            
-        },
 
     }"
     x-init="init()"
@@ -440,16 +429,17 @@
                         <template x-for="(count, name) in namespaces" :key="name">
                         <tr>
                             <td class="px-6 py-4 text-sm" >
-                                <a href="#" 
-                                @click.prevent="close();
-                                open('namespace_detail');
-                                showDocuments(name)" x-text="name"
+                                <a href="#"
+                                @click.prevent="
+                                    close();
+                                    const url = `/knowledge/dashboard/index_detail/${indexName}/${name}/`;
+                                    window.open(url, '_blank');
+                                " x-text="name"
                                 class="text-blue-500 hover:text-blue-700 underline"></a>
                             </td>
                             <td class="px-6 py-4 text-sm" x-text="count"></td>
                         </tr>
                         </template>
-
                         <template x-if="!loading && Object.keys(namespaces).length === 0">
                         <tr>
                             <td colspan="2" class="px-6 py-4 text-center text-sm text-gray-500">
@@ -463,37 +453,7 @@
             </div>
             </div>
             </div>
-            <!-- 네임스페이스 상세 모달 -->
-            <template x-teleport="body" x-show="active === 'namespace_detail'" x-cloak class="fixed inset-0 flex items-center justify-center z-50 p-4">
-                <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
-                    <div class="flex justify-between items-center mb-4 border-b pb-2">
-                        <h2 class="text-xl font-semibold">
-                            <span class="text-red-500" x-text="indexName"></span> /
-                            <span class="text-orange-500" x-text="namespaceName"></span> 문서 목록
-                        </h2>
-                        <button @click="close()" class="text-2xl leading-none">&times;</button>
-                    </div>
 
-                    
-                    <!-- 로딩 중 -->
-                    <template x-if="loading">
-                        <p class="text-center text-gray-500">로딩 중…</p>
-                    </template>
-
-                    <!-- 로딩 완료 후 문서가 없을 때 -->
-                    <template x-if="!loading && documents.length === 0">
-                        <p class="text-center text-gray-500">해당 네임스페이스에 문서가 없습니다.</p>
-                    </template>
-
-                    <!-- 문서 리스트 -->
-                    <template x-for="doc in documents" :key="doc.id">
-                        <div class="mb-4 p-4 border rounded">
-                            <h3 class="font-bold" x-text="doc.original_filename"></h3>
-                            <p class="mt-2 text-sm whitespace-pre-wrap truncate" x-text="doc.text"></p>
-                        </div>
-                    </template>           
-                </div>
-            </template>
         </td>
         <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{index.dimension}}</td>
         <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{index.total_count}}</td>
