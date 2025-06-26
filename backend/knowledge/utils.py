@@ -173,14 +173,58 @@ def get_namespaces(index_name) :
     index = pc.Index(index_name)
     namespaces = index.describe_index_stats().namespaces
     print(f"✅ Pinecone 인덱스 '{index_name}' 연결 완료 (Namespaces: {len(namespaces)})")
-    print(namespaces)
 
     # 3. 네임스페이스 전처리
     flatten_namespaces = {
         (name if name != '' else 'unknown'): info['vector_count']
         for name, info in namespaces.items()
     }
+    print(flatten_namespaces)
     return flatten_namespaces
+
+def get_documents(index_name, namespace_name) :
+    """Pinecone 해당 인덱스의 네임스페이스들을 가져오는 함수"""
+    pc = connect_pinecone()
+
+    # 1. 인덱스 존재 여부 확인
+    existing_indexes = pc.list_indexes().names()
+    if index_name not in existing_indexes :
+        raise ValueError(f"⚠️ 인덱스 '{index_name}'가 Pinecone에 존재하지 않습니다. 현재 인덱스 목록: {existing_indexes}")
+    
+    # 2. 인덱스 연결
+    index = pc.Index(index_name)
+    # 전체 통계 한 번만 조회
+    desc = index.describe_index_stats()
+
+    # 네임스페이스별 카운트
+    count = desc['namespaces'].get(namespace_name, {}).get('vector_count', 0)
+
+    # 전체 차원은 top-level 에 있음
+    dimension = desc.get('dimension', 0)
+
+    # 이제 dummy 벡터가 올바른 길이를 갖습니다
+    dummy = [0.0] * dimension
+
+    res = index.query(
+        vector=dummy,
+        namespace=namespace_name,
+        top_k=count,
+        include_values=False,
+        include_metadata=True,
+    )
+
+    print(f"✅ Pinecone 인덱스 '{index_name}' Pinecone namespace '{namespace_name}' 문서 수 '{count}'개)")
+
+    vectors = [
+    {   
+        'id': m['id'],
+        'namespace': m.get('metadata', {}).get('namespace',''),
+        'original_filename' : m.get('metadata', {}).get('original_filename', ''),
+        'text' : m.get('metadata', {}).get('text', ''),    
+    } for m in res.get('matches', [])
+    ]
+    print(vectors)
+    return vectors
 
 def generate_password(length=15):
     """랜덤으로 비밀번호를 만드는 함수"""
@@ -201,5 +245,5 @@ def get_users(request) :
     users = User.objects.order_by("-created_at")
     page = request.GET.get('page', '1') # 페이지
     paginator = Paginator(users, 10)  # 페이지당 10개씩 보여주기
-    selected_users = paginator.get_page(users) # 10개의 sessions
+    selected_users = paginator.get_page(page) # 10개의 sessions
     return selected_users

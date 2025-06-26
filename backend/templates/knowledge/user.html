@@ -7,7 +7,7 @@
     </style>
     <!-- alpine.js 임포트--> 
     <section x-data="{
-        // 현재 열려 있는 모달 구분: 'add' | 'delete' | 'multi' | null
+        // 현재 열려 있는 모달 구분: 'add' | 'delete' | 'multiadd' | 'multidelete' |null
         active: null,
         // 공통 상태
         loading: false, error: '',
@@ -51,84 +51,54 @@
                 }   
             }
         },
-        submitMultiAdd(event) {
+        submitMultiAdd() {
             // 1) 파일 체크
-            if (!$refs.fileInput.files.length) {
+            if (!$refs.addfile.files.length) {
                 this.error = '오류 : 파일을 선택해줘!'
                 return
             }
             // 1-1) CSV 확장자 체크
-            const file = $refs.fileInput.files[0];
+            const file = $refs.addfile.files[0];
             const name = file.name.toLowerCase();
             if (!name.endsWith('.csv')) {
                 this.error = '오류 : CSV 파일만 업로드할 수 있어!';
                 return;
             }
             // 3) 확인창
-            if (!confirm(`⚠️ 정말 다중 계정을 추가하시겠습니까?`)) {
+            if (!confirm(`⚠️ 정말 해당 파일을 기반으로 다중 계정을 추가하시겠습니까?`)) {
                 return
             }
             // 4) 모두 통과하면 로딩 켜고 폼 제출
             this.loading = true
-            $refs.multiForm.submit()
+            $refs.multiAddForm.submit()
+        },
+        submitMultiDelete() {
+            // 1) 파일 체크
+            if (!$refs.deletefile.files.length) {
+                this.error = '오류 : 파일을 선택해줘!'
+                return
+            }
+            // 1-1) CSV 확장자 체크
+            const file = $refs.deletefile.files[0];
+            const name = file.name.toLowerCase();
+            if (!name.endsWith('.csv')) {
+                this.error = '오류 : CSV 파일만 업로드할 수 있어!';
+                return;
+            }
+            // 3) 확인창
+            if (!confirm(`⚠️ 정말 해당 파일을 기반으로 다중 계정을 삭제하시겠습니까?`)) {
+                return
+            }
+            // 4) 모두 통과하면 로딩 켜고 폼 제출
+            this.loading = true
+            $refs.multiDeleteForm.submit()
         },
     }"
     class="rounded-lg bg-white p-6 shadow-md border border-gray-200">
     <div class="flex items-center justify-between mb-6">
         <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em]">사용자 목록</h3>
         <div class="flex items-center gap-4 ml-auto">
-        
-        <!-- 계정 삭제 Alpine 컴포넌트 시작 -->
-        <div class="relative">
-
-        <!-- 1) 계정 삭제 버튼 -->
-        <button
-            @click="open('delete')"
-            class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
-        ><span class="material-icons-outlined font-bold">계정 삭제</span></button>
-
-        <!-- 2) 계정 삭제 모달 박스 -->
-        <div
-            x-show="active === 'delete'"
-            class="fixed inset-0 flex items-center justify-center z-50 p-4"
-            x-cloak
-        >
-            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
-            <div class="flex justify-between items-center px-6 py-4 border-b">
-                <h2 class="text-lg font-semibold">계정 삭제</h2>
-                <button @click="close()" class="text-xl leading-none">&times;</button>
-            </div>
-
-            <form
-                action="{% url 'knowledge:delete_user' %}"
-                method="post"
-                class="px-6 py-4 space-y-4"
-                @submit.prevent="submitDelete($event)">
-                {% csrf_token %}
-
-                <!-- 에러 메시지 -->
-                <div x-show="error"
-                class="flex items-start space-x-2 bg-red-50 border-l-4 border-red-600 text-red-700 p-3 rounded-md shadow-sm mt-2">
-                <!-- 실제 메시지 -->
-                <span x-text="error" class="text-sm"></span>
-                </div>
-                
-                <div>
-                <label class="block text-sm font-medium">🆔<span class="text-red-500"> 삭제할 이메일</span>을 입력하세요! </label>
-                <input type="email" name="email" x-model="del.email" class="mt-1 w-full border rounded px-3 py-2" />
-                </div>
     
-                <div class="text-right space-x-2">
-                <button type="button" @click="close()" class="px-4 py-2 rounded border hover:bg-gray-100">취소</button>
-                <button type="submit" class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white">삭제</button>
-                </div>
-            </form>
-            </div>
-        </div>
-        </div>
-        <!-- 계정 삭제 Alpine 컴포넌트 끝 -->
-
-        
         <!-- 계정 추가 Alpine 컴포넌트 시작 -->
         <div class="relative">
         <!-- 1) 계정 추가 버튼 -->
@@ -223,19 +193,19 @@
             </div>
         </div>
         </div>
-        <!-- Alpine 컴포넌트 끝 -->
+        <!-- 계정 추가 Alpine 컴포넌트 끝 -->
 
         <!-- 다중 계정 추가 Alpine 컴포넌트 시작 -->
         <div class="relative">
 
         <!-- 1) 다중 계정 생성 버튼 -->
         <button 
-        @click="open('multi')"
+        @click="open('multiadd')"
         class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
         ><span class="material-icons-outlined font-bold">다중 계정 추가</span></button>
 
-        <!-- 2) 다중 계정 모달 박스 -->
-        <div x-show="active === 'multi'" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
+        <!-- 2) 다중 계정 생성 모달 박스 -->
+        <div x-show="active === 'multiadd'" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
             <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
             <div class="flex justify-between items-center px-6 py-4 border-b">
                 <h2 class="text-lg font-semibold">다중 계정 추가</h2>
@@ -255,13 +225,13 @@
                 method="post"
                 class="px-6 space-y-4"
                 enctype="multipart/form-data"
-                x-ref="multiForm"
+                x-ref="multiAddForm"
                 @submit.prevent="submitMultiAdd()">
                 {% csrf_token %}
 
                 <div>
                 <label class="block text-sm font-medium">📂 추가할 직원들의 정보가 담긴 csv파일을 넣어주세요! </label>
-                <input type="file" name="file" x-ref="fileInput" class="mt-2 w-full border rounded px-3 py-2" />
+                <input type="file" name="file" x-ref="addfile" class="mt-2 w-full border rounded px-3 py-2" />
                 </div>
     
                 <!-- 에러 메시지 -->
@@ -269,15 +239,120 @@
 
                 <div class="text-right space-x-2">
                 <button type="button" @click="close()" class="px-4 py-2 rounded border hover:bg-gray-100">취소</button>
-                <button type="submit" class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white">생성</button>
+                <button type="submit" class="px-4 py-2 rounded bg-orange-500 hover:bg-orange-700 text-white">추가</button>
                 </div>
                 
             </form>
             </div>
         </div>
         </div>
-        <!-- Alpine 컴포넌트 끝 -->
+        <!-- 다중 계정 추가 Alpine 컴포넌트 끝 -->
         
+        <!-- 계정 삭제 Alpine 컴포넌트 시작 -->
+        <div class="relative">
+
+        <!-- 1) 계정 삭제 버튼 -->
+        <button
+            @click="open('delete')"
+            class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-red-400 hover:bg-red-600 text-black"
+        ><span class="material-icons-outlined font-bold">계정 삭제</span></button>
+
+        <!-- 2) 계정 삭제 모달 박스 -->
+        <div
+            x-show="active === 'delete'"
+            class="fixed inset-0 flex items-center justify-center z-50 p-4"
+            x-cloak
+        >
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 class="text-lg font-semibold">계정 삭제</h2>
+                <button @click="close()" class="text-xl leading-none">&times;</button>
+            </div>
+
+            <form
+                action="{% url 'knowledge:delete_user' %}"
+                method="post"
+                class="px-6 py-4 space-y-4"
+                @submit.prevent="submitDelete($event)">
+                {% csrf_token %}
+
+                <!-- 에러 메시지 -->
+                <div x-show="error"
+                class="flex items-start space-x-2 bg-red-50 border-l-4 border-red-600 text-red-700 p-3 rounded-md shadow-sm mt-2">
+                <!-- 실제 메시지 -->
+                <span x-text="error" class="text-sm"></span>
+                </div>
+                
+                <div>
+                <label class="block text-sm font-medium">🆔<span class="text-red-500"> 삭제할 이메일</span>을 입력하세요! </label>
+                <input type="email" name="email" x-model="del.email" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+    
+                <div class="text-right space-x-2">
+                <button type="button" @click="close()" class="px-4 py-2 rounded border hover:bg-gray-100">취소</button>
+                <button type="submit" class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white">삭제</button>
+                </div>
+            </form>
+            </div>
+        </div>
+        </div>
+        <!-- 계정 삭제 Alpine 컴포넌트 끝 -->
+
+        <!-- 다중 계정 삭제 Alpine 컴포넌트 시작 -->
+        <div class="relative">
+
+        <!-- 1) 다중 계정 삭제 버튼 -->
+        <button 
+        @click="open('multidelete')"
+        class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-red-400 hover:bg-red-600 text-black"
+        ><span class="material-icons-outlined font-bold">다중 계정 삭제</span></button>
+
+        <!-- 2) 다중 계정 삭제 모달 박스 -->
+        <div x-show="active === 'multidelete'" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 class="text-lg font-semibold">다중 계정 삭제</h2>
+                <button @click="close()" class="text-xl leading-none">&times;</button>
+            </div>
+            
+            <!-- 주의사항 -->
+            <p class="flex text-sm items-start space-x-2 bg-red-50 text-red-700 p-3 rounded-md shadow-sm m-4 ">
+                ※주의사항 :<br>
+                1. 입력 파일은 csv파일이어야 함. <br>
+                2. email 컬럼만 구성되어야 함.<br>
+                3. 컬럼값은 null값이 없어야 함.  
+            </p>
+
+            <form
+                action="{% url 'knowledge:delete_multi_user' %}"
+                method="post"
+                class="px-6 space-y-4"
+                enctype="multipart/form-data"
+                x-ref="multiDeleteForm"
+                @submit.prevent="submitMultiDelete()">
+                {% csrf_token %}
+
+                <div>
+                <label class="block text-sm font-medium">📂 <span class="text-red-500">삭제할 이메일들이 담긴 csv파일</span>을 넣어주세요! </label>
+                <input type="file" name="file" x-ref="deletefile" class="mt-2 w-full border rounded px-3 py-2" />
+                </div>
+    
+                <!-- 에러 메시지 -->
+                <p x-show="error" x-text="error" class="text-red-600 text-sm mt-2"></p>
+
+                <div class="text-right space-x-2">
+                <button type="button" @click="close()" class="px-4 py-2 rounded border hover:bg-gray-100">취소</button>
+                <button type="submit" class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white">삭제</button>
+                </div>
+                
+            </form>
+            </div>
+        </div>
+        </div>
+        <!-- 다중 계정 추가 Alpine 컴포넌트 끝 -->
+
+
+
         <!-- 공통 백그라운드 오버레이 -->
         <div
             x-show="active"

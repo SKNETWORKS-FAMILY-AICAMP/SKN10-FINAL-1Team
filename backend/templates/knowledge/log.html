@@ -5,8 +5,8 @@
     </style>
     <div class="mx-auto max-w-4xl">
     <section class="rounded-lg bg-white p-6 shadow-md border border-gray-200">
-    <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em] mb-6">Session 정보</h3>
-    <p class="text-base font-medium text-[var(--text-primary)] py-4">총 <span class="text-orange-500 font-semibold">{{sessions.paginator.count}}</span>개의 테이블이 있습니다.</p>
+    <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em] mb-6">채팅 로그</h3>
+    <p class="text-base font-medium text-[var(--text-primary)] py-4">총 <span class="text-orange-500 font-semibold">{{sessions.paginator.count}}</span>개의 세션이 있습니다.</p>
     <div class="@container">
     <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
     <table class="min-w-full divide-y divide-[var(--border-color)]">
@@ -76,10 +76,10 @@
                 overflow-x-hidden  
                 whitespace-normal  
                 break-words        
-                p-6                
+                p-4                
                 ">
             <div class="flex justify-between items-center px-4 py-4 border-b">
-                <h2 class="text-lg font-semibold">"<span class="text-red-500 mt-4">{{session.title}}</span>" 세션</h2>
+                <h2 class="text-2xl font-semibold">Session 상세화면</h2>
                 <button @click="open = false" class="text-xl leading-none">&times;</button>
             </div>
             <div class="space-y-2">
@@ -87,21 +87,43 @@
                     <p class="text-center text-gray-500">로딩 중…</p>
                 </template>
                 
-                <!-- 데이터 나왔을 때 -->
-                <div x-show="loaded" x-cloak>
-                <!-- 요약 -->
-                <p class="text-base mb-4 text-[var(--text-primary)]">
-                    총 <span class="text-red-500 font-semibold" 
-                        x-text="messages.length"></span>
-                    개의 메시지가 있습니다.
-                </p>
+                <!-- 컴팩트한 요약 카드 -->
+                <div x-show="loaded" class="bg-white rounded-lg shadow p-3 mb-6">
+                <!-- 헤더: 제목 + 날짜 -->
+                <div class="flex items-center justify-between pb-2">
+                    <h3 class="text-lg font-semibold text-gray-800">
+                    "{{ session.title }}"
+                    </h3>
+                    <span class="text-sm text-gray-500">
+                    {{ session.started_at|date:"F j, Y, g:i" }}
+                    </span>
+                </div>
 
-                <!-- 세션 메타 -->
-                <p class="text-base"><strong>유저:</strong> {{ session.user }}</p>
-                <p class="text-base"><strong>Agent:</strong> {{ session.agent_type }}</p>
-                <p class="text-base"><strong>시작 날짜:</strong> {{ session.started_at|date:"F j, Y, g:i" }}</p>
-                <p class="text-base"><strong>제목:</strong> {{ session.title }}</p>
-                <p class="text-base"><strong>삭제 여부:</strong>{% if session.deleted_check %} O {% else %} X {% endif %}</p>
+                <!-- 메타 정보: flex-wrap + gap으로 촘촘하게 -->
+                <!-- 메타 정보: 세로 배치 -->
+                <div class="mt-2 flex flex-col space-y-1 text-sm text-gray-700">
+                <div>
+                    <span class="font-semibold">유저:</span>
+                    <span>{{ session.user }}</span>
+                </div>
+                <div>
+                    <span class="font-semibold">Agent:</span>
+                    <span>{{ session.agent_type }}</span>
+                </div>
+                <div>
+                    <span class="font-semibold">삭제 여부:</span>
+                    <span class="{% if session.deleted_check %}text-red-600{% else %}text-green-600{% endif %}">
+                    {% if session.deleted_check %}O{% else %}X{% endif %}
+                    </span>
+                </div>
+                <div>
+                    <span class="font-semibold">메시지 수:</span>
+                    <span x-text="messages.length"></span>
+                </div>
+                </div>
+                </div>
+
+
 
                 <!-- 메시지 리스트 -->
                 <template x-for="msg in messages" :key="msg.id">
@@ -127,7 +149,7 @@
                 </template>
 
                 <!-- 메시지 없을 때 -->
-                <template x-if="messages.length === 0">
+                <template x-if="loaded && messages.length === 0">
                     <p class="text-center text-gray-500">메시지가 없습니다.</p>
                 </template>
                 
