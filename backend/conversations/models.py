@@ -23,7 +23,7 @@ class ChatSession(models.Model):
     title = models.CharField(max_length=60, default="새 세션")
     deleted_check = models.BooleanField(default=False)
 
-    class Meta:
+    class Meta: 
         db_table = "chat_sessions"
 
 
