@@ -212,4 +212,3 @@ LOGOUT_REDIRECT_URL = 'home'
 NEXTJS_SETTINGS = {
     "nextjs_server_url": "http://127.0.0.1:3000"
 }
-

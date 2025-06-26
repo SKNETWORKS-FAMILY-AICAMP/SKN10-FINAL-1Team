@@ -31,23 +31,27 @@ def health_check(request):
 def home_view(request):
     return render(request, 'home.html')
 
+api_urlpatterns = [
+    path('health-check/', health_check, name='health-check'),
+    path('accounts/', include('accounts.urls')),
+    path('conversations/', include('conversations.urls')),
+    path('knowledge/', include('knowledge.urls')),
+]
+
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', home_view, name='home'),  # Root URL for home.html
-    path('_header.html', TemplateView.as_view(template_name="_header.html"), name='header_partial'), # Serve _header.html for JS fetch
-
-    # Application URLs: each app's urls.py will define specific web and API routes.
-    # For example, accounts.urls might define 'profile/' for web and 'api/login/' for API.
-    # This will result in paths like '/accounts/profile/' and '/accounts/api/login/'.
-    path('accounts/', include('accounts.urls')),  # Ensuring no hidden characters
-
-    # Catch-all for the Next.js app must come before other apps that might catch similar patterns
-    path('chatbot/', nextjs_page(stream=True), name='chatbot-root'),
-    path('chatbot/<path:path>', nextjs_page(stream=True), name='chatbot-path'),
-
-    path('conversations/', include('conversations.urls')), # Assuming app name is 'conversations'
-    path('knowledge/', include('knowledge.urls')),     # Added for knowledge app
-
-    # Health check URL (kept original re_path for flexibility if needed)
-    re_path(r'^api/health-check/?$', health_check, name='health-check'),
+    path('api/', include(api_urlpatterns)),
+    
+    # Django template views
+    path('', home_view, name='home'),  # Django home template
+    path('_header.html', TemplateView.as_view(template_name="_header.html"), name='header_partial'),
+    
+    # Define other Django template routes before the catch-all
+    # e.g., path('django-pages/example/', example_view, name='example'),
+    
+    # Next.js specific routes (if you want certain paths to always go to Next.js)
+    path('nextjs/', nextjs_page(stream=True), name='nextjs_root'),
+    
+    # Catch-all for remaining Next.js pages (keep this last)
+    re_path(r'^(?!api/|admin/|_header\.html|nextjs/).*$', nextjs_page(stream=True)),
 ]
