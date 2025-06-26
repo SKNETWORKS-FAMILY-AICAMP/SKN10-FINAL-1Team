@@ -3,6 +3,7 @@
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.utils.text import slugify
 
 
 
@@ -51,13 +52,26 @@ class UserManager(BaseUserManager):
         return self.create_user(email, password, **extra)
 
 
+def get_profile_image_path(instance, filename):
+    """
+    Dynamically generates the upload path for a user's profile image.
+    Saves images to 'profile_images/<user_name_slug>/<filename>'.
+    If the user's name is blank, it uses the user's UUID as the folder name.
+    """
+    if instance.name:
+        folder_name = slugify(instance.name, allow_unicode=True)
+    else:
+        folder_name = str(instance.id)
+    return f'profile_images/{folder_name}/{filename}'
+
+
 class User(AbstractBaseUser, PermissionsMixin):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     org = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="users")
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=100, blank=True)
     role = models.CharField(max_length=20, choices=UserRole.choices, default=UserRole.GUEST)
-    profile_image = models.ImageField(upload_to='profile_images/', null=True, blank=True, verbose_name="Profile Image")
+    profile_image = models.ImageField(upload_to=get_profile_image_path, null=True, blank=True, verbose_name="Profile Image")
     created_at = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(null=True, blank=True)
 
