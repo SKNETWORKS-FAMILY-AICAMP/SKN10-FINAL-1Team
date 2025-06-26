@@ -172,183 +172,73 @@ async def chat_stream(request, session_id):
             final_ai_content = ""
             final_tool_data = None
             current_tool_state = {"assistant": {"messages": []}}
-            active_tool_calls = {}
-            known_tool_call_ids = set()
-
             try:
-                fastapi_base_url = "http://127.0.0.1:8001" # NOTE: Forcing local URL to match the desired state.
+                fastapi_base_url = "http://127.0.0.1:8001"
                 internal_secret = os.getenv("FASTAPI_INTERNAL_SECRET")
                 headers = {"X-Internal-Secret": internal_secret} if internal_secret else {}
+
                 async with httpx.AsyncClient() as client:
                     # Prepare payload for FastAPI
-                    payload_input = {
-                        "messages": [{"role": "user", "content": message_content}]
-                    }
+                    payload_input = {"messages": [{"role": "user", "content": message_content}]}
                     if file_content:
-                        # FastAPI의 RequestBody 모델에 따라 'csv_file_content' 키를 사용합니다.
                         try:
-                            # Decode base64 content to raw string for the prediction agent
                             decoded_content = base64.b64decode(file_content).decode('utf-8')
                             payload_input["csv_file_content"] = decoded_content
                         except Exception as e:
                             print(f"Error decoding base64 content: {e}")
-                            # Handle error, maybe return an error message to the user
                             payload_input["csv_file_content"] = "ERROR: Invalid file content"
-                        # 텍스트 메시지가 없는 경우, 파일 분석 요청 메시지를 생성합니다.
                         if not message_content:
                             payload_input["messages"] = [{"content": f"첨부된 파일 '{file_name}'을 분석해줘."}]
 
                     payload = {
                         "input": payload_input,
-                        "config": {
-                            "configurable": {"thread_id": str(session.id)}
-                        }
+                        "config": {"configurable": {"thread_id": str(session.id)}}
                     }
-                    # Agent-specific endpoints
-                    if agent == 'prediction':
-                        request_url = f"{fastapi_base_url}/prediction/invoke"
-                    else:
-                        request_url = f"{fastapi_base_url}/default/invoke"
                     
-                    # --- DEBUG ---
-                    print(f"---[ Calling FastAPI Server ]---")
-                    print(f"URL: {request_url}")
-                    # For logging, create a deep copy and truncate the file content to avoid flooding the console
-                    log_payload = copy.deepcopy(payload)
-                    if 'csv_file_content' in log_payload['input'] and log_payload['input']['csv_file_content']:
-                        log_payload['input']['csv_file_content'] = f"<... {len(log_payload['input']['csv_file_content'])} bytes ...>"
+                    request_url = f"{fastapi_base_url}/prediction/invoke" if agent == 'prediction' else f"{fastapi_base_url}/default/invoke"
+                    
+                    print(f"---[ Calling FastAPI Server ]---URL: {request_url}")
 
-                    print(f"Payload: {json.dumps(log_payload, indent=2, ensure_ascii=False)}")
-                    # --- END DEBUG ---
-
+                    final_content_to_save = ""
+                    
                     async with client.stream("POST", request_url, json=payload, headers=headers, timeout=300.0) as response:
                         response.raise_for_status()
-                        tool_use_started_sent = False # Flag to send start event only once
                         async for line in response.aiter_lines():
-                            if line.startswith("data: "):
-                                try:
-                                    raw_data = line[len("data: "):].strip()
-                                    if not raw_data:
-                                        continue
-                                    chunk = json.loads(raw_data)
+                            print(f"---[RAW FASTAPI LINE]---> {line}")
+                            if not line.startswith("data:"):
+                                continue
+                            
+                            json_str = line[len("data:"):].strip()
+                            if not json_str:
+                                continue
 
-                                    # Defensive check for chunk structure
-                                    if not isinstance(chunk, list) or len(chunk) < 2:
-                                        print(f"---[STREAM WARNING] Skipping malformed chunk: {chunk}", file=sys.stderr)
-                                        continue
-
-                                    event_type, payload = chunk[0], chunk[1]
-
-                                    if event_type == "messages":
-                                        message_chunk = payload[0]
-                                        metadata = payload[1]
-
-                                        # Send a signal to show the tool UI as soon as tool usage is detected
-                                        if not tool_use_started_sent and message_chunk.get("tool_call_chunks"):
-                                            yield f"data: {json.dumps({'event': 'tool_use_started'})}\n\n"
-                                            tool_use_started_sent = True
-
-                                        # Stream pure text content
-                                        if (message_chunk.get("type") == "AIMessageChunk" and not message_chunk.get("tool_call_chunks")):
-                                            content = message_chunk.get("content", "")
-                                            if content:
-                                                final_ai_content += content
-                                                sse_payload = {"event": "message_chunk", "data": content}
+                            try:
+                                data = json.loads(json_str)
+                                # FastAPI server is not streaming, but sending the final response in a single JSON.
+                                # We need to parse this JSON and extract the assistant's message.
+                                if "messages" in data and isinstance(data["messages"], list):
+                                    for message in data["messages"]:
+                                        if isinstance(message, dict) and message.get("role") == "assistant":
+                                            content_to_stream = message.get("content")
+                                            if content_to_stream:
+                                                final_content_to_save += content_to_stream
+                                                # Send the full content as a single chunk to the frontend
+                                                sse_payload = {"event": "message_chunk", "data": content_to_stream}
                                                 yield f"data: {json.dumps(sse_payload)}\n\n"
+                                                break # Found the assistant message, no need to check others
 
-                                        # Handle tool-related messages for real-time UI updates
-                                        if message_chunk.get("type") == "AIMessageChunk":
-                                            # 1. Accumulate tool call argument chunks using 'index'
-                                            tool_call_chunks = message_chunk.get("tool_call_chunks", [])
-                                            if tool_call_chunks:
-                                                for tc_chunk in tool_call_chunks:
-                                                    chunk_index = tc_chunk.get("index")
-                                                    if chunk_index is not None:
-                                                        if chunk_index not in active_tool_calls:
-                                                            # First chunk for this index, contains name and id
-                                                            active_tool_calls[chunk_index] = {
-                                                                "name": tc_chunk.get("name"), 
-                                                                "args": tc_chunk.get("args", ""), 
-                                                                "id": tc_chunk.get("id")
-                                                            }
-                                                        else:
-                                                            # Subsequent chunks, append args
-                                                            active_tool_calls[chunk_index]["args"] += tc_chunk.get("args", "")
-                                            
-                                            # 2. Check for tool call end signal, then yield update with complete args
-                                            if message_chunk.get("response_metadata", {}).get("finish_reason") == "tool_calls":
-                                                if active_tool_calls:
-                                                    # Sort tool calls by index to ensure correct order for multiple calls
-                                                    sorted_indices = sorted(active_tool_calls.keys())
-                                                    complete_tool_calls = [active_tool_calls[i] for i in sorted_indices]
-                                                    
-                                                    # Store the IDs for later lookup when tool results arrive
-                                                    for tc in complete_tool_calls:
-                                                        if tc.get("id"):
-                                                            known_tool_call_ids.add(tc["id"])
-                                                    
-                                                    # Find if an 'ai' message already exists to append to
-                                                    existing_ai_message = None
-                                                    for msg in reversed(current_tool_state["assistant"]["messages"]):
-                                                        if msg.get("type") == "ai":
-                                                            existing_ai_message = msg
-                                                            break
-                                                    
-                                                    if existing_ai_message:
-                                                        # Append new tool calls to the existing message's tool_calls list
-                                                        if "tool_calls" not in existing_ai_message:
-                                                            existing_ai_message["tool_calls"] = []
-                                                        existing_ai_message["tool_calls"].extend(complete_tool_calls)
-                                                    else:
-                                                        # Or create a new ai message if it's the first tool call
-                                                        ai_message = {"type": "ai", "tool_calls": complete_tool_calls}
-                                                        current_tool_state["assistant"]["messages"].append(ai_message)
-                                                    
-                                                    final_tool_data = current_tool_state.copy()
-                                                    yield f'data: {json.dumps({"event": "tool_update", "data": current_tool_state})}\n\n'
-                                                    active_tool_calls.clear()
+                            except json.JSONDecodeError:
+                                print(f"---[STREAM WARNING] Failed to decode JSON: {json_str}")
+                                continue
+                    
+                    yield f"data: {json.dumps({'event': 'stream_end'})}\n\n"
 
-                                        # 3. Handle tool output
-                                        elif message_chunk.get("type") == "tool":
-                                            tool_call_id = message_chunk.get("tool_call_id")
-                                            # Check if the result corresponds to a known tool call
-                                            if tool_call_id in known_tool_call_ids:
-                                                tool_message = {
-                                                    "type": "tool",
-                                                    "tool_call_id": tool_call_id,
-                                                    "content": message_chunk.get("content", ""),
-                                                    "name": message_chunk.get("name")
-                                                }
-                                                current_tool_state["assistant"]["messages"].append(tool_message)
-                                                final_tool_data = current_tool_state.copy()
-                                                yield f'data: {json.dumps({"event": "tool_update", "data": current_tool_state})}\n\n'
-
-                                    elif event_type == "updates":
-                                        # The 'updates' event contains the final state, which can be used for saving.
-                                        final_tool_data = payload
-
-                                except (json.JSONDecodeError, IndexError) as e:
-                                    print(f"---[STREAM PARSE ERROR] {e} on line: {raw_data}")
-                                    continue
-                
-                if final_ai_content or final_tool_data:
-                    # Try to parse args from string to JSON for saving
-                    if final_tool_data and "assistant" in final_tool_data:
-                        for msg in final_tool_data["assistant"].get("messages", []):
-                            if msg.get("type") == "ai" and "tool_calls" in msg:
-                                for call in msg.get("tool_calls", []):
-                                    try:
-                                        call["args"] = json.loads(call["args"])
-                                        print(call["args"])
-                                    except (json.JSONDecodeError, TypeError):
-                                        pass # Keep as string if not valid JSON
-
-                    await ChatMessage.objects.acreate(
-                        session=session,
-                        role='assistant',
-                        content=final_ai_content.strip(),
-                        tool_data=final_tool_data
-                    )
+                    if final_content_to_save:
+                        await ChatMessage.objects.acreate(
+                            session=session,
+                            role='assistant',
+                            content=final_content_to_save.strip()
+                        )
 
             except httpx.RequestError as e:
                 print(f"---[HTTPX STREAM ERROR] An error occurred: {e}")

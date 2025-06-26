@@ -340,9 +340,8 @@ def get_graph(agent_name: str):
         # The system prompt is used to guide the supervisor in routing tasks.
         # We pass it in as a `messages_modifier`.
         supervisor_graph = create_supervisor(
-            llm, # Use the shared LLM
+            model=llm,
             agents=[doc_search_assistant, analyst_assistant, predict_assistant],
-            messages_modifier=system_prompt,
         )
         graph = supervisor_graph.compile(checkpointer=checkpointer)
         _graph_cache[agent_name] = graph
