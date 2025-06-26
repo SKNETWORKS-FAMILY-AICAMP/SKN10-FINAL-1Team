@@ -114,58 +114,133 @@
     {% endif %}
 
     {% if db == 'pinecone' %}
-    <section class="mt-6 rounded-lg bg-white p-6 shadow-md border border-gray-200">
+    <section x-data="{
+        // 현재 열려 있는 모달 구분: 'index_add' | 'index_delete' | index_detail | namespace_detail | null
+        active : null,
+        // 공통 상태
+        loading: false, error: '',
+        // 모달별 폼 데이터
+        index_add : {name : '' ,vector_type: 'dense', metric: 'cosine', dimension: null, cloud: 'aws', region: 'us-east-1'},
+        index_del : { name: ''},
+        namespaces: [],
+        documents: [],
+        regionMap: {
+        aws:   ['us-east-1', 'us-west-2', 'eu-west-1'],
+        gcp:   ['us-central1', 'europe-west4'],
+        azure: ['eastus2']
+        },
+        indexName: '',
+        namespaceName : '',
+        // 모달 열고 닫기
+        open(name) { this.active = name},
+        close() { 
+            this.active = null
+            this.error = ''
+        },
+
+        // 함수들
+        init() {
+            this.index_add.region = this.regionMap[this.index_add.cloud][0]
+        },
+        submitDelete(event) {
+            if (!this.index_del.name) {
+                this.error = '인덱스 이름을 입력해주세요!'
+            }
+            else {
+                // 확인창 띄우기
+                if (confirm('⚠️ 정말 해당 인덱스를 삭제하시겠습니까?')) {
+                    this.loading = true
+                    this.$nextTick(() => event.target.submit())
+                }   
+            }
+        },
+        submitAdd(event) {
+            if (!this.index_add.name) {
+                this.error = '인덱스 이름을 입력해주세요!'
+            } else if (this.index_add.vector_type === 'dense' && (isNaN(this.index_add.dimension) || this.index_add.dimension < 1)) {
+                this.error = '벡터 타입이 dense일때 차원은 1 이상이어야 합니다! 올바른 차원을 입력하세요!'
+            } else {
+                // 확인창 띄우기
+                if (confirm('⚠️ 정말 이 인덱스를 추가할까요?')) {
+                    this.loading = true
+                    this.$nextTick(() => event.target.submit())
+                }   
+            }
+        },
+        showNamespaces(name) {
+            this.indexName  = name;
+            this.loading = true;
+            fetch(`/knowledge/dashboard/index_detail/${name}/`)
+            .then(res => res.json())
+            .then(data => {
+            this.namespaces = data.namespaces;
+            this.loading = false;
+            });
+            
+        },
+        showDocuments(name) {
+            this.namespaceName  = name;
+            this.loading = true;
+            fetch(`/knowledge/dashboard/index_detail/${this.indexName}/${name}/`)
+            .then(res => res.json())
+            .then(data => {
+            this.documents = data.documents;
+            this.loading = false;
+            });
+            
+        },
+
+    }"
+    x-init="init()"
+    class="mt-6 rounded-lg bg-white p-6 shadow-md border border-gray-200">
     <div class="flex items-center mb-6">
         <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em]">Pinecone DB 인덱스</h3>
-        
         <div class="flex items-center gap-4 ml-auto">
-        <!-- Alpine 컴포넌트 시작 -->
-        <div x-data="{ open: false }" class="relative">
+
+        <!-- 인덱스 삭제 Alpine 컴포넌트 시작 -->
+        <div class="relative">
         <!-- 1) 인덱스 삭제 버튼 -->
         <button
-            @click="open = true"
+            type="button"
+            @click="open('index_delete')"
             class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
         ><span class="material-icons-outlined font-bold">인덱스 삭제</span></button>
 
-        <!-- 2) 백그라운드 오버레이 -->
+        <!-- 2) 인덱스 삭제 모달 박스 -->
         <div
-            x-show="open"
-            x-cloak
-            class="fixed inset-0 bg-black bg-opacity-50 z-40"
-            @click="open = false"
-        ></div>
-
-        <!-- 3) 모달 박스 -->
-        <div
-            x-show="open"
+            x-show="active === 'index_delete'"
             class="fixed inset-0 flex items-center justify-center z-50 p-4"
             x-cloak
         >
             <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
             <div class="flex justify-between items-center px-6 py-4 border-b">
                 <h2 class="text-lg font-semibold">인덱스 삭제</h2>
-                <button @click="open = false" class="text-xl leading-none">&times;</button>
+                <button @click="close()" class="text-xl leading-none">&times;</button>
             </div>
 
             <form
                 action="{% url 'knowledge:delete_index' %}"
                 method="post"
                 class="px-6 py-4 space-y-4"
-                @submit.prevent=" 
-                    if (confirm('⚠️ 정말 해당 인덱스를 삭제하시겠습니까?')) {
-                        $event.target.submit()
-                    }">
+                @submit.prevent="submitDelete($event)">
                 {% csrf_token %}
+
+                <!-- 에러 메시지 -->
+                <div x-show="error"
+                class="flex items-start space-x-2 bg-red-50 border-l-4 border-red-600 text-red-700 p-3 rounded-md shadow-sm mt-2">
+                <!-- 실제 메시지 -->
+                <span x-text="error" class="text-sm"></span>
+                </div>
 
                 <div>
                 <label class="block text-sm font-medium"><span class="text-red-500">⚠️ 삭제할 인덱스 이름</span>을 입력하세요!</label>
-                <input name="name" class="mt-1 w-full border rounded px-3 py-2" />
+                <input name="name" x-model="index_del.name" class="mt-1 w-full border rounded px-3 py-2" />
                 </div>
 
                 <div class="text-right space-x-2">
                 <button
                     type="button"
-                    @click="open = false"
+                    @click="close()"
                     class="px-4 py-2 rounded border hover:bg-gray-100"
                 >취소</button>
 
@@ -179,67 +254,56 @@
             </div>
         </div>
         </div>
-        <!-- Alpine 컴포넌트 끝 -->
+        <!-- 인덱스 삭제 Alpine 컴포넌트 끝 -->
         
-        <!-- Alpine 컴포넌트 시작 -->
-        <div x-data="{ open: false, vector_type: 'dense', metric: 'cosine', dimension: null, cloud: 'aws', region: null,
-            regionMap: {
-                aws:   ['us-east-1', 'us-west-2', 'eu-west-1'],
-                gcp:   ['us-central1', 'europe-west4'],
-                azure: ['eastus2']
-            },
-            init() {this.region = this.regionMap[this.cloud][0]; }}"
-            x-init="init()" class="relative">
+        <!-- 인덱스 추가 Alpine 컴포넌트 시작 -->
+        <div class="relative">
         <!-- 1) 인덱스 추가 버튼 -->
         <button
-            @click="open = true"
+            type="button"
+            @click="open('index_add')"
             class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
         ><span class="material-icons-outlined font-bold">인덱스 추가</span></button>
 
-        <!-- 2) 백그라운드 오버레이 -->
-        <div
-            x-show="open"
-            x-cloak
-            class="fixed inset-0 bg-black bg-opacity-50 z-40"
-            @click="open = false"
-        ></div>
-
-        <!-- 3) 모달 박스 -->
-        <div
-            x-show="open"
-            class="fixed inset-0 flex items-center justify-center z-50 p-4"
-            x-cloak
-        >
+        <!-- 2) 인덱스 추가 모달 박스 -->
+        <div x-show="active === 'index_add'" class="fixed inset-0 flex items-center justify-center z-50 p-4"
+        x-cloak>
             <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
             <div class="flex justify-between items-center px-6 py-4 border-b">
                 <h2 class="text-lg font-semibold">인덱스 추가</h2>
-                <button @click="open = false" class="text-xl leading-none">&times;</button>
+                <button @click="close()" class="text-xl leading-none">&times;</button>
             </div>
 
             <form
                 action="{% url 'knowledge:create_index' %}"
                 method="post"
                 class="px-6 py-4 space-y-4"
-                @submit.prevent=" 
-                    if (confirm('✅ 정말 인덱스를 추가하시겠습니까?')) {
-                        $event.target.submit()
-                    }">
+                @submit.prevent="submitAdd($event)">
                 {% csrf_token %}
+
+                <!-- 에러 메시지 -->
+                <div
+                x-show="error"
+                class="flex items-start space-x-2 bg-red-50 border-l-4 border-red-600 text-red-700 p-3 rounded-md shadow-sm mt-2"
+                >
+                <!-- 실제 메시지 -->
+                <span x-text="error" class="text-sm"></span>
+                </div>
 
                 <div>
                 <label class="block text-sm font-medium">인덱스 이름</label>
-                <input name="name" class="mt-1 w-full border rounded px-3 py-2" />
+                <input name="name" x-model="index_add.name" class="mt-1 w-full border rounded px-3 py-2" />
                 </div>
 
                 <div>
                 <label class="block text-sm font-medium">벡터 타입</label>
                 <!-- vector type이 sparse라면 metric은 dotproduct, dimension은 0으로 선택되어 전달-->
                 <select id="vector_type" name="vector_type" class="w-full border rounded p-2"
-                    x-model="vector_type"
+                    x-model="index_add.vector_type"
                     @change="
-                    if (vector_type === 'sparse') {
-                        metric = 'dotproduct';
-                        dimension = 0;
+                    if (index_add.vector_type === 'sparse') {
+                        index_add.metric = 'dotproduct';
+                        index_add.dimension = 0;
                     }">
                     <option value="dense">dense</option>
                     <option value="sparse">sparse</option>
@@ -250,31 +314,31 @@
                 <label class="block text-sm font-medium">거리 함수</label>
                 <!-- vector_type이 sparse면 metric은 dotproduct로 값 고정 -->
                 <select id="metric" name="metric" class="w-full border rounded p-2"
-                    x-model="metric" 
-                    :disabled="vector_type === 'sparse'">
+                    x-model="index_add.metric" 
+                    :disabled="index_add.vector_type === 'sparse'">
                     <option value="cosine">cosine</option>
                     <option value="dotproduct">dotproduct</option>
                     <option value="euclidean">euclidean</option>
                 </select>
                 <!-- disabled되면 원본 값이 전달이 안되므로 hidden으로 처리-->
-                <input type="hidden" name="metric" :value="metric"/>
+                <input type="hidden" name="metric" :value="index_add.metric"/>
                 </div>
 
                 <div>
                 <label class="block text-sm font-medium">차원 수</label>
                 <!-- vector_type이 sparse면 dimension은 0로 값 고정 -->
                 <input name="dimension" type="number" class="mt-1 w-full border rounded px-3 py-2"
-                    x-model="dimension" 
-                    :disabled="vector_type === 'sparse'"/>
+                    x-model="index_add.dimension" 
+                    :disabled="index_add.vector_type === 'sparse'"/>
                 <!-- disabled되면 원본 값이 전달이 안되므로 hidden으로 처리-->
-                <input type="hidden" name="dimension" :value="dimension"/>
+                <input type="hidden" name="dimension" :value="index_add.dimension"/>
                 </div>
                 
                 <div>
                 <label class="block text-sm font-medium">클라우드</label>
                 <select id="cloud" name="cloud" class="w-full border rounded p-2"
-                    x-model="cloud"
-                    @change="region = regionMap[cloud][0]">
+                    x-model="index_add.cloud"
+                    @change="index_add.region = regionMap[index_add.cloud][0]">
                     <option value="aws">aws</option>
                     <option value="gcp">gcp</option>
                     <option value="azure">azure</option>
@@ -284,8 +348,8 @@
                 <div>
                 <label class="block text-sm font-medium">지역</label>
                 <select id="region" name="region" class="w-full border rounded p-2"
-                    x-model="region">
-                    <template x-for="r in regionMap[cloud]" :key="r">
+                    x-model="index_add.region">
+                    <template x-for="r in regionMap[index_add.cloud]" :key="r">
                         <option :value="r" x-text="r"></option>
                     </template>
                 </select>
@@ -300,7 +364,7 @@
                 <div class="text-right space-x-2">
                 <button
                     type="button"
-                    @click="open = false"
+                    @click="close()"
                     class="px-4 py-2 rounded border hover:bg-gray-100"
                 >취소</button>
                 <button
@@ -314,7 +378,7 @@
         </div>
         </div>
         </div>
-        <!-- Alpine 컴포넌트 끝 -->
+        <!-- 인덱스 추가 Alpine 컴포넌트 끝 -->
         
     </div>
     <div class="@container">
@@ -342,62 +406,30 @@
     <tbody class="divide-y divide-[var(--border-color)] bg-white">
     {% for index in indexes %}
         <tr>
-        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]"
-            x-data="{ open: false, namespaces: [], loaded: false }">
-
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">
             <!-- 텍스트 컴포넌트-->
-            <div @click="open = true">
-                <a href="{% url 'knowledge:index_detail' index.name %}"
-                @click.prevent="
-                    open = true;
-                    if (!loaded) {
-                        fetch('{% url 'knowledge:index_detail' index.name %}')
-                        .then(res => res.json())
-                        .then(data => {
-                        namespaces = data.namespaces;
-                        loaded = true;
-                    });
-                    }"
-                class="text-blue-500 hover:text-blue-700 underline">{{index.name}}</a>
-            </div>
-
-            <!-- 백그라운드 오버레이 -->
-            <div
-                x-show="open"
-                x-cloak
-                class="fixed inset-0 bg-black bg-opacity-50 z-40"
-                @click="open = false"
-            ></div>
-
-            <!-- 모달 -->
-            <div
-            x-show="open"
-            class="fixed inset-0 flex items-center justify-center z-50 p-4"
-            x-cloak>
-
-            <div class="bg-white rounded-lg shadow-lg
-                w-full             
-                max-w-xl          
-                max-h-[90vh]      
-                overflow-y-auto    
-                overflow-x-hidden          
-                p-6 ">
-            <div class="flex justify-between items-center px-6 py-4 border-b">
-                <h2 class="text-lg font-semibold"><span class="text-red-500 mt-4">{{index.name}}</span>의 네임스페이스</h2>
-                <button @click="open = false" class="text-xl leading-none">&times;</button>
-            </div>
+            <a href="#"
+            @click="open('index_detail')"
+            @click.prevent="showNamespaces('{{ index.name }}')"
+            class="text-blue-500 hover:text-blue-700 underline">{{index.name}}</a>
+            
+            <!-- 네임스페이스 모달 -->
+            <div x-show="active === 'index_detail'" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-6 ">
+                <div class="flex justify-between items-center px-6 py-4 border-b">
+                    <h2 class="text-lg font-semibold"><span class="text-red-500 mt-4" x-text="indexName"></span>의 네임스페이스</h2>
+                    <button @click="close()" class="text-xl leading-none">&times;</button>
+                </div>
             <div class="px-6 py-4">
-                <template x-if="!loaded">
+                <template x-if="loading">
                     <p class="text-center text-gray-500">로딩 중…</p>
                 </template>
-                <p x-show="loaded" class="text-base mb-4 text-[var(--text-primary)]">
+                <p x-show="!loading" class="text-base mb-4 text-[var(--text-primary)]">
                     총 <span class="text-red-500 font-semibold" x-text="Object.keys(namespaces).length"></span>
                     개의 네임스페이스가 있습니다.</p>
                 
-
-                
                 <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
-                <table x-show="loaded" x-cloak class="min-w-full divide-y divide-[var(--border-color)]">
+                <table x-show="!loading" x-cloak class="min-w-full divide-y divide-[var(--border-color)]">
                     <thead class="bg-slate-50">
                         <tr>
                         <th class="px-6 py-4 text-left text-xs font-semibold">네임스페이스명</th>
@@ -407,11 +439,18 @@
                     <tbody class="divide-y divide-[var(--border-color)] bg-white">
                         <template x-for="(count, name) in namespaces" :key="name">
                         <tr>
-                            <td class="px-6 py-4 text-sm" x-text="name"></td>
+                            <td class="px-6 py-4 text-sm" >
+                                <a href="#" 
+                                @click.prevent="close();
+                                open('namespace_detail');
+                                showDocuments(name)" x-text="name"
+                                class="text-blue-500 hover:text-blue-700 underline"></a>
+                            </td>
                             <td class="px-6 py-4 text-sm" x-text="count"></td>
                         </tr>
                         </template>
-                        <template x-if="Object.keys(namespaces).length === 0">
+
+                        <template x-if="!loading && Object.keys(namespaces).length === 0">
                         <tr>
                             <td colspan="2" class="px-6 py-4 text-center text-sm text-gray-500">
                             네임스페이스가 없습니다.
@@ -424,6 +463,37 @@
             </div>
             </div>
             </div>
+            <!-- 네임스페이스 상세 모달 -->
+            <template x-teleport="body" x-show="active === 'namespace_detail'" x-cloak class="fixed inset-0 flex items-center justify-center z-50 p-4">
+                <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+                    <div class="flex justify-between items-center mb-4 border-b pb-2">
+                        <h2 class="text-xl font-semibold">
+                            <span class="text-red-500" x-text="indexName"></span> /
+                            <span class="text-orange-500" x-text="namespaceName"></span> 문서 목록
+                        </h2>
+                        <button @click="close()" class="text-2xl leading-none">&times;</button>
+                    </div>
+
+                    
+                    <!-- 로딩 중 -->
+                    <template x-if="loading">
+                        <p class="text-center text-gray-500">로딩 중…</p>
+                    </template>
+
+                    <!-- 로딩 완료 후 문서가 없을 때 -->
+                    <template x-if="!loading && documents.length === 0">
+                        <p class="text-center text-gray-500">해당 네임스페이스에 문서가 없습니다.</p>
+                    </template>
+
+                    <!-- 문서 리스트 -->
+                    <template x-for="doc in documents" :key="doc.id">
+                        <div class="mb-4 p-4 border rounded">
+                            <h3 class="font-bold" x-text="doc.original_filename"></h3>
+                            <p class="mt-2 text-sm whitespace-pre-wrap truncate" x-text="doc.text"></p>
+                        </div>
+                    </template>           
+                </div>
+            </template>
         </td>
         <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{index.dimension}}</td>
         <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{index.total_count}}</td>
@@ -433,8 +503,12 @@
     {% endfor %}
     </tbody>
     </table>
-    </div>
     <style>
+                        p.truncate {
+                            overflow: hidden;
+                            white-space: nowrap;
+                            text-overflow: ellipsis;
+                        }
                         @container(max-width:120px) {
                         .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 {
                             display: none;
@@ -457,6 +531,26 @@
                         }
                     </style>
     </div>
+
+    <!-- 공통 백그라운드 오버레이 -->
+    <div
+        x-show="active"
+        x-cloak
+        class="fixed inset-0 bg-black bg-opacity-50 z-40"
+        @click="close()"
+    ></div>
+
+    <!-- 공통 로딩화면 -->
+    <div x-show="loading" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-70 z-60">
+    <svg class="animate-spin h-12 w-12 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <circle class="opacity-25" cx="12" cy="12" r="10" sroke="currentColor" stroke-width="4"></circle>
+    <path class="opacity-75" fill="currentColor"
+        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+    </path>
+    </svg>
+    </div>
+    </div>
+
     </section>
     {% endif %}
 

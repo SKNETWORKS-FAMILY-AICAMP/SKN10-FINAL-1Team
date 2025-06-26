@@ -8,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from .utils import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table
-from .utils import make_index, remove_index, generate_password
+from .utils import make_index, remove_index, generate_password, get_documents
 from conversations.models import ChatSession, ChatMessage
 from accounts.models import User, Organization
 import csv, io
@@ -102,7 +102,7 @@ def create_user(request) :
         username = request.POST.get('username', '').strip() # 유저명
         authority = request.POST.get('authority') # 권한
         department = request.POST.get('department') # 부서
-        org = Organization.objects.get(name='Default Organization') # 임시 방편으로 Organization를 생성
+        org = Organization.objects.get(name=department) # 임시 방편으로 Organization를 생성
         redirect_url = reverse('knowledge:dashboard', args=['user'])
 
         # 서버사이드 검증
@@ -129,7 +129,7 @@ def create_user(request) :
     else : 
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
 
-
+"""User 다중 생성"""
 def create_multi_user(request) :
     if request.method == 'POST':
         # 1) 파일 꺼내기
@@ -154,12 +154,12 @@ def create_multi_user(request) :
         print("✅ 정상적으로 csv파일을 읽었습니다.")
 
         # 3) rows 순회하면서 회원 생성
-        org = Organization.objects.get(name='Default Organization')  # 예시
         for row in rows:
-            name = row['name']
-            id = row['id']
-            authority = row['authority']
-            dept = row['department']
+            name = row['name'].strip()
+            id = row['id'].strip()
+            authority = row['authority'].strip()
+            dept = row['department'].strip()
+            org = Organization.objects.get(name=dept)  # 예시
 
             User.objects.create_user(
                 email=f'{id}@example.com', # 이메일 생성 로직
@@ -192,6 +192,43 @@ def delete_user(request):
     else : 
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
 
+"""User 다중 삭제"""
+def delete_multi_user(request) :
+    if request.method == 'POST':
+        # 1) 파일 꺼내기
+        uploaded = request.FILES.get('file')
+        redirect_url = reverse('knowledge:dashboard', args=['user'])
+        if not uploaded:
+            messages.error(request, '파일이 없습니다!')
+            return redirect(redirect_url)
+
+        # 2) CSV 읽기 (csv 모듈 + StringIO 사용)
+        raw = uploaded.read()  # 바이너리 데이터
+        try:
+            data = raw.decode('utf-8')          # 먼저 UTF-8 시도
+        except UnicodeDecodeError:
+            try:
+                data = raw.decode('cp949')      # 실패하면 CP949로 재시도
+            except UnicodeDecodeError:
+                data = raw.decode('euc-kr', errors='ignore')  
+                # (필요하면 errors 옵션 추가)
+        reader = csv.DictReader(io.StringIO(data))
+        rows = list(reader) 
+        print("✅ 정상적으로 csv파일을 읽었습니다.")
+
+        # 3) rows 순회하면서 회원 생성
+        for row in rows:
+            email = row['email'].strip()
+            user = User.objects.get(email=email)
+            user.delete()
+
+
+        messages.success(request, f'✅ {len(rows)}명의 계정을 삭제했어!')
+        return redirect(redirect_url)
+    else : 
+        return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
+
+
 # Placeholder API views to match knowledge/urls.py
 # These should be properly implemented later.
 
@@ -199,6 +236,11 @@ def delete_user(request):
 def index_detail(request, index_name) :
     namespaces = get_namespaces(index_name)
     return JsonResponse({'namespaces': namespaces})
+
+def namespace_detail(request,index_name,namespace_name) :
+    documents = get_documents(index_name,namespace_name)
+    print("✅ 정상적으로 문서들을 받았습니다!")
+    return JsonResponse({'documents': documents})
 
 """해당 session 상세화면"""
 def session_detail(request, session_id) :
