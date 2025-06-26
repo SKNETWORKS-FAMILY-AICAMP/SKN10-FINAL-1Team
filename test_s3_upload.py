@@ -22,7 +22,7 @@ def upload_file_to_s3(file_path, bucket_name, object_name=None):
     
     # 고유한 파일 이름 생성 (충돌 방지)
     object_name = f"{uuid.uuid4()}-{object_name}"
-    
+    # 1
     try:
         # 파일 업로드
         s3_client.upload_file(file_path, bucket_name, object_name)
