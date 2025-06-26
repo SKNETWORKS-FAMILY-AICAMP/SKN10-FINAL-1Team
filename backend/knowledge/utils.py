@@ -247,3 +247,8 @@ def get_users(request) :
     paginator = Paginator(users, 10)  # 페이지당 10개씩 보여주기
     selected_users = paginator.get_page(page) # 10개의 sessions
     return selected_users
+
+def get_5_sessions() :
+    """세션 목록을 가져오는 함수""" 
+    sessions = ChatSession.objects.order_by('-started_at')[:5]
+    return sessions

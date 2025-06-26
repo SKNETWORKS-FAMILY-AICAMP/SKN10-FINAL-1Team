@@ -8,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from .utils import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table
-from .utils import make_index, remove_index, generate_password, get_documents
+from .utils import make_index, remove_index, generate_password, get_documents, get_5_sessions
 from conversations.models import ChatSession, ChatMessage
 from accounts.models import User, Organization
 import csv, io
@@ -19,7 +19,7 @@ import csv, io
 def dashboard_view(request, screen_type):
     context = {"screen_type" : screen_type}
     if screen_type == "home" :
-        pass
+        context['recent_sessions'] = get_5_sessions()
     elif screen_type == "db" :
         db = request.GET.get('db', 'postgre')
         context['db'] = db
@@ -237,10 +237,11 @@ def index_detail(request, index_name) :
     namespaces = get_namespaces(index_name)
     return JsonResponse({'namespaces': namespaces})
 
+"""해당 namespace 상세화면"""
 def namespace_detail(request,index_name,namespace_name) :
     documents = get_documents(index_name,namespace_name)
     print("✅ 정상적으로 문서들을 받았습니다!")
-    return JsonResponse({'documents': documents})
+    return render(request, 'knowledge/documents.html', {'documents': documents,'index_name': index_name,'namespace_name': namespace_name,})
 
 """해당 session 상세화면"""
 def session_detail(request, session_id) :
