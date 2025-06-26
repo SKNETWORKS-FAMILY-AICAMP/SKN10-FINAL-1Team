@@ -287,8 +287,7 @@ def predict_churn_with_pipeline(df: pd.DataFrame) -> tuple[str, Optional[pd.Data
         predicted_churn_count = result_df['Prediction'].value_counts().get('Yes', 0)
         churn_rate = (predicted_churn_count / total_customers) * 100 if total_customers > 0 else 0
         summary = (
-            f"Prediction complete. Analyzed {total_customers} customers. "
-            f"Predicted churn for {predicted_churn_count} ({churn_rate:.2f}%)."
+          f"총 {total_customers}명의 고객 데이터를 분석했으며, 그 중 {predicted_churn_count}명({churn_rate:.2f}%)이 이탈할 것으로 예측됩니다."
         )
         print(f"DEBUG: {summary}", file=sys.stderr)
         print("---[ predict_churn_with_pipeline END ]---", file=sys.stderr)
@@ -337,25 +336,34 @@ def analyze_csv_with_churn_prediction(query: str, csv_file_content: str) -> str:
         print("[Tool] 7. Initializing LLM for Pandas Agent...")
         llm = ChatOpenAI(temperature=0, model="gpt-4-turbo")
         
-        print("[Tool] 8. Creating Pandas DataFrame Agent...")
+        KOREAN_PROMPT_PREFIX = """
+너는 매우 친절하고 유능한 데이터 분석 전문가야.
+주어진 데이터프레임을 사용하여 사용자의 질문에 한국어로 답변해야 해.
+답변은 항상 명확하고, 사용자가 이해하기 쉽게, 그리고 친근한 챗봇 스타일로 작성해줘.
+예를 들어, "상위 5명의 고객"을 묻는다면, 단순히 데이터를 나열하는 대신, "이탈 확률이 가장 높은 상위 5명의 고객 정보는 다음과 같아요." 와 같이 자연스러운 문장으로 설명해줘.
+"""
+
         pandas_agent = create_pandas_dataframe_agent(
-            llm, 
-            result_df, 
-            verbose=True, 
-            agent_executor_kwargs={"handle_parsing_errors": True}, 
-            allow_dangerous_code=True
+            llm,
+            result_df,
+            verbose=True,
+            agent_type="openai-tools",
+            handle_parsing_errors=True,
+            prefix=KOREAN_PROMPT_PREFIX,
+            allow_dangerous_code=True,
         )
 
-        print(f"[Tool] 9. Invoking Pandas Agent with query: '{query}'")
-        agent_response = pandas_agent.invoke({"input": query})
+        print("[Tool] 9. Invoking Pandas Agent with query:", f"'{query}'")
+        try:
+            enriched_query = f"{query}\n\n결과를 친절한 대화체로 설명해줘."
+            response = pandas_agent.invoke({"input": enriched_query})
+            analysis_result = response.get("output", "분석이 완료되었습니다.")
+        except Exception as e:
+            analysis_result = f"분석 중 오류가 발생했습니다: {e}"
+
         print("[Tool] 10. Pandas Agent invocation complete.")
-
-        # Combine prediction summary with the agent's analysis for a comprehensive response
-        final_response = f"""**Prediction Summary**:
-{prediction_summary}
-
-**Analysis Result**:
-{agent_response['output']}"""
+        
+        final_response = f"**예측 요약**:\n{prediction_summary}\n\n**상세 분석 결과**:\n{analysis_result}"
         print("[Tool] 11. Final response assembled.")
         return final_response
 
