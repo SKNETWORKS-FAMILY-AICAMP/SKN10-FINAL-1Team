@@ -1,9 +1,11 @@
 import json
-import json
+import copy
 import uuid
 import httpx
 import os
 import asyncio
+import sys
+import base64
 from openai import AsyncOpenAI
 from django.http import StreamingHttpResponse, Http404, JsonResponse
 from django.shortcuts import render, get_object_or_404
@@ -81,26 +83,59 @@ async def chat_stream(request, session_id):
         message_content = ''
         file_name = None
         file_content = None
+        agent = 'default'  # Default agent
+
+        # --- DEBUG ---
+        print(f"\n---[ chat_stream START ]---")
+        print(f"Request Content-Type: {request.content_type}")
+        # --- END DEBUG ---
 
         # Handle multipart/form-data for file uploads, or application/json for standard messages
         if request.content_type.startswith('multipart/form-data'):
-            message_content = request.POST.get('message', '')
+            form_data = request.POST
+            message_content = form_data.get('message', '')
+            agent = form_data.get('agent', 'default')
             file_obj = request.FILES.get('file')
             if file_obj:
                 file_name = file_obj.name
-                # Ensure the file is read as a string. Handle potential binary files gracefully.
                 try:
                     file_content = file_obj.read().decode('utf-8')
                 except UnicodeDecodeError:
-                    # Fallback for non-UTF8 files, though CSV should be text.
                     file_content = "Error: Could not decode file content. Please ensure it is UTF-8 encoded."
+        
         elif request.content_type.startswith('application/json'):
-            data = json.loads(request.body)
+            raw_body = request.body.decode('utf-8')
+            print(f"Raw JSON Body: {raw_body}")
+            data = json.loads(raw_body)
+            
             message_content = data.get('message', '')
+            agent = data.get('agent', 'default')
             file_name = data.get('file_name')
-            file_content = data.get('file_content')
+            # Check for 'csv_file_content' and fall back to 'file_content'
+            csv_file_content = data.get('csv_file_content') or data.get('file_content')
+
+            # --- DEBUG ---
+            print(f"Agent: {agent}")
+            print(f"Message: {message_content[:100]}...") # Log first 100 chars
+            print(f"File Name: {file_name}")
+            print(f"File Content Received: {'Yes' if csv_file_content else 'No'}")
+            # --- END DEBUG ---
+
+            # If CSV content is present, automatically set agent to 'prediction'
+            if csv_file_content:
+                agent = 'prediction'
+                file_content = csv_file_content # Use the CSV content
+                print(f"CSV content detected. Agent override to: {agent}")
+
         else:
              return JsonResponse({"error": f"Unsupported content type: {request.content_type}"}, status=415)
+
+        # --- DEBUG ---
+        print(f"Agent: {agent}")
+        print(f"Message: {message_content[:100] if message_content else ''}...") # Log first 100 chars
+        print(f"File Name: {file_name}")
+        print(f"File Content Received: {'Yes' if file_content else 'No'}")
+        # --- END DEBUG ---
 
         if not message_content and not file_content:
             return JsonResponse({"error": "Message or file content is empty."}, status=400)
@@ -116,14 +151,16 @@ async def chat_stream(request, session_id):
         )
         
         # Check if this is the first message to generate a title
-        is_first_message = await ChatMessage.objects.filter(session=session).acount() == 1
+        is_first_message = not await ChatMessage.objects.filter(session=session).aexists() == 1
 
         thread_id = str(session.thread_id) if session.thread_id else str(uuid.uuid4())
         if not session.thread_id:
             session.thread_id = uuid.UUID(thread_id)
             await session.asave()
 
-        fastapi_url = os.environ.get("FASTAPI_SERVER_URL", "http://127.0.0.1:8001")
+        # For local development, directly target the local FastAPI server.
+    # For production, change this back to: os.getenv("FASTAPI_SERVER_URL", "http://127.0.0.1:8001")
+        fastapi_url = "http://127.0.0.1:8001"
 
         async def event_stream():
             # Stream title first if it's the first message
@@ -139,16 +176,24 @@ async def chat_stream(request, session_id):
             known_tool_call_ids = set()
 
             try:
+                fastapi_base_url = "http://127.0.0.1:8001" # NOTE: Forcing local URL to match the desired state.
                 internal_secret = os.getenv("FASTAPI_INTERNAL_SECRET")
                 headers = {"X-Internal-Secret": internal_secret} if internal_secret else {}
                 async with httpx.AsyncClient() as client:
                     # Prepare payload for FastAPI
                     payload_input = {
-                        "messages": [{"content": message_content}]
+                        "messages": [{"role": "user", "content": message_content}]
                     }
                     if file_content:
                         # FastAPI의 RequestBody 모델에 따라 'csv_file_content' 키를 사용합니다.
-                        payload_input["csv_file_content"] = file_content
+                        try:
+                            # Decode base64 content to raw string for the prediction agent
+                            decoded_content = base64.b64decode(file_content).decode('utf-8')
+                            payload_input["csv_file_content"] = decoded_content
+                        except Exception as e:
+                            print(f"Error decoding base64 content: {e}")
+                            # Handle error, maybe return an error message to the user
+                            payload_input["csv_file_content"] = "ERROR: Invalid file content"
                         # 텍스트 메시지가 없는 경우, 파일 분석 요청 메시지를 생성합니다.
                         if not message_content:
                             payload_input["messages"] = [{"content": f"첨부된 파일 '{file_name}'을 분석해줘."}]
@@ -156,11 +201,27 @@ async def chat_stream(request, session_id):
                     payload = {
                         "input": payload_input,
                         "config": {
-                            "configurable": {"thread_id": thread_id},
-                            "stream_mode": ["messages", "updates"]
+                            "configurable": {"thread_id": str(session.id)}
                         }
                     }
-                    async with client.stream("POST", f"{fastapi_url}/invoke", json=payload, headers=headers, timeout=300.0) as response:
+                    # Agent-specific endpoints
+                    if agent == 'prediction':
+                        request_url = f"{fastapi_base_url}/prediction/invoke"
+                    else:
+                        request_url = f"{fastapi_base_url}/default/invoke"
+                    
+                    # --- DEBUG ---
+                    print(f"---[ Calling FastAPI Server ]---")
+                    print(f"URL: {request_url}")
+                    # For logging, create a deep copy and truncate the file content to avoid flooding the console
+                    log_payload = copy.deepcopy(payload)
+                    if 'csv_file_content' in log_payload['input'] and log_payload['input']['csv_file_content']:
+                        log_payload['input']['csv_file_content'] = f"<... {len(log_payload['input']['csv_file_content'])} bytes ...>"
+
+                    print(f"Payload: {json.dumps(log_payload, indent=2, ensure_ascii=False)}")
+                    # --- END DEBUG ---
+
+                    async with client.stream("POST", request_url, json=payload, headers=headers, timeout=300.0) as response:
                         response.raise_for_status()
                         tool_use_started_sent = False # Flag to send start event only once
                         async for line in response.aiter_lines():
@@ -170,6 +231,12 @@ async def chat_stream(request, session_id):
                                     if not raw_data:
                                         continue
                                     chunk = json.loads(raw_data)
+
+                                    # Defensive check for chunk structure
+                                    if not isinstance(chunk, list) or len(chunk) < 2:
+                                        print(f"---[STREAM WARNING] Skipping malformed chunk: {chunk}", file=sys.stderr)
+                                        continue
+
                                     event_type, payload = chunk[0], chunk[1]
 
                                     if event_type == "messages":
@@ -351,4 +418,3 @@ async def session_delete_view(request, session_id):
         return JsonResponse({'status': 'error', 'message': 'Session not found.'}, status=404)
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-

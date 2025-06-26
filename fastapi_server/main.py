@@ -1,141 +1,159 @@
-from fastapi import FastAPI, Request, HTTPException, Depends
+import logging
+import asyncio
+import sys
+import os
+import json
+import traceback
+from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from langchain_core.runnables import Runnable
+from langchain_core.messages import messages_to_dict, HumanMessage, AIMessage
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
-from fastapi.responses import StreamingResponse
-import json
-from dotenv import load_dotenv
-import subprocess
 
-# .env 파일에서 환경 변수를 로드합니다.
-load_dotenv()
+# Add project root to Python path to allow sibling imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import os
-import sys
-import asyncio
+from fastapi_server.agent.graph import get_graph
 
-# Windows-specific: Set the asyncio event loop policy for psycopg
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-from contextlib import asynccontextmanager
-from collections import ChainMap
-from agent.graph import get_graph
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+# --- Logging Configuration ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="LangGraph Swarm Agent Server",
-    description="A server for running a LangGraph swarm agent.",
-    version="1.0.0"
-)
-
-# --- Security Middleware ---
-INTERNAL_SECRET = os.getenv("FASTAPI_INTERNAL_SECRET")
-
-# @app.middleware("http")
-# async def verify_internal_secret(request: Request, call_next):
-#     # Allow access to docs and openapi.json without the secret header for convenience
-#     if request.url.path in ["/docs", "/openapi.json", "/redoc"]:
-#         return await call_next(request)
-
-#     # For all other paths, require the secret header
-#     secret_header = request.headers.get("X-Internal-Secret")
-#     if not INTERNAL_SECRET or secret_header != INTERNAL_SECRET:
-#         raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing internal secret key")
-
-#     response = await call_next(request)
-#     return response
-
-# --- Pydantic Models for API ---
-class UserInput(BaseModel):
+# --- Pydantic Models for API ---    
+class Message(BaseModel):
+    role: str
     content: str
 
-class RequestBody(BaseModel):
-    messages: List[UserInput]
-    csv_file_content: Optional[str] = None
+class Input(BaseModel):
+    messages: list[Message]
+    csv_file_content: str | None = None
 
-class InvocationRequest(BaseModel):
-    input: RequestBody
-    config: Dict[str, Any] = {}
+class Config(BaseModel):
+    configurable: dict
+
+class InvokeRequest(BaseModel):
+    input: Input
+    config: Config
+
+# --- FastAPI App Initialization ---
+if sys.platform == "win32" and sys.version_info >= (3, 8):
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+app = FastAPI(title="LangGraph-FastAPI-Postgres", version="1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- Helper for Server-Sent Events (SSE) ---
+def dump_to_sse(data: dict) -> str:
+    """
+    Formats a dictionary to an SSE-compliant string.
+    It finds a 'messages' list anywhere in the nested dictionary,
+    serializes it, and sends it in a standardized top-level format.
+    """
+    
+    def find_and_serialize_messages(d):
+        """Recursively search for a 'messages' list and serialize it."""
+        if isinstance(d, dict):
+            for k, v in d.items():
+                if k == "messages" and isinstance(v, list):
+                    serialised_messages = []
+                    for msg in v:
+                        role = "unknown"
+                        if isinstance(msg, HumanMessage):
+                            role = "user"
+                        elif isinstance(msg, AIMessage):
+                            role = "assistant"
+                        else:
+                            role = getattr(msg, 'type', 'unknown')
+                        
+                        content = getattr(msg, 'content', '')
+                        serialised_messages.append({"role": role, "content": str(content)})
+                    return serialised_messages
+                
+                if isinstance(v, dict):
+                    found = find_and_serialize_messages(v)
+                    if found is not None:
+                        return found
+        return None
+
+    serialised_list = find_and_serialize_messages(data)
+    
+    # If messages were found, wrap them in the standardized structure the frontend expects.
+    if serialised_list:
+        output_data = {"messages": serialised_list}
+        try:
+            json_data = json.dumps(output_data, ensure_ascii=False)
+            return f"data: {json_data}\n\n"
+        except (TypeError, json.JSONDecodeError) as e:
+            print(f"Error serializing data to JSON: {e}", file=sys.stderr)
+            return ""
+
+    # If no 'messages' key is found, don't send an empty event.
+    return ""
 
 # --- API Endpoints ---
-def make_serializable(data):
-    """
-    Recursively converts objects into a JSON-serializable format.
-    Handles objects with a .dict() method (like Pydantic models) by calling it.
-    Also handles ChainMap objects.
-    """
-    if isinstance(data, ChainMap):
-        return dict(data)
-    if isinstance(data, (list, tuple)):
-        return type(data)(make_serializable(item) for item in data)
-    if isinstance(data, dict):
-        return {key: make_serializable(value) for key, value in data.items()}
-    if hasattr(data, 'dict') and callable(getattr(data, 'dict')):
-        return data.dict()
-    return data
+@app.get("/")
+async def root():
+    return {"message": "FastAPI server is running"}
+
+@app.post("/{agent_name}/invoke")
+async def stream_agent(
+    request: Request,
+    agent_name: str,
+    body: InvokeRequest,
+) -> StreamingResponse:
 
 
-@app.post("/invoke")
-async def invoke_agent(invocation_request: InvocationRequest):
-    """
-    Invokes the agent swarm with a user request and streams both message and debug events.
-    """
-    messages = [("user", msg.content) for msg in invocation_request.input.messages]
-    config = invocation_request.config.copy()
+    logger.info(f"---[ FastAPI Server START: /{agent_name}/invoke ]---")
 
-    # Check for CSV data and add it to the config's metadata
-    csv_content = invocation_request.input.csv_file_content
-    if csv_content:
-        if "metadata" not in config:
-            config["metadata"] = {}
-        config["metadata"]["csv_file_content"] = csv_content
+    config_dict = body.config.model_dump()
+    thread_id = config_dict.get("configurable", {}).get("thread_id", "N/A")
+    logger.info(f"[FastAPI] Using thread_id/session_id: {thread_id}")
+
+    graph = get_graph(agent_name)
+    logger.info(f"[FastAPI] Returning pre-compiled graph for: {agent_name}")
+
+    input_dict = body.input.model_dump()
+    if body.input.csv_file_content:
+        csv_size = len(body.input.csv_file_content)
+        logger.info(f"[FastAPI] Added CSV content (size: {csv_size} bytes) to graph input.")
 
     async def event_stream():
-        # Create the checkpointer and graph for each request to isolate lifecycles.
-        async with AsyncPostgresSaver.from_conn_string(os.environ["DB_URI"]) as checkpointer:
-            graph = get_graph(checkpointer)
+        final_payload = None
+        try:
             async for chunk in graph.astream(
-                {"messages": messages},
-                config=config,
-                stream_mode=["messages"]
+                input_dict, config={"configurable": {"thread_id": thread_id}}
             ):
-                try:
-                    serializable_chunk = make_serializable(chunk)
-                    yield f"data: {json.dumps(serializable_chunk, ensure_ascii=False)}\n\n"
-                except Exception as e:
-                    print(f"---[FASTAPI-SERVER-ERROR] Failed to serialize chunk: {e}")
-                    error_payload = {
-                        "event": "error",
-                        "data": {"message": "An unexpected error occurred during stream serialization."}
-                    }
-                    yield f"data: {json.dumps(error_payload, ensure_ascii=False)}\n\n"
+                logger.info(f"RAW Graph chunk: {chunk}")
+                # Create a new dictionary to avoid mutating the stream's internal state.
+                # Filter out the large CSV content to avoid sending it to the client.
+                chunk_to_send = {
+                    key: value
+                    for key, value in chunk.items()
+                    if key != "csv_file_content"
+                }
+
+                # The dump_to_sse function will handle filtering and formatting.
+                # It returns an empty string for chunks without messages, so we can yield it directly.
+                yield dump_to_sse(chunk_to_send)
+        except Exception as e:
+            logger.error(f"Stream error: {e}", exc_info=True)
+            error_payload = {"event": "error", "data": str(e)}
+            yield dump_to_sse(error_payload)
+        finally:
+            logger.info(f"---[ FastAPI Server END: /{agent_name}/invoke ]---")
+            if final_payload:
+                logger.info(f"Last payload: {final_payload}")
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
-@app.post("/redeploy-webhook", summary="Redeploy Webhook", description="Triggers a redeployment of the pod.")
-async def redeploy(request: Request):
-    # Secure the endpoint with the same internal secret
-    secret_header = request.headers.get("X-Internal-Secret")
-    if not INTERNAL_SECRET or secret_header != INTERNAL_SECRET:
-        raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing internal secret key")
-
-    try:
-        # Run the redeploy script in the background without blocking
-        subprocess.Popen(["/bin/sh", "./redeploy.sh"])
-        return {"message": "Redeployment process initiated."}
-    except Exception as e:
-        print(f"---[FASTAPI-SERVER-ERROR] Failed to start redeploy script: {e}")
-        raise HTTPException(status_code=500, detail="Failed to initiate redeployment.")
-
-
-@app.get("/", summary="Root endpoint", description="Provides a welcome message.")
-def read_root():
-    return {"message": "Welcome to the LangGraph Agent API"}
-
-# --- Uvicorn Runner ---
+# --- Main Entry Point for direct execution ---
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8001)
-
-

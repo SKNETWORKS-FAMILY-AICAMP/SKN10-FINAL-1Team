@@ -1,17 +1,24 @@
 # f:\dev\SKN10-FINAL-1Team\swarm_agent\src\agent\tools.py
 import json
 import uuid
+import base64
 from typing import Dict, Any, List, Optional
 import os
 import sys
+import traceback
+import traceback
 from io import StringIO
 from pathlib import Path
 
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
 import joblib
 import numpy as np
 from pydantic import BaseModel, Field
-from langchain_core.tools import Tool
+from langchain_core.tools import Tool, tool
+from langchain_core.runnables import RunnableConfig
 from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
 from sklearn.preprocessing import LabelEncoder
 from sklearn.impute import SimpleImputer
@@ -40,7 +47,6 @@ from sqlalchemy import create_engine
 from langchain_community.agent_toolkits.sql.toolkit import SQLDatabaseToolkit
 from langchain_openai import ChatOpenAI
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
-from langchain_core.runnables import RunnableConfig
 from openai import OpenAI as OpenAIClient # For embeddings
 from pinecone import Pinecone as PineconeClient # For vector search
 
@@ -241,146 +247,132 @@ def _load_churn_model():
                     del main_module.ThresholdWrapper
 
 # --- Customer Churn Prediction & Analysis Tool ---
-
-def _predict_churn_and_create_df(csv_data_string: str) -> tuple[Optional[str], Optional[pd.DataFrame]]:
+def predict_churn_with_pipeline(df: pd.DataFrame) -> tuple[str, Optional[pd.DataFrame]]:
     """
-    Internal function to run churn prediction and return an enhanced DataFrame.
+    Internal function to run churn prediction on a DataFrame and return an enhanced DataFrame.
     This function is not a tool itself. Returns (error_message, None) on failure.
     """
-    if not csv_data_string:
-        return "Error: CSV data string cannot be empty.", None
-
+    print("---[ predict_churn_with_pipeline START ]---", file=sys.stderr)
     try:
-        model_pipeline = _load_churn_model()
-        csv_file = StringIO(csv_data_string)
-        df = pd.read_csv(csv_file)
-    except FileNotFoundError:
-        return "Error: Churn prediction model file not found. Please ensure 'churn_pipeline_full.pkl' is in the 'models' directory.", None
+        model = _load_churn_model()
+        df_processed = df.copy()
+
+        # Normalize all column names to lowercase to prevent case sensitivity issues
+        df_processed.columns = [col.lower() for col in df_processed.columns]
+        
+        # Check for customerid to save for later
+        customer_ids = df_processed['customerid'] if 'customerid' in df_processed.columns else None
+        
+        # Drop customerid if it exists, as it's not a feature for the model
+        if customer_ids is not None:
+            df_processed = df_processed.drop(columns=['customerid'])
+
+        churn_probabilities = model.predict_proba(df_processed)[:, 1]
+        churn_predictions = model.predict(df_processed)
+
+        # Create a results DataFrame
+        result_df = df.copy()
+        if customer_ids is not None:
+            result_df['customerid'] = customer_ids
+        result_df['Churn Probability'] = churn_probabilities
+        result_df['Prediction'] = ['Yes' if p == 1 else 'No' for p in churn_predictions]
+
+        # Reorder columns to have CustomerID first
+        cols = ['customerid', 'Churn Probability', 'Prediction'] + [col for col in df.columns if col.lower() != 'customerid']
+        # Ensure no duplicate columns
+        result_df = result_df[cols].loc[:,~result_df[cols].columns.duplicated()]
+
+        # Generate a summary message
+        total_customers = len(result_df)
+        predicted_churn_count = result_df['Prediction'].value_counts().get('Yes', 0)
+        churn_rate = (predicted_churn_count / total_customers) * 100 if total_customers > 0 else 0
+        summary = (
+            f"Prediction complete. Analyzed {total_customers} customers. "
+            f"Predicted churn for {predicted_churn_count} ({churn_rate:.2f}%)."
+        )
+        print(f"DEBUG: {summary}", file=sys.stderr)
+        print("---[ predict_churn_with_pipeline END ]---", file=sys.stderr)
+        return summary, result_df
+
     except Exception as e:
-        return f"Error reading or parsing the CSV data: {e}", None
-
-    # Ensure there's a customerID column for joining later
-    if 'customerID' not in df.columns:
-        # Find a column that is likely the customer ID
-        id_col_found = None
-        for col in df.columns:
-            if 'customerid' in col.lower().replace('_', '').replace(' ', ''):
-                id_col_found = col
-                break
-        if id_col_found:
-            df.rename(columns={id_col_found: 'customerID'}, inplace=True)
-        else:
-            # If no customerID, create a temporary one for processing
-            df['customerID'] = [f"customer_{i}" for i in range(len(df))]
-            print("Warning: 'customerID' column not found. Added temporary IDs for reference.", file=sys.stderr)
-
-    customer_ids = df['customerID']
-    # Drop customerID for prediction, but keep it in the original df
-    X_new = df.drop(columns=['customerID'], errors='ignore')
-
-    try:
-        churn_probabilities = model_pipeline.predict_proba(X_new)[:, 1]
-        churn_predictions_binary = model_pipeline.predict(X_new)
-    except Exception as e:
-        error_message = f"An error occurred during prediction: {str(e)}. "
-        if isinstance(e, KeyError):
-            error_message += "This is often caused by missing or misspelled column names in the CSV file. Please check if the CSV matches the required format."
-        print(error_message, file=sys.stderr)
+        error_message = f"An error occurred during churn prediction: {str(e)}"
         import traceback
         print(traceback.format_exc(), file=sys.stderr)
-        return error_message, None
-
-    num_customers = len(df)
-    predicted_churners = np.sum(churn_predictions_binary)
-    churn_rate = (predicted_churners / num_customers) * 100 if num_customers > 0 else 0
-    
-    summary = (
-        f"**Churn Prediction Analysis Complete:**\n"
-        f"- Total Customers Analyzed: {num_customers}\n"
-        f"- Predicted Churners: {predicted_churners} ({churn_rate:.2f}%)\n"
-    )
-
-    result_df = pd.DataFrame({
-        'customerID': customer_ids,
-        'Churn Probability': churn_probabilities,
-        'Predicted Churn': churn_predictions_binary
-    })
-
-    return summary, result_df
+        return (error_message, None)
 
 class ChurnAnalysisInputArgs(BaseModel):
     """Input schema for the CustomerChurnDataAnalyzer tool."""
-    user_query: str = Field(
-        ...,
-        description="The user's natural language question about the data."
-    )
-    csv_data_string: Optional[str] = Field(
-        None,
-        description="(Optional) A string containing the full customer data in CSV format. If not provided, the tool will attempt to find it in the execution context."
-    )
+    query: str = Field(..., description="The user's natural language question about the data.")
+    csv_file_content: str = Field(..., description="The base64-encoded string content of the CSV file. This MUST be provided.")
 
+@tool(args_schema=ChurnAnalysisInputArgs)
+def analyze_csv_with_churn_prediction(query: str, csv_file_content: str) -> str:
+    """Analyzes CSV data for churn and answers questions based on prediction results."""
+    print(f"[Tool] 1. Entered tool with query: '{query}'")
 
-def analyze_csv_with_churn_prediction(user_query: str, csv_data_string: Optional[str] = None, config: Optional[RunnableConfig] = None) -> str:
-    """
-    Performs churn prediction on the provided CSV data and then answers a user's question
-    about the data (including the prediction results) using a powerful language model agent.
-    If a CSV file is provided, churn prediction is always run.
-    """
-    print(f"DEBUG: Entering analyze_csv_with_churn_prediction. CSV provided: {csv_data_string is not None}", file=sys.stderr)
+    if not csv_file_content:
+        print("[Tool Error] No CSV content was provided.")
+        return "Error: The 'csv_file_content' argument is mandatory and was not provided."
 
-    # If no CSV data is provided, inform the user and exit.
-    if not csv_data_string:
-        # Attempt to get from config as a fallback
-        if config and "configurable" in config and "csv_data" in config["configurable"]:
-            csv_data_string = config["configurable"]["csv_data"]
-    
-    if not csv_data_string:
-        return "To analyze customer churn, please attach a CSV file with customer data."
-
+    print(f"[Tool] 2. CSV content received (first 50 bytes): {csv_file_content[:50]}...")
     try:
-        # 1. Run prediction since a CSV was provided.
-        summary, result_df = _predict_churn_and_create_df(csv_data_string)
-        if result_df is None:
-            # If prediction failed, result_df will be None and summary contains the error.
-            return summary
+        logger.info("[Tool] 3. Parsing CSV content...")
+        csv_data = StringIO(csv_file_content)
+        df = pd.read_csv(csv_data)
 
-        # 2. Use a pandas agent to answer the user's query on the prediction results.
-        #    This allows for natural language questions about the churn predictions.
-        pandas_agent_executor = create_pandas_dataframe_agent(
-            ChatOpenAI(temperature=0, model="gpt-4-turbo"), # Using a strong model for analysis
-            result_df,
-            verbose=True,
-            agent_type="openai-tools",
-            handle_parsing_errors=True,
-            agent_executor_kwargs={"handle_parsing_errors": True},
+        # Normalize all column names to lowercase to prevent case sensitivity issues
+        df.columns = [col.lower() for col in df.columns]
+
+        print(f"[Tool] 4. DataFrame created successfully. Shape: {df.shape}")
+
+        print("[Tool] 5. Running churn prediction pipeline...")
+        prediction_summary, result_df = predict_churn_with_pipeline(df)
+        print("[Tool] 6. Churn prediction completed.")
+
+        if result_df is None:
+            error_msg = f"Prediction failed. Details: {prediction_summary}"
+            print(f"[Tool Error] {error_msg}")
+            return error_msg
+
+        print("[Tool] 7. Initializing LLM for Pandas Agent...")
+        llm = ChatOpenAI(temperature=0, model="gpt-4-turbo")
+        
+        print("[Tool] 8. Creating Pandas DataFrame Agent...")
+        pandas_agent = create_pandas_dataframe_agent(
+            llm, 
+            result_df, 
+            verbose=True, 
+            agent_executor_kwargs={"handle_parsing_errors": True}, 
+            allow_dangerous_code=True
         )
-        
-        print(f"DEBUG: Invoking pandas agent with query: {user_query}", file=sys.stderr)
-        
-        # The agent will analyze the dataframe with churn probabilities and predictions.
-        response = pandas_agent_executor.invoke({
-            "input": f"You are provided with a DataFrame that includes customer IDs, their churn probabilities, and a binary churn prediction. Based on this data, answer the following user question: '{user_query}'"
-        })
-        
-        # 3. Combine the prediction summary and the agent's detailed answer.
-        final_response = f"{summary}\n\n**Query Analysis:**\n{response['output']}"
-        print(f"DEBUG: Final response generated.", file=sys.stderr)
-        
+
+        print(f"[Tool] 9. Invoking Pandas Agent with query: '{query}'")
+        agent_response = pandas_agent.invoke({"input": query})
+        print("[Tool] 10. Pandas Agent invocation complete.")
+
+        # Combine prediction summary with the agent's analysis for a comprehensive response
+        final_response = f"""**Prediction Summary**:
+{prediction_summary}
+
+**Analysis Result**:
+{agent_response['output']}"""
+        print("[Tool] 11. Final response assembled.")
         return final_response
 
     except Exception as e:
-        error_message = f"An unexpected error occurred in the churn analysis tool: {str(e)}"
-        import traceback
-        print(traceback.format_exc(), file=sys.stderr)
-        return error_message
+        error_details = traceback.format_exc()
+        print(f"[Tool Error] An unexpected error occurred: {e}\n{error_details}", file=sys.stderr)
+        return f"An unexpected error occurred in the analysis tool: {e}"
 
 csv_churn_analyzer_tool = Tool(
     name="CustomerChurnDataAnalyzer",
     func=analyze_csv_with_churn_prediction,
     description=(
-        "Use this tool when you need to answer questions about customer data from a CSV file. "
-        "This tool first runs a churn prediction model on the data, adding 'ChurnPrediction' and 'ChurnProbability' columns, "
-        "and then uses this enhanced data to answer the user's specific question. "
+        "Use this tool to analyze customer data from a CSV file and predict churn. "
+        "This tool is mandatory for any request involving a CSV file. "
+        "You MUST provide both the user's `query` and the `csv_file_content` (as a raw text string). "
+        "The tool first runs a churn prediction model, then allows you to ask questions about the results "
+        "(e.g., 'show me customers with high churn risk' or 'what is the overall churn rate?')."
     ),
     args_schema=ChurnAnalysisInputArgs
 )
