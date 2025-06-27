@@ -3,38 +3,36 @@
     <style>
         [x-cloak] { display: none !important; }
     </style>
-    <div class="mx-auto max-w-4xl">
+    <div class="mx-auto max-w-5xl">
+    <!-- 여기서 가로 레이아웃을 지정: 모바일에선 한 줄, 데스크탑(md 이상)에선 2열 -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
     <section class="rounded-lg bg-white p-6 shadow-md border border-gray-200">
-    <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em] mb-6">최근 채팅 리스트</h3>
+    <h3 class="text-[var(--text-primary)] text-xl font-semibold leading-tight tracking-[-0.015em] mb-6">최근 채팅 목록</h3>
     <div class="@container">
     <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
     <table class="min-w-full divide-y divide-[var(--border-color)]">
     <thead class="bg-slate-50">
     <tr>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                            id
+    <th class="px-4 py-2 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            번호
                             </th>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                            유저
+    <th class="px-4 py-2 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            제목
                             </th>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                            세션 유형
-                            </th>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-600 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+    <th class="px-4 py-2 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
                             메시지 수
                             </th>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                            삭제여부
-                            </th>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-720 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+    <th class="px-4 py-2 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
                             생성 일자
                             </th>
     </tr>
     </thead>
     <tbody class="divide-y divide-[var(--border-color)] bg-white">
+    {% if recent_sessions %}
     {% for session in recent_sessions %}
         <tr>
-        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]"
+        <td class=" whitespace-nowrap px-4 py-2 text-left text-xs font-medium text-[var(--text-primary)]">{{ forloop.counter }}</td>
+        <td class=" whitespace-nowrap px-4 py-2 text-left text-xs font-medium text-[var(--text-primary)]"
             x-data="{ open: false, messages : [], loaded: false }">
             <!-- 텍스트 컴포넌트-->
             <div @click="open = true">
@@ -49,7 +47,7 @@
                         loaded = true;
                     });
                     }"
-                class="text-blue-500 hover:text-blue-700 underline">{{session.title}}</a>
+                class="text-blue-500 hover:text-blue-700 underline">{{session.title|truncatechars:6}}</a>
             </div>
 
             <!-- 백그라운드 오버레이 -->
@@ -156,15 +154,13 @@
             </div>
             </div>
         </td>
-        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{session.user|truncatechars:12}}</td>
-        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{session.agent_type}}</td>
-        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-600 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{session.messages.count }}</td>
-        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-600 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">
-            {% if session.deleted_check %} O {% else %} X {% endif %}
-        </td>
-        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-720 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{session.started_at|date:"F j, Y, g:i"}}</td>
+        <td class=" whitespace-nowrap px-4 py-2 text-left text-xs text-[var(--text-secondary)]">{{session.messages.count }}</td>
+        <td class=" whitespace-nowrap px-4 py-2 text-left text-xs text-[var(--text-secondary)]">{{session.started_at|date:"F j, Y, g:i A"}}</td>
     </tr>
     {% endfor %}
+    {% else %}
+        <p>최근 세션이 존재하지 않습니다!</p>
+    {% endif %}
     </tbody>
     </table>
     </div>
@@ -190,7 +186,116 @@
                         }
                         }
                     </style>
+    </section>
+
+    <section class="rounded-lg bg-white p-6 shadow-md border border-gray-200">
+    <h3 class="text-xl font-semibold mb-4">최근 채팅 추이</h3>
+    <!-- Chart 영역에 고정 높이 주기 -->
+    <div class="h-48 w-full">
+        <canvas id="session-count-chart"></canvas>
     </div>
     </section>
+
+    <!-- body 맨 아래에 Chart.js 불러오기 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+    // API 호출 + 에러 로그
+    fetch("{% url 'knowledge:session_counts_api' %}")
+        .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+        })
+        .then(data => {
+        console.log('session_counts data:', data);
+        const labels = data.map(d => d.day);
+        const counts = data.map(d => d.count);
+
+        const canvas = document.getElementById('session-count-chart');
+        if (!canvas) return console.error('⚠️ canvas element 못찾음');
+        const ctx = canvas.getContext('2d');
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+            labels,
+            datasets: [{
+                label: '세션 수',
+                data: counts,
+                backgroundColor: 'rgba(59,130,246,0.5)',
+                borderColor: 'rgba(59,130,246,1)',
+                borderWidth: 1
+            }]
+            },
+            options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                beginAtZero: true,
+                ticks: { stepSize: 1 }
+                }
+            }
+            }
+        });
+        })
+        .catch(err => console.error('🔴 차트 렌더링 에러:', err));
+    </script>
     </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+        <section class="rounded-lg bg-white p-6 shadow-md border border-gray-200">
+        <h3 class="text-xl font-semibold mb-4">가입자 수 추이</h3>
+        <div class="h-48 w-full">
+            <canvas id="user-count-chart"></canvas>
+        </div>
+        </section>
+
+        <script>
+        document.addEventListener('DOMContentLoaded', () => {
+        // 가입자 수 API 호출
+        fetch("{% url 'knowledge:user_counts_api' %}")
+            .then(res => {
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+            })
+            .then(data => {
+            const labels = data.map(d => d.day);
+            const counts = data.map(d => d.count);
+
+            const ctx = document
+                .getElementById('user-count-chart')
+                .getContext('2d');
+
+            new Chart(ctx, {
+                type: 'line',           // line 차트
+                data: {
+                labels,
+                datasets: [{
+                    label: '가입자 수',
+                    data: counts,
+                    fill: false,                 // 선 아래 채우기 없음
+                    borderColor: 'rgba(234, 88, 12, 1)', // Tailwind red-500
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointBackgroundColor: 'rgba(234, 88, 12, 1)'
+                }]
+                },
+                options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1 }
+                    }
+                }
+                }
+            });
+            })
+            .catch(err => console.error('가입자 차트 에러:', err));
+        });
+        </script>
+    </div>
+
+    </div>    
     </div>

@@ -39,4 +39,6 @@ urlpatterns = [
     path('dashboard/<str:screen_type>', views.dashboard_view, name='dashboard'), # New view for dashboard.html
     # Include API routes under 'api/' prefix
     path('api/', include(api_urlpatterns)),
+    path('api/session_counts/', views.recent_session_counts, name='session_counts_api'),
+    path('api/user_counts/', views.user_counts, name='user_counts_api'),
 ]
