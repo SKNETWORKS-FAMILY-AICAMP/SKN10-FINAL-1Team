@@ -72,6 +72,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     name = models.CharField(max_length=100, blank=True)
     role = models.CharField(max_length=20, choices=UserRole.choices, default=UserRole.GUEST)
     profile_image = models.ImageField(upload_to=get_profile_image_path, null=True, blank=True, verbose_name="Profile Image")
+    github_token = models.CharField(max_length=255, blank=True, null=True, verbose_name="GitHub Token")
     created_at = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(null=True, blank=True)
 

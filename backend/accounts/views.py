@@ -176,10 +176,10 @@ def profile_view(request):
 @login_required
 def list_github_repositories(request):
     user = request.user
-    if not hasattr(user, 'github_access_token') or not user.github_access_token:
+    if not hasattr(user, 'github_token') or not user.github_token:
         return JsonResponse({'error': 'GitHub token not found or not connected.'}, status=400)
 
-    token = user.github_access_token
+    token = user.github_token
     headers = {
         'Authorization': f'token {token}',
         'Accept': 'application/vnd.github.v3+json',
@@ -245,10 +245,10 @@ def ajax_list_repository_branches(request):
     if not owner or not repo_name:
         return JsonResponse({'error': 'Owner and repository name are required.'}, status=400)
 
-    if not hasattr(user, 'github_access_token') or not user.github_access_token:
+    if not hasattr(user, 'github_token') or not user.github_token:
         return JsonResponse({'error': 'GitHub token not found or not connected.'}, status=400)
 
-    token = user.github_access_token
+    token = user.github_token
     api_url = f'https://api.github.com/repos/{owner}/{repo_name}/branches'
     headers = {
         'Authorization': f'token {token}',
@@ -291,8 +291,8 @@ def ajax_list_repository_branches(request):
 def delete_github_token(request):
     if request.method == 'POST':
         user = request.user
-        if hasattr(user, 'github_access_token') and user.github_access_token:
-            user.github_access_token = None
+        if hasattr(user, 'github_token') and user.github_token:
+            user.github_token = None
             user.save()
             messages.success(request, 'GitHub token has been successfully disconnected.')
         else:
@@ -306,10 +306,10 @@ def settings_view(request):
     """Renders the user settings page and GitHub connection status."""
     github_connected = False
     github_username = None
-    if request.user.is_authenticated and hasattr(request.user, 'github_access_token') and request.user.github_access_token:
+    if request.user.is_authenticated and hasattr(request.user, 'github_token') and request.user.github_token:
         github_connected = True
         try:
-            headers = {'Authorization': f'token {request.user.github_access_token}'}
+            headers = {'Authorization': f'token {request.user.github_token}'}
             response = requests.get('https://api.github.com/user', headers=headers)
             response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
             github_user_data = response.json()
@@ -364,7 +364,7 @@ def list_branches_for_url_view(request):
         return JsonResponse({'status': 'error', 'message': 'Repository URL is required.'}, status=400)
 
     user = request.user
-    github_token = getattr(user, 'github_access_token', None)
+    github_token = getattr(user, 'github_token', None)
     print(f"DEBUG: User: {user.email}, GitHub Token available: {'YES' if github_token and github_token.strip() else 'NO'}")
 
     if not github_token:
@@ -417,7 +417,7 @@ def scan_selected_repositories_view(request):
         scan_type = data.get('scan_type')
         print(f"DEBUG: scan_type received: '{scan_type}'")
         user = request.user
-        github_token = getattr(user, 'github_access_token', None)
+        github_token = getattr(user, 'github_token', None)
         github_user_name = None # Variable to store the GitHub username
         scan_results = []
         s3_client = None
@@ -744,8 +744,9 @@ def github_connect_view(request):
             response = requests.get('https://api.github.com/user', headers=headers)
             response.raise_for_status() 
             
-            request.user.github_access_token = pat
+            request.user.github_token = pat
             request.user.save()
+            auth_login(request, request.user) # Update session with new user data
             messages.success(request, "GitHub 계정이 성공적으로 연결되었습니다.")
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 401:
@@ -762,9 +763,10 @@ def github_connect_view(request):
 @login_required
 def github_disconnect_view(request):
     if request.method == 'POST': 
-        if request.user.is_authenticated and hasattr(request.user, 'github_access_token') and request.user.github_access_token:
-            request.user.github_access_token = None
+        if request.user.is_authenticated and hasattr(request.user, 'github_token') and request.user.github_token:
+            request.user.github_token = None
             request.user.save()
+            auth_login(request, request.user) # Update session with new user data
             messages.success(request, "GitHub 계정 연결이 해제되었습니다.")
         else:
             messages.info(request, "연결된 GitHub 계정이 없습니다.")
@@ -869,11 +871,11 @@ def add_repository_by_url(request):
 
         owner, repo_name = parsed_url
 
-        if not hasattr(user, 'github_access_token') or not user.github_access_token:
+        if not hasattr(user, 'github_token') or not user.github_token:
             messages.error(request, 'GitHub account not connected. Please connect your GitHub account first.')
             return redirect('accounts:settings')
 
-        token = user.github_access_token
+        token = user.github_token
         api_url = f'https://api.github.com/repos/{owner}/{repo_name}'
         headers = {
             'Authorization': f'token {token}',
@@ -906,8 +908,26 @@ def add_repository_by_url(request):
 
 @login_required
 def settings_view(request):
-    """Renders the user settings page."""
-    return render(request, 'accounts/setting.html')
+    """Renders the user settings page and GitHub connection status."""
+    github_connected = False
+    github_username = None
+    if request.user.is_authenticated and hasattr(request.user, 'github_token') and request.user.github_token:
+        github_connected = True
+        try:
+            headers = {'Authorization': f'token {request.user.github_token}'}
+            response = requests.get('https://api.github.com/user', headers=headers)
+            response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
+            github_user_data = response.json()
+            github_username = github_user_data.get('login')
+        except requests.exceptions.RequestException as e:
+            messages.error(request, f"GitHub 토큰으로 사용자 정보를 가져오는 데 실패했습니다. 토큰을 확인하거나 다시 연결해주세요.")
+            github_username = None # Ensure username is None if fetch fails
+            
+    context = {
+        'github_connected': github_connected,
+        'github_username': github_username,
+    }
+    return render(request, 'accounts/setting.html', context)
 
 # User-facing Login Page View (Session-based)
 def login_page_view(request):
