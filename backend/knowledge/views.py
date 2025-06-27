@@ -11,13 +11,16 @@ from .utils import get_namespaces, get_index_lists, get_sessions, get_users, get
 from .utils import make_index, remove_index, generate_password, get_documents, get_5_sessions
 from conversations.models import ChatSession, ChatMessage
 from accounts.models import User, Organization
-import csv, io
+import csv, io, json, os, boto3, datetime
 from django.utils import timezone
 from django.db.models import Count
 from datetime import timedelta
 from django.db.models.functions import TruncDate
+from django.conf import settings
+from dotenv import load_dotenv
 
-# Create your views here.
+# 모듈이 로딩될 때 단 한 번 실행
+load_dotenv()
 
 """dashboard 출력"""
 def dashboard_view(request, screen_type):
@@ -290,12 +293,12 @@ def session_detail(request, session_id) :
     related_messages = session.messages.all()
     messages = []
     for msg in related_messages:
-        print(msg.tool_data)
         messages.append({
             "id" : msg.id,
             "created_at" : msg.created_at.strftime("%Y-%m-%d %H:%M"),
             "role" : msg.role,
-            "content" : msg.content
+            "content" : msg.content,
+            "tool" : json.dumps(msg.tool_data, ensure_ascii=False, indent=2)
         })
     return JsonResponse({"messages" : messages})
 

@@ -198,6 +198,10 @@
 
     <!-- body 맨 아래에 Chart.js 불러오기 -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 2. date-fns core (v2 이상) -->
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/dist/date-fns.min.js"></script>
+    <!-- 3. date-fns 어댑터 -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@2"></script>
     <script>
     // API 호출 + 에러 로그
     fetch("{% url 'knowledge:session_counts_api' %}")
@@ -295,6 +299,13 @@
             .catch(err => console.error('가입자 차트 에러:', err));
         });
         </script>
+
+        <section class="rounded-lg bg-white p-6 shadow-md border border-gray-200">
+            <h3 class="text-xl font-semibold mb-4">CPU/메모리 사용량</h3>
+            <div class="h-48 w-full">
+                <canvas id="ec2Chart" width="800" height="400"></canvas>                
+            </div>
+        </section>
     </div>
 
     </div>    

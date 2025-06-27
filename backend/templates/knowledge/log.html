@@ -37,7 +37,7 @@
     {% for session in sessions %}
         <tr>
         <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]"
-            x-data="{ open: false, messages : [], loaded: false }">
+            x-data="{ open: false, messages : [], loaded: false}">
             <!-- 텍스트 컴포넌트-->
             <div @click="open = true">
                 <a href="{% url 'knowledge:session_detail' session.id %}"
@@ -128,8 +128,8 @@
                 <!-- 메시지 리스트 -->
                 <template x-for="msg in messages" :key="msg.id">
                     <!-- 1) flex 컨테이너로 좌/우 정렬 -->
-                    <div class="flex"
-                    :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+                    <div class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
+                    x-data="{ showTool: false }">
 
                     <!-- 2) 말풍선 박스 -->
                     <div class="max-w-[70%] p-3 rounded-lg"
@@ -140,9 +140,25 @@
 
                     <!-- 3) 내용 -->
                     <p class="whitespace-normal break-words" x-text="msg.content"></p>
-
+                    
                     <!-- 4) 타임스탬프 (버블 안쪽 오른쪽 하단) -->
                     <p class="text-[10px] opacity-75 text-right mt-1" x-text="msg.created_at"></p>
+
+                    <!-- 5) tool_data 토글 버튼 -->
+                    <template x-if="msg.role === 'assistant'">
+                    <button @click="showTool = !showTool" class="mt-2 inline-flex items-center 
+                    px-3 py-1 text-xs font-semibold text-blue-600 bg-blue-50 rounded-lg border border-blue-100 
+                    hover:bg-blue-100 hover:text-blue-700 transition-colors duration-150"
+                    x-text="showTool ? '툴 호출 숨기기' : '툴 호출 보기'">
+                    </button>
+                    </template>
+
+                    <!-- 6) 예쁘게 포맷된 JSON 출력 -->
+                    <template x-if="msg.tool && showTool">
+                    <pre class="whitespace-pre-wrap bg-gray-200 p-2 rounded text-xs mt-1"
+                        x-text="msg.tool">
+                    </pre>
+                    </template>
 
                     </div>
                     </div>

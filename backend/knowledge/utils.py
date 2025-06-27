@@ -24,6 +24,7 @@ from functools import lru_cache
 from django.core.paginator import Paginator 
 import secrets
 import string
+import boto3
                     
 def get_postgre_db() : 
     """PostgreSQL 데이터베이스 연결 정보 가져오는 함수"""
@@ -116,6 +117,18 @@ def get_index_lists() :
         "cloud" : cloud
         })
     return results
+
+def bucket_list(request):
+    s3 = boto3.client(
+        "s3",
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        region_name=settings.AWS_S3_REGION_NAME,
+    )
+    # 모든 버킷 이름 가져오기
+    buckets = [b["Name"] for b in s3.list_buckets().get("Buckets", [])]
+    print(buckets)
+    return buckets
 
 def make_index(name, cloud, region, metric, vector_type, dimension) : 
     """Pinecone 인덱스를 생성하는 함수"""
