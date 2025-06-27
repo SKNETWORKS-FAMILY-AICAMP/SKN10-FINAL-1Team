@@ -126,8 +126,52 @@ def update_profile(request):
 
 @login_required
 def profile_view(request):
-    """Renders the user profile page."""
-    return render(request, 'accounts/profile.html')
+    """Renders the user profile page and handles profile updates."""
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+
+    if request.method == 'POST':
+        user = request.user  # Define user here to have it in scope for the exception block
+        try:
+            user.name = request.POST.get('name', user.name)
+
+            profile_image_file = request.FILES.get('profile_image')
+            photo_url = request.POST.get('photo_url')
+
+            if profile_image_file:
+                user.profile_image = profile_image_file
+            elif photo_url:
+                try:
+                    response = requests.get(photo_url, stream=True)
+                    response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx)
+                    file_name = photo_url.split('/')[-1].split('?')[0] # Basic file name extraction
+                    user.profile_image.save(file_name, ContentFile(response.content), save=True)
+                except requests.exceptions.RequestException as e:
+                    if is_ajax:
+                        return JsonResponse({'status': 'error', 'message': f'Failed to fetch image from URL: {e}'}, status=400)
+                    else:
+                        # For non-AJAX, you might use Django's messages framework
+                        print(f"Error fetching image from URL: {e}")
+                        # Fall through to redirect, but the image won't be updated.
+
+            user.save()
+
+            if is_ajax:
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Profile updated successfully!',
+                    'profile_image_url': user.profile_image.url if user.profile_image else ''
+                })
+            else:
+                return redirect('accounts:profile')
+
+        except Exception as e:
+            if is_ajax:
+                return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+            else:
+                # Handle non-AJAX error, maybe with Django messages framework and redirect
+                return redirect('accounts:profile')
+
+    return render(request, 'accounts/profile.html', {'user': request.user})
 
 @login_required
 def list_github_repositories(request):
@@ -859,3 +903,32 @@ def add_repository_by_url(request):
 
     # If not POST, just redirect (or handle as an error)
     return redirect('accounts:settings')
+
+@login_required
+def settings_view(request):
+    """Renders the user settings page."""
+    return render(request, 'accounts/setting.html')
+
+# User-facing Login Page View (Session-based)
+def login_page_view(request):
+    if request.method == 'POST':
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        user = authenticate(request, username=email, password=password) # Use email as username
+        if user is not None:
+            auth_login(request, user)
+            # Determine redirect URL after successful login
+            redirect_url = request.GET.get('next', '/') # Redirect to 'next' if present, else to home
+            if not redirect_url or redirect_url.startswith('/accounts/login_page'): # Avoid redirecting back to login
+                redirect_url = '/' # Default to home if next is login page or empty
+            return JsonResponse({'success': True, 'redirect_url': redirect_url})
+        else:
+            return JsonResponse({'success': False, 'error': 'Invalid credentials. Please try again.'}, status=400)
+    # For GET request, just render the login page
+    return render(request, 'accounts/login.html')
+
+# User-facing Logout Page View (Session-based)
+@login_required
+def logout_page_view(request):
+    auth_logout(request)
+    return redirect('home') # Redirect to home page after logout
