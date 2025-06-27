@@ -159,7 +159,7 @@ export function ToolCallDisplay({ toolCalls, forceRefresh = false }: ToolCallDis
           isExpanded ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
         } overflow-hidden`}
       >
-        <div className="p-2 space-y-2 bg-gray-50/50">
+        <div className="p-2 space-y-2 bg-gray-50">
           <div className="space-y-2 max-h-96 overflow-y-auto p-2">
             {toolCalls.map((call, index) => {
               const IconComponent = getToolIcon(call.name)
@@ -172,7 +172,7 @@ export function ToolCallDisplay({ toolCalls, forceRefresh = false }: ToolCallDis
               return (
                 <div key={uniqueKey} className={`rounded-lg border ${theme.border} ${theme.bg} overflow-hidden`}>
                   {/* 도구 정보 */}
-                  <div className="px-4 py-3 border-b border-gray-100">
+                  <div className="px-4 py-3 border-b border-gray-100 bg-white">
                     <div className="flex items-center space-x-3">
                       <div className={`p-2 ${theme.accent} rounded-lg`}>
                         <IconComponent className={`h-4 w-4 ${theme.icon}`} />
@@ -194,7 +194,7 @@ export function ToolCallDisplay({ toolCalls, forceRefresh = false }: ToolCallDis
                   </div>
 
                   {/* 입력 파라미터 */}
-                  <div className="px-4 py-3 bg-white/50">
+                  <div className="px-4 py-3 bg-white">
                     <div className="mb-2">
                       <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">입력 파라미터</span>
                     </div>
@@ -207,7 +207,7 @@ export function ToolCallDisplay({ toolCalls, forceRefresh = false }: ToolCallDis
 
                   {/* 출력 결과 */}
                   {isFinished && (
-                    <div className="px-4 py-3 bg-white/30 border-t border-gray-100">
+                    <div className="px-4 py-3 bg-white border-t border-gray-100">
                       <div className="mb-2 flex items-center space-x-2">
                         <CheckCircle className="h-3 w-3 text-green-500" />
                         <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">실행 결과</span>

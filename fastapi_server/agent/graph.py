@@ -19,10 +19,11 @@ from .tools import analyst_chart_tool, predict_churn_tool, sql_tools_for_analyst
 from .coding_agent_tools import get_all_coding_tools # Import coding tools
 from .web_search_tool import openai_web_search_tool # Import new web search tool
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-
+from dotenv import load_dotenv
 
 # Environment variables are loaded from the main.py entrypoint.
-
+load_dotenv()
+print(os.getenv("langsmith_API_KEY"))
 # --- Pinecone/OpenAI Client Initialization ---
 def init_clients():
     openai_api_key = os.getenv("OPENAI_API_KEY")

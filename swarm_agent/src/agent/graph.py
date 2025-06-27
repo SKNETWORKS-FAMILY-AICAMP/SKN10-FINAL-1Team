@@ -323,7 +323,7 @@ coding_assistant_prompt = """당신은 전문 AI 소프트웨어 엔지니어입
 """
 
 coding_assistant = create_react_agent(
-    model="openai:gpt-4.1-mini",
+    model="openai:gpt-4.1",
     tools=get_all_coding_tools() + [
         {"type": "web_search_preview"},
         transfer_to_doc_search_assistant,
@@ -342,5 +342,5 @@ graph = create_swarm(
         predict_assistant,
         coding_assistant,  # Directly add the simplified agent
     ],
-    default_active_agent="coding_assistant"
+    default_active_agent="doc_search_assistant"
 ).compile()
