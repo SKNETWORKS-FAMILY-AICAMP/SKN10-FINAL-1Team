@@ -164,7 +164,7 @@
         <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-600 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">
             {% if session.deleted_check %} O {% else %} X {% endif %}
         </td>
-        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-720 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{session.started_at|date:"F j, Y, g:i"}}</td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-720 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{session.started_at|date:"F j, Y, g:i A"}}</td>
     </tr>
     {% endfor %}
     </tbody>

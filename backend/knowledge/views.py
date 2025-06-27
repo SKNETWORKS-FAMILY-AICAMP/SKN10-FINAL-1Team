@@ -12,6 +12,10 @@ from .utils import make_index, remove_index, generate_password, get_documents, g
 from conversations.models import ChatSession, ChatMessage
 from accounts.models import User, Organization
 import csv, io
+from django.utils import timezone
+from django.db.models import Count
+from datetime import timedelta
+from django.db.models.functions import TruncDate
 
 # Create your views here.
 
@@ -232,6 +236,43 @@ def delete_multi_user(request) :
 # Placeholder API views to match knowledge/urls.py
 # These should be properly implemented later.
 
+"""chart.js로 최근 7일간의 세션 수 그래프로 그리기"""
+def recent_session_counts(request):
+    # 예: 최근 7일
+    today = timezone.localtime().date()
+    start_date = today - timedelta(days=6)
+    qs = (
+        ChatSession.objects
+        .filter(started_at__date__gte=start_date)
+        .annotate(day=TruncDate('started_at'))  # 날짜별 그룹핑
+        .values('day')
+        .annotate(count=Count('id'))
+        .order_by('day')
+    )
+    # {'day': date, 'count': n} 리스트
+    data = [{'day': x['day'].strftime('%Y-%m-%d'), 'count': x['count']} for x in qs]
+    return JsonResponse(data, safe=False)
+
+def user_counts(request):
+    # 최근 7일 기준
+    today = timezone.localtime().date()
+    start_date = today - timedelta(days=6)
+
+    qs = (
+        User.objects
+        .filter(created_at__date__gte=start_date)
+        .annotate(day=TruncDate('created_at'))
+        .values('day')
+        .annotate(count=Count('id'))
+        .order_by('day')
+    )
+    data = [
+        {'day': x['day'].strftime('%Y-%m-%d'), 'count': x['count']}
+        for x in qs
+    ]
+    return JsonResponse(data, safe=False)
+
+
 """해당 index 상세화면"""
 def index_detail(request, index_name) :
     namespaces = get_namespaces(index_name)
@@ -249,13 +290,13 @@ def session_detail(request, session_id) :
     related_messages = session.messages.all()
     messages = []
     for msg in related_messages:
+        print(msg.tool_data)
         messages.append({
             "id" : msg.id,
             "created_at" : msg.created_at.strftime("%Y-%m-%d %H:%M"),
             "role" : msg.role,
             "content" : msg.content
         })
-    print(messages)
     return JsonResponse({"messages" : messages})
 
 
