@@ -120,3 +120,31 @@
     @apply bg-background text-foreground;
   }
 }
+
+.prose pre, .prose table {
+  overflow-x: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.prose code {
+  word-break: break-word;
+}
+
+.prose pre, .prose code {
+  font-size: 0.95em;
+  padding: 0.5em 0.75em;
+  background: #f8fafc;
+  border-radius: 0.375rem;
+  line-height: 1.5;
+}
+.prose pre {
+  margin: 0.5em 0;
+}
+.prose code {
+  color: #2563eb;
+  background: #f1f5f9;
+}
+.prose p, .prose ul, .prose ol, .prose pre, .prose blockquote {
+  margin-top: 0.3em;
+  margin-bottom: 0.3em;
+}
