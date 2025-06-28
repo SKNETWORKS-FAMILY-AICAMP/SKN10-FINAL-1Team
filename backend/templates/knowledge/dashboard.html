@@ -7,28 +7,32 @@
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <style type="text/tailwindcss">
         :root {
-          --primary-color: #0b80ee;
-          --secondary-color: #f0f2f5;
-          --text-primary: #111518;
-          --text-secondary: #60768a;
-          --border-color: #dbe1e6;
+        --primary-color: #0b80ee;
+        --secondary-color: #f0f2f5;
+        --text-primary: #111518;
+        --text-secondary: #60768a;
+        --border-color: #dbe1e6;
         }
         body {
-          font-family: Inter, "Noto Sans", sans-serif;
+            font-family: Inter, "Noto Sans", sans-serif;
         }
-      </style>
+    </style>
+    <!-- alpine.js 임포트 --> 
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+    <!-- alpine.js 임포트--> 
     </head>
     <body>
-    <div class="relative flex size-full min-h-screen flex-col bg-slate-50 group/design-root overflow-x-hidden">
+    
+    <div class="relative flex size-full min-h-screen flex-col group/design-root overflow-x-hidden">
     <div id="header-placeholder"></div>
     <div class="flex h-full grow">
     <aside id="sidebar-dashboard" class="w-0 md:w-72 p-0 md:p-4 border-r border-[var(--border-color)] bg-slate-50 flex flex-col gap-0 md:gap-4 transition-all duration-300 ease-in-out overflow-y-auto max-h-[calc(100vh-4rem)] md:sticky md:top-16 hidden md:flex">
     <!-- Desktop Sidebar Header -->
     <div class="p-4 border-b border-[var(--border-color)] hidden md:flex items-center justify-between">
-        <h1 class="text-[var(--text-primary)] text-xl font-semibold">업무 보조 챗봇</h1>
-        <button class="p-1 rounded-md hover:bg-[var(--secondary-color)] text-[var(--text-secondary)]" id="toggle-sidebar-dashboard-desktop">
-            <span class="material-icons-outlined">menu_open</span>
-        </button>
+        <h1 class="text-[var(--text-primary)] text-xl font-semibold">관리자 메뉴</h1>
     </div>
     <!-- Mobile Sidebar Header -->
     <div class="p-4 border-b border-[var(--border-color)] flex md:hidden items-center justify-between">
@@ -37,9 +41,13 @@
             <span class="material-icons-outlined">close</span>
         </button>
     </div>
-    <div class="flex flex-col gap-6 p-4 md:p-0">
+
+    <div x-data="{loading : false}" class="flex flex-col gap-6 p-4 md:p-0">
     <nav class="flex flex-col gap-2">
-    <a class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
+
+    <a class="{% if screen_type == 'home' %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-white bg-[var(--primary-color)] hover:bg-blue-600 transition-colors duration-150
+            {% else %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150{% endif %}"
+            href="{% url 'knowledge:dashboard' 'home' %}  " @click="loading = true">
     <div class="text-[var(--text-primary)]" data-icon="House" data-size="24px" data-weight="regular">
     <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
     <path d="M218.83,103.77l-80-75.48a1.14,1.14,0,0,1-.11-.11,16,16,0,0,0-21.53,0l-.11.11L37.17,103.77A16,16,0,0,0,32,115.55V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V160h32v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V115.55A16,16,0,0,0,218.83,103.77ZM208,208H160V160a16,16,0,0,0-16-16H112a16,16,0,0,0-16,16v48H48V115.55l.11-.1L128,40l79.9,75.43.11.1Z"></path>
@@ -47,7 +55,10 @@
     </div>
     <p class="text-sm font-medium leading-normal">홈</p>
     </a>
-    <a class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-white bg-[var(--primary-color)] hover:bg-blue-600 transition-colors duration-150" href="#">
+
+    <a class="{% if screen_type == 'db' %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-white bg-[var(--primary-color)] hover:bg-blue-600 transition-colors duration-150
+            {% else %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150{% endif %}" 
+            href="{% url 'knowledge:dashboard' 'db' %}  " @click="loading = true">
     <div data-icon="Database" data-size="24px" data-weight="fill">
     <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
     <path d="M128,24C74.17,24,32,48.6,32,80v96c0,31.4,42.17,56,96,56s96-24.6,96-56V80C224,48.6,181.83,24,128,24Zm80,104c0,9.62-7.88,19.43-21.61,26.92C170.93,163.35,150.19,168,128,168s-42.93-4.65-58.39-13.08C55.88,147.43,48,137.62,48,128V111.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64Zm-21.61,74.92C170.93,211.35,150.19,216,128,216s-42.93-4.65-58.39-13.08C55.88,195.43,48,185.62,48,176V159.36c17.06,15,46.23,24.64,80,24.64s62.94-9.68,80-24.64V176C208,185.62,200.12,195.43,186.39,202.92Z"></path>
@@ -55,7 +66,10 @@
     </div>
     <p class="text-sm font-medium leading-normal">DB 관리</p>
     </a>
-    <a class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
+
+    <a class="{% if screen_type == 'log' %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-white bg-[var(--primary-color)] hover:bg-blue-600 transition-colors duration-150
+            {% else %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150{% endif %}" 
+            href="{% url 'knowledge:dashboard' 'log' %} " @click="loading = true">
     <div class="text-[var(--text-primary)]" data-icon="ChatCircleDots" data-size="24px" data-weight="regular">
     <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
     <path d="M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128ZM84,116a12,12,0,1,0,12,12A12,12,0,0,0,84,116Zm88,0a12,12,0,1,0,12,12A12,12,0,0,0,172,116Zm60,12A104,104,0,0,1,79.12,219.82L45.07,231.17a16,16,0,0,1-20.24-20.24l11.35-34.05A104,104,0,1,1,232,128Zm-16,0A88,88,0,1,0,51.81,172.06a8,8,0,0,1,.66,6.54L40,216,77.4,203.53a7.85,7.85,0,0,1,2.53-.42,8,8,0,0,1,4,1.08A88,88,0,0,0,216,128Z"></path>
@@ -63,7 +77,10 @@
     </div>
     <p class="text-sm font-medium leading-normal">채팅 로그</p>
     </a>
-    <a class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150" href="#">
+
+    <a class="{% if screen_type == 'user' %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-white bg-[var(--primary-color)] hover:bg-blue-600 transition-colors duration-150
+            {% else %}flex items-center gap-3 rounded-lg px-3 py-2.5 text-[var(--text-primary)] hover:bg-[var(--secondary-color)] transition-colors duration-150{% endif %}"
+            href="{% url 'knowledge:dashboard' 'user' %}  " @click="loading = true">
     <div class="text-[var(--text-primary)]" data-icon="Users" data-size="24px" data-weight="regular">
     <svg fill="currentColor" height="24px" viewBox="0 0 256 256" width="24px" xmlns="http://www.w3.org/2000/svg">
     <path d="M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z"></path>
@@ -80,117 +97,29 @@
     <p class="text-sm font-medium leading-normal">설정</p>
     </a>
     </nav>
+    <!-- 로딩 오버레이 -->
+            <div x-show="loading" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-70 z-60">
+            <svg class="animate-spin h-12 w-12 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+            </path>
+            </svg>
+            </div>
     </div>
     </aside>
-    <main class="flex-1 overflow-y-auto bg-white">
+    <main class="flex flex-col w-full h-full overflow-y-auto bg-white">
     <!-- Original main content starts here, header was removed -->
-    <div class="p-8">
-    <div class="mx-auto max-w-4xl">
-    <section class="mb-10 rounded-lg bg-white p-6 shadow-md">
-    <h3 class="text-[var(--text-primary)] text-xl font-semibold leading-tight tracking-[-0.015em] mb-6">데이터베이스 정보</h3>
-    <div class="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2">
-    <div class="border-b border-[var(--border-color)] pb-4 md:border-none md:pb-0">
-    <p class="text-[var(--text-secondary)] text-sm font-medium leading-normal mb-1">데이터베이스 이름</p>
-    <p class="text-[var(--text-primary)] text-base font-normal leading-normal">chatbot_db</p>
-    </div>
-    <div class="border-b border-[var(--border-color)] pb-4 md:border-none md:pb-0">
-    <p class="text-[var(--text-secondary)] text-sm font-medium leading-normal mb-1">데이터베이스 유형</p>
-    <p class="text-[var(--text-primary)] text-base font-normal leading-normal">PostgreSQL</p>
-    </div>
-    <div class="border-b border-[var(--border-color)] pb-4 md:border-none md:pb-0">
-    <p class="text-[var(--text-secondary)] text-sm font-medium leading-normal mb-1">데이터베이스 크기</p>
-    <p class="text-[var(--text-primary)] text-base font-normal leading-normal">10GB</p>
-    </div>
-    <div>
-    <p class="text-[var(--text-secondary)] text-sm font-medium leading-normal mb-1">데이터베이스 상태</p>
-    <p class="text-[var(--text-primary)] text-base font-normal leading-normal">
-    <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800"> 온라인 </span>
-    </p>
-    </div>
-    </div>
-    </section>
-    <section class="mb-10 rounded-lg bg-white p-6 shadow-md">
-    <h3 class="text-[var(--text-primary)] text-xl font-semibold leading-tight tracking-[-0.015em] mb-6">데이터베이스 관리</h3>
-    <div class="flex gap-4">
-    <button class="flex min-w-[90px] items-center justify-center rounded-md h-10 px-4 bg-[var(--primary-color)] text-white text-sm font-semibold leading-normal tracking-[0.015em] hover:bg-blue-600 transition-colors duration-150">
-    <span class="truncate">백업</span>
-    </button>
-    <button class="flex min-w-[90px] items-center justify-center rounded-md h-10 px-4 bg-[var(--secondary-color)] text-[var(--text-primary)] text-sm font-semibold leading-normal tracking-[0.015em] hover:bg-slate-200 transition-colors duration-150">
-    <span class="truncate">복원</span>
-    </button>
-    </div>
-    </section>
-    <section class="rounded-lg bg-white p-6 shadow-md">
-    <h3 class="text-[var(--text-primary)] text-xl font-semibold leading-tight tracking-[-0.015em] mb-6">데이터베이스 스키마</h3>
-    <div class="@container">
-    <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
-    <table class="min-w-full divide-y divide-[var(--border-color)]">
-    <thead class="bg-slate-50">
-    <tr>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                                테이블 이름
-                              </th>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                                열 수
-                              </th>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                                행 수
-                              </th>
-    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
-                                생성 날짜
-                              </th>
-    </tr>
-    </thead>
-    <tbody class="divide-y divide-[var(--border-color)] bg-white">
-    <tr>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">사용자</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">5</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">1,000</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">2023-01-15</td>
-    </tr>
-    <tr>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">채팅 로그</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">7</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">50,000</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">2023-01-15</td>
-    </tr>
-    <tr>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">
-                                지식 베이스
-                              </td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">4</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">2,000</td>
-    <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">2023-01-15</td>
-    </tr>
-    </tbody>
-    </table>
-    </div>
-    <style>
-                        @container(max-width:120px) {
-                          .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 {
-                            display: none;
-                          }
-                        }
-                        @container(max-width:240px) {
-                          .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 {
-                            display: none;
-                          }
-                        }
-                        @container(max-width:360px) {
-                          .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 {
-                            display: none;
-                          }
-                        }
-                        @container(max-width:480px) {
-                          .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 {
-                            display: none;
-                          }
-                        }
-                      </style>
-    </div>
-    </section>
-    </div>
-    </div>
+    {% if screen_type == 'home' %}
+        {% include 'knowledge/home.html' %}
+    {% elif screen_type == 'db' %}
+        {% include 'knowledge/db.html' %}
+    {% elif screen_type == 'log' %}
+        {% include 'knowledge/log.html' %}
+    {% elif screen_type == 'user' %}
+        {% include 'knowledge/user.html' %}
+    {% endif %}
+
     </main>
     </div>
     </div>
@@ -296,7 +225,7 @@
         if (toggleSidebarDashboardDesktopButton) {
             toggleSidebarDashboardDesktopButton.addEventListener('click', toggleDesktopSidebar);
         }
-
+        
         function initializeSidebarState() {
             const isDesktop = window.innerWidth >= 768;
             if (isDesktop) {
@@ -332,7 +261,7 @@
         
         initializeSidebarState();
         window.addEventListener('resize', initializeSidebarState);
-
+        
     </script>
     <script>
         function loadHeader() {

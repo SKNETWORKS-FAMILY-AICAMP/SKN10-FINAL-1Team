@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pinecone 문서 조회</title>
+    <!-- Tailwind CDN (개발용, 배포시 별도 빌드 권장) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="flex flex-col items-center justify-center min-h-screen py-10">
+        <div class="bg-white rounded-xl shadow-lg p-8 w-full max-w-5xl">
+            <!-- 페이지 헤더 -->
+            <h1 class="text-3xl font-extrabold text-purple-700 mb-2 tracking-tight">
+                {{ index_name }} <span class="text-purple-400">/</span> {{ namespace_name }} <span class="text-lg font-medium text-gray-500">문서 목록</span>
+            </h1>
+            <p class="text-base text-black-500 mb-4 mt-4">
+                <span class="font-semibold text-red-600">{{ documents|length }}</span>개의 문서가 있습니다.
+            </p>
+
+        <div class="space-y-6">
+        {% for doc in documents %}
+        <div class="flex items-start gap-6 bg-gray-50 border border-gray-200 rounded-lg shadow-sm p-5 hover:shadow-md transition">
+            <!-- 번호 박스 -->
+            <div class="flex flex-col items-center">
+                <div class="w-14 h-14 flex items-center justify-center rounded-lg bg-blue-100 text-2xl font-bold text-gray-700 mb-2">
+                    {{ forloop.counter }}
+                </div>
+            </div>
+            <!-- 문서 정보 -->
+            <div class="flex-1 grid grid-cols-1 gap-y-1 text-base">
+                <div>
+                    <span class="font-bold text-gray-700">ID:</span>
+                    <span class="font-mono text-gray-800 break-all">{{ doc.id }}</span>
+                </div>
+                {% if doc.namespace %}
+                <div>
+                    <span class="font-bold text-gray-700">namespace : </span>
+                    <span class="font-mono text-gray-800 break-all">"{{ doc.namespace }}"</span>
+                </div>
+                {% endif %}
+                {% if doc.original_filename %}
+                <div>
+                    <span class="font-bold text-gray-700">original_filename:</span>
+                    <span class="font-mono text-gray-800 break-all">"{{ doc.original_filename }}"</span>
+                </div>
+                {% endif %}
+                {% if doc.text %}
+                <div>
+                    <span class="font-bold text-gray-700">text:</span>
+                    <span class="font-mono text-gray-800 break-all">"{{ doc.text|truncatechars:100 }}{% if doc.text|length > 200 %}…{% endif %}"</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <p class="text-center text-gray-400 py-10 break-all">문서가 없습니다.</p>
+        {% endfor %}
+        </div>
+
+        <!-- 뒤로 가기 버튼 -->
+        <div class="mt-10 flex justify-end">
+            <a href="{% url 'knowledge:dashboard' 'db' %}?db=pinecone"
+                class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg shadow hover:bg-indigo-100 transition font-medium">
+                ← 인덱스 목록으로 돌아가기
+            </a>
+        </div>
+        </div>
+    </div>
+</body>
+</html>

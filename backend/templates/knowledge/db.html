@@ -1,0 +1,528 @@
+<div class="p-8">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+    <div class="mx-auto max-w-4xl">
+    <!-- 탭 버튼들-->
+    <div x-data="{loading : false}" class="flex w-full bg-gray-100 rounded-lg p-1">
+        <button class="{% if db == 'postgre' %}flex-1 text-center py-2 rounded-lg bg-white text-gray-900 font-medium
+            {% else %}flex-1 text-center py-2 rounded-lg text-gray-600 hover:bg-white hover:text-gray-900{% endif %}"
+            onclick="location.href=`{% url 'knowledge:dashboard' 'db' %}?db=postgre`"
+            @click="loading = true">Storage</button>
+
+        <button class="{% if db == 'pinecone' %}flex-1 text-center py-2 rounded-lg bg-white text-gray-900 font-medium
+            {% else %}flex-1 text-center py-2 rounded-lg text-gray-600 hover:bg-white hover:text-gray-900{% endif %}"
+            onclick="location.href=`{% url 'knowledge:dashboard' 'db' %}?db=pinecone`"
+            @click="loading = true">Vector DB</button>
+
+        <button class="{% if db == 's3' %}flex-1 text-center py-2 rounded-lg bg-white text-gray-900 font-medium
+            {% else %}flex-1 text-center py-2 rounded-lg text-gray-600 hover:bg-white hover:text-gray-900{% endif %}"
+            onclick="location.href=`{% url 'knowledge:dashboard' 'db' %}?db=s3`"
+            @click="loading = true">S3</button>
+        
+        <!-- 로딩 오버레이 -->
+        <div x-show="loading" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-70 z-60">
+        <svg class="animate-spin h-12 w-12 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+        </path>
+        </svg>
+        </div>
+    </div>
+    
+    {% if db == 'postgre' %}
+        <section class="mt-6 mb-10 rounded-lg bg-white p-6 shadow-md border border-gray-200">
+        <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em] mb-6">PostgreSQL 정보</h3>
+        <div class="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2">
+        <div class="border-b border-[var(--border-color)] pb-4 md:border-none md:pb-0">
+        <p class="text-[var(--text-secondary)] text-sm font-medium leading-normal mb-1">DB 이름</p>
+        <p class="text-[var(--text-primary)] text-base font-normal leading-normal">{{postgre_db.name}}</p>
+        </div>
+        <div class="border-b border-[var(--border-color)] pb-4 md:border-none md:pb-0">
+        <p class="text-[var(--text-secondary)] text-sm font-medium leading-normal mb-1">DB 호스트</p>
+        <p class="text-[var(--text-primary)] text-base font-normal leading-normal">{{postgre_db.host}}</p>
+        </div>
+        <div>
+        <p class="text-[var(--text-secondary)] text-sm font-medium leading-normal mb-1">DB 포트</p>
+        <p class="text-[var(--text-primary)] text-base font-normal leading-normal">{{postgre_db.port}}</p>
+        </div>
+        <div>
+        <p class="text-[var(--text-secondary)] text-sm font-medium leading-normal mb-1">DB 엔진</p>
+        <p class="text-[var(--text-primary)] text-base font-normal leading-normal">{{postgre_db.engine}}</p>
+        </div>
+        </div>
+        </section>
+
+        <section class="mt-6 mb-10 rounded-lg bg-white p-6 shadow-md border border-gray-200">
+        <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em] mb-6">PostgreSQL 테이블</h3>
+        <div class="@container mt-6">
+        <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
+        <!-- 탭 버튼-->
+         
+        <!-- 탭 버튼 종료-->
+        <table class="min-w-full divide-y divide-[var(--border-color)]">
+        <thead class="bg-slate-50">
+        <tr>
+        <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                                테이블명
+                                </th>
+        <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                                전체 레코드 수
+                                </th>
+        <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                                크기
+                                </th>
+        <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col"></th>
+        </tr>
+        </thead>
+        <tbody class="divide-y divide-[var(--border-color)] bg-white">
+        {% for table in tables %}
+            <tr>
+            <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">{{table.name}}</td>
+            <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{table.count}}</td>
+            <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{table.size}}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+        </table>
+        </div>
+        <style>
+                            @container(max-width:120px) {
+                            .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 {
+                                display: none;
+                            }
+                            }
+                            @container(max-width:240px) {
+                            .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 {
+                                display: none;
+                            }
+                            }
+                            @container(max-width:360px) {
+                            .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 {
+                                display: none;
+                            }
+                            }
+                            @container(max-width:480px) {
+                            .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 {
+                                display: none;
+                            }
+                            }
+                        </style>
+        </div>
+    {% endif %}
+
+    {% if db == 'pinecone' %}
+    <section x-data="{
+        // 현재 열려 있는 모달 구분: 'index_add' | 'index_delete' | index_detail | namespace_detail | null
+        active : null,
+        // 공통 상태
+        loading: false, error: '',
+        // 모달별 폼 데이터
+        index_add : {name : '' ,vector_type: 'dense', metric: 'cosine', dimension: null, cloud: 'aws', region: 'us-east-1'},
+        index_del : { name: ''},
+        namespaces: [],
+        documents: [],
+        regionMap: {
+        aws:   ['us-east-1', 'us-west-2', 'eu-west-1'],
+        gcp:   ['us-central1', 'europe-west4'],
+        azure: ['eastus2']
+        },
+        indexName: '',
+        namespaceName : '',
+        // 모달 열고 닫기
+        open(name) { this.active = name},
+        close() { 
+            this.active = null
+            this.error = ''
+        },
+
+        // 함수들
+        init() {
+            this.index_add.region = this.regionMap[this.index_add.cloud][0]
+        },
+        submitDelete(event) {
+            if (!this.index_del.name) {
+                this.error = '인덱스 이름을 입력해주세요!'
+            }
+            else {
+                // 확인창 띄우기
+                if (confirm('⚠️ 정말 해당 인덱스를 삭제하시겠습니까?')) {
+                    this.loading = true
+                    this.$nextTick(() => event.target.submit())
+                }   
+            }
+        },
+        submitAdd(event) {
+            if (!this.index_add.name) {
+                this.error = '인덱스 이름을 입력해주세요!'
+            } else if (this.index_add.vector_type === 'dense' && (isNaN(this.index_add.dimension) || this.index_add.dimension < 1)) {
+                this.error = '벡터 타입이 dense일때 차원은 1 이상이어야 합니다! 올바른 차원을 입력하세요!'
+            } else {
+                // 확인창 띄우기
+                if (confirm('⚠️ 정말 이 인덱스를 추가할까요?')) {
+                    this.loading = true
+                    this.$nextTick(() => event.target.submit())
+                }   
+            }
+        },
+        showNamespaces(name) {
+            this.indexName  = name;
+            this.loading = true;
+            fetch(`/knowledge/dashboard/index_detail/${name}/`)
+            .then(res => res.json())
+            .then(data => {
+            this.namespaces = data.namespaces;
+            this.loading = false;
+            });
+            
+        },
+
+    }"
+    x-init="init()"
+    class="mt-6 rounded-lg bg-white p-6 shadow-md border border-gray-200">
+    <div class="flex items-center mb-6">
+        <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em]">Pinecone DB 인덱스</h3>
+        <div class="flex items-center gap-4 ml-auto">
+
+        <!-- 인덱스 삭제 Alpine 컴포넌트 시작 -->
+        <div class="relative">
+        <!-- 1) 인덱스 삭제 버튼 -->
+        <button
+            type="button"
+            @click="open('index_delete')"
+            class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
+        ><span class="material-icons-outlined font-bold">인덱스 삭제</span></button>
+
+        <!-- 2) 인덱스 삭제 모달 박스 -->
+        <div
+            x-show="active === 'index_delete'"
+            class="fixed inset-0 flex items-center justify-center z-50 p-4"
+            x-cloak
+        >
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 class="text-lg font-semibold">인덱스 삭제</h2>
+                <button @click="close()" class="text-xl leading-none">&times;</button>
+            </div>
+
+            <form
+                action="{% url 'knowledge:delete_index' %}"
+                method="post"
+                class="px-6 py-4 space-y-4"
+                @submit.prevent="submitDelete($event)">
+                {% csrf_token %}
+
+                <!-- 에러 메시지 -->
+                <div x-show="error"
+                class="flex items-start space-x-2 bg-red-50 border-l-4 border-red-600 text-red-700 p-3 rounded-md shadow-sm mt-2">
+                <!-- 실제 메시지 -->
+                <span x-text="error" class="text-sm"></span>
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium"><span class="text-red-500">⚠️ 삭제할 인덱스 이름</span>을 입력하세요!</label>
+                <input name="name" x-model="index_del.name" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+
+                <div class="text-right space-x-2">
+                <button
+                    type="button"
+                    @click="close()"
+                    class="px-4 py-2 rounded border hover:bg-gray-100"
+                >취소</button>
+
+                <button
+                    type="submit"
+                    class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white"
+                >삭제</button>
+                </div>
+                
+            </form>
+            </div>
+        </div>
+        </div>
+        <!-- 인덱스 삭제 Alpine 컴포넌트 끝 -->
+        
+        <!-- 인덱스 추가 Alpine 컴포넌트 시작 -->
+        <div class="relative">
+        <!-- 1) 인덱스 추가 버튼 -->
+        <button
+            type="button"
+            @click="open('index_add')"
+            class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
+        ><span class="material-icons-outlined font-bold">인덱스 추가</span></button>
+
+        <!-- 2) 인덱스 추가 모달 박스 -->
+        <div x-show="active === 'index_add'" class="fixed inset-0 flex items-center justify-center z-50 p-4"
+        x-cloak>
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 class="text-lg font-semibold">인덱스 추가</h2>
+                <button @click="close()" class="text-xl leading-none">&times;</button>
+            </div>
+
+            <form
+                action="{% url 'knowledge:create_index' %}"
+                method="post"
+                class="px-6 py-4 space-y-4"
+                @submit.prevent="submitAdd($event)">
+                {% csrf_token %}
+
+                <!-- 에러 메시지 -->
+                <div
+                x-show="error"
+                class="flex items-start space-x-2 bg-red-50 border-l-4 border-red-600 text-red-700 p-3 rounded-md shadow-sm mt-2"
+                >
+                <!-- 실제 메시지 -->
+                <span x-text="error" class="text-sm"></span>
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">인덱스 이름</label>
+                <input name="name" x-model="index_add.name" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">벡터 타입</label>
+                <!-- vector type이 sparse라면 metric은 dotproduct, dimension은 0으로 선택되어 전달-->
+                <select id="vector_type" name="vector_type" class="w-full border rounded p-2"
+                    x-model="index_add.vector_type"
+                    @change="
+                    if (index_add.vector_type === 'sparse') {
+                        index_add.metric = 'dotproduct';
+                        index_add.dimension = 0;
+                    }">
+                    <option value="dense">dense</option>
+                    <option value="sparse">sparse</option>
+                </select>
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">거리 함수</label>
+                <!-- vector_type이 sparse면 metric은 dotproduct로 값 고정 -->
+                <select id="metric" name="metric" class="w-full border rounded p-2"
+                    x-model="index_add.metric" 
+                    :disabled="index_add.vector_type === 'sparse'">
+                    <option value="cosine">cosine</option>
+                    <option value="dotproduct">dotproduct</option>
+                    <option value="euclidean">euclidean</option>
+                </select>
+                <!-- disabled되면 원본 값이 전달이 안되므로 hidden으로 처리-->
+                <input type="hidden" name="metric" :value="index_add.metric"/>
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">차원 수</label>
+                <!-- vector_type이 sparse면 dimension은 0로 값 고정 -->
+                <input name="dimension" type="number" class="mt-1 w-full border rounded px-3 py-2"
+                    x-model="index_add.dimension" 
+                    :disabled="index_add.vector_type === 'sparse'"/>
+                <!-- disabled되면 원본 값이 전달이 안되므로 hidden으로 처리-->
+                <input type="hidden" name="dimension" :value="index_add.dimension"/>
+                </div>
+                
+                <div>
+                <label class="block text-sm font-medium">클라우드</label>
+                <select id="cloud" name="cloud" class="w-full border rounded p-2"
+                    x-model="index_add.cloud"
+                    @change="index_add.region = regionMap[index_add.cloud][0]">
+                    <option value="aws">aws</option>
+                    <option value="gcp">gcp</option>
+                    <option value="azure">azure</option>
+                </select>
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">지역</label>
+                <select id="region" name="region" class="w-full border rounded p-2"
+                    x-model="index_add.region">
+                    <template x-for="r in regionMap[index_add.cloud]" :key="r">
+                        <option :value="r" x-text="r"></option>
+                    </template>
+                </select>
+                </div>
+                
+                <!-- 주의사항 -->
+                <p class="text-red-500 text-sm italic mt-4">
+                    ⚠️ 참고: 벡터 타입으로 'sparse' 선택 시 거리함수는 'dotproduct', 차원 수는 0으로 고정됩니다! <br><br>
+                    ⚠️ 참고: 클라우드 선택에 따라 선택 가능한 지역이 달라집니다!
+                </p>
+
+                <div class="text-right space-x-2">
+                <button
+                    type="button"
+                    @click="close()"
+                    class="px-4 py-2 rounded border hover:bg-gray-100"
+                >취소</button>
+                <button
+                    type="submit"
+                    class="px-4 py-2 rounded bg-orange-400 hover:bg-orange-600 text-white"
+                >추가</button>
+                </div>
+                
+            </form>
+            </div>
+        </div>
+        </div>
+        </div>
+        <!-- 인덱스 추가 Alpine 컴포넌트 끝 -->
+        
+    </div>
+    <div class="@container">
+    <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
+    <table class="min-w-full divide-y divide-[var(--border-color)]">
+    <thead class="bg-slate-50">
+    <tr>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            인덱스명
+                            </th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            차원 수
+                            </th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            전체 레코드 수
+                            </th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            지역
+                            </th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            클라우드
+                            </th>
+    </tr>
+    </thead>
+    <tbody class="divide-y divide-[var(--border-color)] bg-white">
+    {% for index in indexes %}
+        <tr>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">
+            <!-- 텍스트 컴포넌트-->
+            <a href="#"
+            @click="open('index_detail')"
+            @click.prevent="showNamespaces('{{ index.name }}')"
+            class="text-blue-500 hover:text-blue-700 underline">{{index.name}}</a>
+            
+            <!-- 네임스페이스 모달 -->
+            <div x-show="active === 'index_detail'" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-xl max-h-[90vh] overflow-y-auto overflow-x-hidden p-6 ">
+                <div class="flex justify-between items-center px-6 py-4 border-b">
+                    <h2 class="text-lg font-semibold"><span class="text-red-500 mt-4" x-text="indexName"></span>의 네임스페이스</h2>
+                    <button @click="close()" class="text-xl leading-none">&times;</button>
+                </div>
+            <div class="px-6 py-4">
+                <template x-if="loading">
+                    <p class="text-center text-gray-500">로딩 중…</p>
+                </template>
+                <p x-show="!loading" class="text-base mb-4 text-[var(--text-primary)]">
+                    총 <span class="text-red-500 font-semibold" x-text="Object.keys(namespaces).length"></span>
+                    개의 네임스페이스가 있습니다.</p>
+                
+                <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
+                <table x-show="!loading" x-cloak class="min-w-full divide-y divide-[var(--border-color)]">
+                    <thead class="bg-slate-50">
+                        <tr>
+                        <th class="px-6 py-4 text-left text-xs font-semibold">네임스페이스명</th>
+                        <th class="px-6 py-4 text-left text-xs font-semibold">데이터 수</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-[var(--border-color)] bg-white">
+                        <template x-for="(count, name) in namespaces" :key="name">
+                        <tr>
+                            <td class="px-6 py-4 text-sm" >
+                                <a href="#"
+                                @click.prevent="
+                                    close();
+                                    const url = `/knowledge/dashboard/index_detail/${indexName}/${name}/`;
+                                    window.open(url, '_blank');
+                                " x-text="name"
+                                class="text-blue-500 hover:text-blue-700 underline"></a>
+                            </td>
+                            <td class="px-6 py-4 text-sm" x-text="count"></td>
+                        </tr>
+                        </template>
+                        <template x-if="!loading && Object.keys(namespaces).length === 0">
+                        <tr>
+                            <td colspan="2" class="px-6 py-4 text-center text-sm text-gray-500">
+                            네임스페이스가 없습니다.
+                            </td>
+                        </tr>
+                        </template>
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            </div>
+            </div>
+
+        </td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{index.dimension}}</td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{index.total_count}}</td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{index.region}}</td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{index.cloud}}</td>    
+    </tr>
+    {% endfor %}
+    </tbody>
+    </table>
+    <style>
+                        p.truncate {
+                            overflow: hidden;
+                            white-space: nowrap;
+                            text-overflow: ellipsis;
+                        }
+                        @container(max-width:120px) {
+                        .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 {
+                            display: none;
+                        }
+                        }
+                        @container(max-width:240px) {
+                        .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 {
+                            display: none;
+                        }
+                        }
+                        @container(max-width:360px) {
+                        .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 {
+                            display: none;
+                        }
+                        }
+                        @container(max-width:480px) {
+                        .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 {
+                            display: none;
+                        }
+                        }
+                    </style>
+    </div>
+
+    <!-- 공통 백그라운드 오버레이 -->
+    <div
+        x-show="active"
+        x-cloak
+        class="fixed inset-0 bg-black bg-opacity-50 z-40"
+        @click="close()"
+    ></div>
+
+    <!-- 공통 로딩화면 -->
+    <div x-show="loading" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-70 z-60">
+    <svg class="animate-spin h-12 w-12 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <circle class="opacity-25" cx="12" cy="12" r="10" sroke="currentColor" stroke-width="4"></circle>
+    <path class="opacity-75" fill="currentColor"
+        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+    </path>
+    </svg>
+    </div>
+    </div>
+
+    </section>
+    {% endif %}
+
+    {% if db == 's3' %}
+
+
+    {% endif %}
+    <!-- 성공 메시지 출력 또는 에러 메시지 출력-->
+    {% if messages %}
+        {% for message in messages %}
+            <script>alert("{{ message|escapejs }}");</script>
+        {% endfor %}
+    {% endif %}
+    </div>
+    </div>
