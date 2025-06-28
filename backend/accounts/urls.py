@@ -22,6 +22,15 @@ urlpatterns = [
     # Web page routes
     path('profile/', views.profile_view, name='profile'), # New view for profile.html
     path('settings/', views.settings_view, name='settings'), # New view for setting.html
+    path('delete_github_token/', views.delete_github_token, name='delete_github_token'),
+    path('github/repositories/', views.list_github_repositories, name='list_github_repositories'),
+    path('github/connect/', views.github_connect_view, name='github_connect'),
+    path('github/disconnect/', views.github_disconnect_view, name='github_disconnect'),
+    path('github/add_by_url/', views.add_repository_by_url, name='add_repository_by_url'),
+    path('scan-selected-repositories/', views.scan_selected_repositories_view, name='scan_selected_repositories'),
+    path('list-branches-for-url/', views.list_branches_for_url_view, name='list_branches_for_url'),
+    path('github/list_branches/', views.ajax_list_repository_branches, name='ajax_list_repository_branches'),
+    path('list-public-repository-branches/', views.list_public_repository_branches, name='list_public_repository_branches'), # New URL for public repo branches
 
     # Include API routes under 'api/' prefix
     path('api/', include(api_urlpatterns)),

@@ -76,6 +76,12 @@ async def invoke_agent(invocation_request: InvocationRequest):
     """
     messages = [("user", msg.content) for msg in invocation_request.input.messages]
 
+    # Extract github_token from the config and prepend it as a system message
+    configurable_data = invocation_request.config.get("configurable", {})
+    github_token = configurable_data.get("github_token")
+    if github_token:
+        messages.insert(0, ("system", f"GitHub token is available for this session. Use this token for all GitHub API calls: {github_token}"))
+
     async def event_stream():
         # Create the checkpointer and graph for each request to isolate lifecycles.
         async with AsyncPostgresSaver.from_conn_string(os.environ["DB_URI"]) as checkpointer:

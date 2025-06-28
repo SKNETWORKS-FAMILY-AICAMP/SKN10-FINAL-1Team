@@ -219,12 +219,20 @@ async def chat_stream(request, session_id):
                 internal_secret = os.getenv("FASTAPI_INTERNAL_SECRET")
                 headers = {"X-Internal-Secret": internal_secret} if internal_secret else {}
                 async with httpx.AsyncClient() as client:
+                    github_token = request.user.github_token if hasattr(request.user, 'github_token') else None
                     payload = {
-                        "input": {"messages": [{"role": "user", "content": user_message}]},
+                        "input": {
+                            "messages": [
+                                {"role": "user", "content": user_message}
+                            ]
+                        },
                         "config": {
-                            "configurable": {"thread_id": thread_id},
-                            "stream_mode": ["messages", "updates"]
-                        }
+                            "configurable": {
+                                "thread_id": thread_id,
+                                "user_id": str(request.user.id),
+                                "github_token": github_token,
+                            }
+                        },
                     }
                     async with client.stream("POST", f"{fastapi_url}/invoke", json=payload, headers=headers, timeout=300.0) as response:
                         response.raise_for_status()
