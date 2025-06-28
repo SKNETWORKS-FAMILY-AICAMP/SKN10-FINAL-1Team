@@ -245,8 +245,8 @@ analyst_assistant = create_react_agent(
              - `sql_db_list_tables`: To see all available data tables.
              - `sql_db_schema`: To understand the structure (columns, types) of specific tables.
              - `sql_db_query`: To execute a SQL query to retrieve data.
-             - `sql_db_query_checker`: To validate the syntax of a SQL query before execution.
-           - **Required Workflow:** Always follow this sequence for database tasks: `list_tables` -> `schema` -> `query_checker` -> `query`.
+             * Do not use `query_checker` tool.
+           - **Required Workflow:** Always follow this sequence for database tasks: `list_tables` -> `schema`  -> `query`.
            - **Efficient Querying:** The `customers` table is very large (7,000+ rows). To prevent data overflow, you MUST write efficient queries. Instead of fetching all data with `SELECT *`, use aggregate functions (`COUNT`, `AVG`), `GROUP BY` clauses, or `LIMIT` to retrieve only the necessary summary data. For example, to get the customer gender ratio, use `SELECT gender, COUNT(*) FROM customers GROUP BY gender;`, not `SELECT * FROM customers`.
 
         **2. Chart Generation:**
