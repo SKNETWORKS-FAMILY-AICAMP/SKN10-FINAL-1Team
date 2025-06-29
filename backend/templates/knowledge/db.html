@@ -150,6 +150,7 @@
                 // 확인창 띄우기
                 if (confirm('⚠️ 정말 해당 인덱스를 삭제하시겠습니까?')) {
                     this.loading = true
+                    this.close()
                     this.$nextTick(() => event.target.submit())
                 }   
             }
@@ -163,6 +164,7 @@
                 // 확인창 띄우기
                 if (confirm('⚠️ 정말 이 인덱스를 추가할까요?')) {
                     this.loading = true
+                    this.close()
                     this.$nextTick(() => event.target.submit())
                 }   
             }
@@ -432,9 +434,9 @@
                                 <a href="#"
                                 @click.prevent="
                                     close();
-                                    const url = `/knowledge/dashboard/index_detail/${indexName}/${name}/`;
-                                    window.open(url, '_blank');
-                                " x-text="name"
+                                    let url = `/knowledge/dashboard/index_detail/${indexName}/${name}/`;
+                                    window.open(url, '_blank');"
+                                x-text="name"
                                 class="text-blue-500 hover:text-blue-700 underline"></a>
                             </td>
                             <td class="px-6 py-4 text-sm" x-text="count"></td>
@@ -514,6 +516,7 @@
     </section>
     {% endif %}
 
+    
     {% if db == 's3' %}
 
 
