@@ -9,7 +9,7 @@ from .serializers import UserSerializer
 from django.shortcuts import render, redirect # Added for template rendering and redirect
 from django.contrib.auth.decorators import login_required # Added for view protection
 from django.contrib.auth import login as auth_login, logout as auth_logout # For session auth
-from django.http import JsonResponse # For AJAX responses
+from django.http import JsonResponse, StreamingHttpResponse # For AJAX responses
 from django.views.decorators.http import require_POST # For restricting to POST requests
 from django.views.decorators.csrf import csrf_exempt # For exempting CSRF protection
 from django.views.decorators.http import require_GET # For restricting to GET requests
@@ -19,12 +19,13 @@ from urllib.parse import urlparse # For parsing URLs
 import tempfile # For creating temporary files and directories
 from django.contrib import messages
 import json # For JSON parsing
-import subprocess # For running background processes
 import boto3
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
 from django.conf import settings
 import shutil
 from git import Repo, GitCommandError
+from .models import ScanTask
+import time
 
 # Adjust sys.path to include project root for main/flow imports
 import sys
@@ -34,9 +35,9 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
-# Imports from project root for scanning logic
-from main import DEFAULT_INCLUDE_PATTERNS, DEFAULT_EXCLUDE_PATTERNS
-from flow import create_tutorial_flow
+# Imports from utils for scanning logic
+from .utils.main import DEFAULT_INCLUDE_PATTERNS, DEFAULT_EXCLUDE_PATTERNS
+from .utils.flow import create_tutorial_flow
 
 # API Login view (SimpleJWT)
 @api_view(['POST'])
@@ -488,7 +489,9 @@ def scan_selected_repositories_view(request):
         output_base_dir = os.path.join(PROJECT_ROOT, 'scanned_tutorials')
         os.makedirs(output_base_dir, exist_ok=True)
         
-        main_script_path = os.path.join(PROJECT_ROOT, 'main.py')
+        # Import main function directly instead of using subprocess
+        from .utils.main import main as tutorial_main
+        import threading
 
         if scan_type == 'user_repos':
             repo_urls = data.get('repo_urls', [])
@@ -505,6 +508,15 @@ def scan_selected_repositories_view(request):
                         continue
 
                     repo_output_dir = os.path.join(output_base_dir, f"{owner}_{repo_name}")
+                    
+                    # Create ScanTask for progress tracking BEFORE starting the thread
+                    task = ScanTask.objects.create(
+                        user=user,
+                        repo_url=repo_url,
+                        project_name=f"{owner}_{repo_name}",
+                        status='pending'
+                    )
+                    
                     # --- S3 Upload Logic for Original Files (User Repos - Default Branch) ---
                     if s3_client and s3_bucket_name_from_settings:
                         current_branch_for_s3 = "default_branch" # Placeholder for S3 key, ideally detect actual default branch
@@ -592,29 +604,43 @@ def scan_selected_repositories_view(request):
                     else:
                         print(f"DEBUG: S3 Upload - User Repo '{repo_url}': SKIPPED for {owner}/{repo_name} because S3 client or bucket name is not configured.")
                     # --- End of S3 Upload Logic for User Repos ---
-                    command = [
-                        sys.executable,
-                        main_script_path,
-                        '--repo', repo_url,
-                        '--output', repo_output_dir,
-                        '--token', github_token,
-                        '--language', 'korean'
-                    ]
-                    if github_user_name:
-                        command.extend(['--github-user-name', github_user_name])
-                    # Add S3 parameters if the client was initialized
-                    if s3_client and s3_bucket_name_from_settings:
-                        command.extend([
-                            '--s3-bucket', s3_bucket_name_from_settings,
-                            '--s3-access-key', aws_access_key_id,
-                            '--s3-secret-key', aws_secret_access_key,
-                            '--s3-region', aws_region_name,
-                            '--user-id', str(user.id) if user.is_authenticated else 'anonymous'
-                        ])
                     
-                    subprocess.Popen(command, cwd=PROJECT_ROOT)
+                    # Run tutorial generation in a separate thread to avoid blocking
+                    def run_tutorial():
+                        try:
+                            tutorial_main(
+                                repo_url=repo_url,
+                                output_dir=repo_output_dir,
+                                github_token=github_token,
+                                language='korean',
+                                github_user_name=github_user_name,
+                                s3_bucket=s3_bucket_name_from_settings if s3_client else None,
+                                s3_access_key=aws_access_key_id if s3_client else None,
+                                s3_secret_key=aws_secret_access_key if s3_client else None,
+                                s3_region=aws_region_name if s3_client else None,
+                                user_id=str(user.id) if user.is_authenticated else 'anonymous',
+                                task_id=str(task.id)
+                            )
+                        except Exception as e:
+                            print(f"Error in tutorial generation for {repo_url}: {e}")
+                            # Mark task as failed
+                            try:
+                                task.refresh_from_db()
+                                task.mark_failed(str(e))
+                            except Exception as task_error:
+                                print(f"Error marking task as failed: {task_error}")
                     
-                    scan_results.append({'repo_url': repo_url, 'status': 'success', 'message': 'Scan initiated successfully.'})
+                    thread = threading.Thread(target=run_tutorial)
+                    thread.daemon = True
+                    thread.start()
+                    
+                    # Return task_id for progress tracking
+                    scan_results.append({
+                        'repo_url': repo_url, 
+                        'status': 'success', 
+                        'message': 'Scan initiated successfully.',
+                        'task_id': str(task.id)
+                    })
 
                 except Exception as e:
                     print(f"Error launching scan for {repo_url}: {e}")
@@ -637,6 +663,15 @@ def scan_selected_repositories_view(request):
                 repo_scan_url = f"https://github.com/{owner}/{repo_name}/tree/{branch_name}"
                 try:
                     repo_output_dir = os.path.join(output_base_dir, f"{owner}_{repo_name}_{branch_name}")
+                    
+                    # Create ScanTask for progress tracking BEFORE starting the thread
+                    task = ScanTask.objects.create(
+                        user=user,
+                        repo_url=repo_scan_url,
+                        project_name=f"{owner}_{repo_name}_{branch_name}",
+                        status='pending'
+                    )
+                    
                     # --- S3 Upload Logic for Original Files ---
                     if s3_client and s3_bucket_name_from_settings:
                         print(f"DEBUG: S3 Upload - Branch '{branch_name}': Preparing to clone and upload original files for repo {owner}/{repo_name}.")
@@ -690,31 +725,42 @@ def scan_selected_repositories_view(request):
                         print(f"DEBUG: S3 Upload - Branch '{branch_name}': SKIPPED for {owner}/{repo_name} branch {branch_name} because S3 client or bucket name is not configured.")
                     # --- End of S3 Upload Logic ---
                     
-                    command = [
-                        sys.executable,
-                        main_script_path,
-                        '--repo', repo_scan_url,
-                        '--output', repo_output_dir,
-                        '--language', 'korean'
-                    ]
-                    if github_token:
-                        command.extend(['--token', github_token])
-                    if github_user_name:
-                        command.extend(['--github-user-name', github_user_name])
-
-                    # Add S3 parameters if the client was initialized
-                    if s3_client and s3_bucket_name_from_settings:
-                        command.extend([
-                            '--s3-bucket', s3_bucket_name_from_settings,
-                            '--s3-access-key', aws_access_key_id,
-                            '--s3-secret-key', aws_secret_access_key,
-                            '--s3-region', aws_region_name,
-                            '--user-id', str(user.id) if user.is_authenticated else 'anonymous'
-                        ])
+                    # Run tutorial generation in a separate thread to avoid blocking
+                    def run_tutorial():
+                        try:
+                            tutorial_main(
+                                repo_url=repo_scan_url,
+                                output_dir=repo_output_dir,
+                                language='korean',
+                                github_token=github_token,
+                                github_user_name=github_user_name,
+                                s3_bucket=s3_bucket_name_from_settings if s3_client else None,
+                                s3_access_key=aws_access_key_id if s3_client else None,
+                                s3_secret_key=aws_secret_access_key if s3_client else None,
+                                s3_region=aws_region_name if s3_client else None,
+                                user_id=str(user.id) if user.is_authenticated else 'anonymous',
+                                task_id=str(task.id)
+                            )
+                        except Exception as e:
+                            print(f"Error in tutorial generation for {repo_scan_url}: {e}")
+                            # Mark task as failed
+                            try:
+                                task.refresh_from_db()
+                                task.mark_failed(str(e))
+                            except Exception as task_error:
+                                print(f"Error marking task as failed: {task_error}")
+                        
+                    thread = threading.Thread(target=run_tutorial)
+                    thread.daemon = True
+                    thread.start()
                     
-                    subprocess.Popen(command, cwd=PROJECT_ROOT)
-                    
-                    scan_results.append({'repo_url': repo_scan_url, 'status': 'success', 'message': 'Scan initiated successfully.'})
+                    # Return task_id for progress tracking
+                    scan_results.append({
+                        'repo_url': repo_scan_url, 
+                        'status': 'success', 
+                        'message': 'Scan initiated successfully.',
+                        'task_id': str(task.id)
+                    })
                 except Exception as e:
                     print(f"Error launching scan for {repo_scan_url}: {e}")
                     scan_results.append({'repo_url': repo_scan_url, 'status': 'error', 'message': f'Failed to start scan: {str(e)}'})
@@ -907,48 +953,96 @@ def add_repository_by_url(request):
     return redirect('accounts:settings')
 
 @login_required
-def settings_view(request):
-    """Renders the user settings page and GitHub connection status."""
-    github_connected = False
-    github_username = None
-    if request.user.is_authenticated and hasattr(request.user, 'github_token') and request.user.github_token:
-        github_connected = True
-        try:
-            headers = {'Authorization': f'token {request.user.github_token}'}
-            response = requests.get('https://api.github.com/user', headers=headers)
-            response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
-            github_user_data = response.json()
-            github_username = github_user_data.get('login')
-        except requests.exceptions.RequestException as e:
-            messages.error(request, f"GitHub 토큰으로 사용자 정보를 가져오는 데 실패했습니다. 토큰을 확인하거나 다시 연결해주세요.")
-            github_username = None # Ensure username is None if fetch fails
-            
-    context = {
-        'github_connected': github_connected,
-        'github_username': github_username,
-    }
-    return render(request, 'accounts/setting.html', context)
+def task_progress_view(request, task_id):
+    """Get task progress for a specific task"""
+    try:
+        task = ScanTask.objects.get(id=task_id, user=request.user)
+        return JsonResponse({
+            'status': task.status,
+            'current_stage': task.current_stage,
+            'progress': task.progress,
+            'current_step': task.current_step,
+            'total_steps': task.total_steps,
+            'error_message': task.error_message,
+            'created_at': task.created_at.isoformat(),
+            'updated_at': task.updated_at.isoformat(),
+        })
+    except ScanTask.DoesNotExist:
+        return JsonResponse({'error': 'Task not found'}, status=404)
 
-# User-facing Login Page View (Session-based)
-def login_page_view(request):
-    if request.method == 'POST':
-        email = request.POST.get('email')
-        password = request.POST.get('password')
-        user = authenticate(request, username=email, password=password) # Use email as username
-        if user is not None:
-            auth_login(request, user)
-            # Determine redirect URL after successful login
-            redirect_url = request.GET.get('next', '/') # Redirect to 'next' if present, else to home
-            if not redirect_url or redirect_url.startswith('/accounts/login_page'): # Avoid redirecting back to login
-                redirect_url = '/' # Default to home if next is login page or empty
-            return JsonResponse({'success': True, 'redirect_url': redirect_url})
-        else:
-            return JsonResponse({'success': False, 'error': 'Invalid credentials. Please try again.'}, status=400)
-    # For GET request, just render the login page
-    return render(request, 'accounts/login.html')
 
-# User-facing Logout Page View (Session-based)
 @login_required
-def logout_page_view(request):
-    auth_logout(request)
-    return redirect('home') # Redirect to home page after logout
+def task_progress_stream_view(request, task_id):
+    """Stream task progress using Server-Sent Events"""
+    print(f"🔗 SSE Stream started for task: {task_id}")
+    
+    def event_stream():
+        try:
+            task = ScanTask.objects.get(id=task_id, user=request.user)
+            last_updated = task.updated_at
+            print(f"📊 Initial task state - Status: {task.status}, Stage: {task.current_stage}, Progress: {task.progress}%")
+            
+            while True:
+                # Refresh task from database
+                task.refresh_from_db()
+                
+                # Check if task has been updated
+                if task.updated_at > last_updated:
+                    data = {
+                        'status': task.status,
+                        'current_stage': task.current_stage,
+                        'progress': task.progress,
+                        'current_step': task.current_step,
+                        'total_steps': task.total_steps,
+                        'error_message': task.error_message,
+                        'updated_at': task.updated_at.isoformat(),
+                    }
+                    
+                    print(f"📤 Sending SSE data: {data}")
+                    yield f"data: {json.dumps(data)}\n\n"
+                    last_updated = task.updated_at
+                
+                # Stop streaming if task is completed or failed
+                if task.status in ['completed', 'failed']:
+                    print(f"🏁 Task {task_id} completed/failed, stopping stream")
+                    break
+                
+                time.sleep(1)  # Check every second
+                
+        except ScanTask.DoesNotExist:
+            error_data = {'error': 'Task not found'}
+            print(f"❌ Task {task_id} not found")
+            yield f"data: {json.dumps(error_data)}\n\n"
+        except Exception as e:
+            error_data = {'error': str(e)}
+            print(f"❌ Error in SSE stream for task {task_id}: {e}")
+            yield f"data: {json.dumps(error_data)}\n\n"
+    
+    response = StreamingHttpResponse(
+        event_stream(),
+        content_type='text/event-stream'
+    )
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'
+    return response
+
+
+@login_required
+def user_tasks_view(request):
+    """Get all tasks for the current user"""
+    tasks = ScanTask.objects.filter(user=request.user).order_by('-created_at')
+    tasks_data = []
+    
+    for task in tasks:
+        tasks_data.append({
+            'id': str(task.id),
+            'repo_url': task.repo_url,
+            'project_name': task.project_name,
+            'status': task.status,
+            'current_stage': task.current_stage,
+            'progress': task.progress,
+            'created_at': task.created_at.isoformat(),
+            'updated_at': task.updated_at.isoformat(),
+        })
+    
+    return JsonResponse({'tasks': tasks_data})

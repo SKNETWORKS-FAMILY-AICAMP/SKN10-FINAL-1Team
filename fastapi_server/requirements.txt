@@ -24,3 +24,4 @@ psycopg2-binary
 langchain-pinecone
 langchain-experimental
 PyGithub
+langchain-aws

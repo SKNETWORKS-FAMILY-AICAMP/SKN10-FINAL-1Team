@@ -34,4 +34,9 @@ urlpatterns = [
 
     # Include API routes under 'api/' prefix
     path('api/', include(api_urlpatterns)),
+
+    # Task progress tracking
+    path('tasks/', views.user_tasks_view, name='user_tasks'),
+    path('tasks/<uuid:task_id>/progress/', views.task_progress_view, name='task_progress'),
+    path('tasks/<uuid:task_id>/progress/stream/', views.task_progress_stream_view, name='task_progress_stream'),
 ]
