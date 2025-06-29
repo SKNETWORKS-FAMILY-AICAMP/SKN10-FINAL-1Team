@@ -6,8 +6,59 @@ from langchain.tools import StructuredTool, Tool
 from langchain.pydantic_v1 import BaseModel, Field
 from github import Github, Auth, GithubException, UnknownObjectException
 from github.GithubObject import NotSet
+from pinecone.grpc import PineconeGRPC as Pinecone
 
 from langchain_experimental.utilities import PythonREPL
+
+# --- 전역 사용자 ID 관리 --- #
+_current_user_id = None
+
+def set_current_user_id(user_id: str):
+    """현재 사용자 ID를 설정합니다."""
+    global _current_user_id
+    _current_user_id = user_id
+
+def get_current_user_id() -> Optional[str]:
+    """현재 사용자 ID를 반환합니다."""
+    return _current_user_id
+
+# --- Pinecone 인증 헬퍼 --- #
+def get_pinecone_index():
+    """
+    Pinecone 인덱스를 초기화하고 반환합니다.
+    :return: Pinecone 인덱스 객체.
+    :raises RuntimeError: 환경 변수가 설정되지 않았거나 인덱스 연결에 실패한 경우.
+    """
+    api_key = os.environ.get("PINECONE_API_KEY")
+    index_name = os.environ.get("PINECONE_INDEX_NAME")
+    index_host = os.environ.get("PINECONE_INDEX_HOST")
+    
+    if not api_key:
+        raise RuntimeError("PINECONE_API_KEY 환경 변수가 설정되지 않았습니다.")
+    if not index_name:
+        raise RuntimeError("PINECONE_INDEX_NAME 환경 변수가 설정되지 않았습니다.")
+    if not index_host:
+        raise RuntimeError("PINECONE_INDEX_HOST 환경 변수가 설정되지 않았습니다.")
+    
+    try:
+        pc = Pinecone(api_key=api_key)
+        return pc.Index(host=index_host)
+    except Exception as e:
+        raise RuntimeError(f"Pinecone 인덱스 초기화 실패: {e}")
+
+def get_pinecone_dimension():
+    """
+    Pinecone 인덱스의 벡터 차원을 확인합니다.
+    :return: 벡터 차원 (int).
+    :raises RuntimeError: 차원을 확인할 수 없는 경우.
+    """
+    try:
+        index = get_pinecone_index()
+        stats = index.describe_index_stats()
+        # dimension 정보가 stats에 포함되어 있지 않을 수 있으므로 기본값 사용
+        return 3072  # 실제 인덱스 차원
+    except Exception as e:
+        raise RuntimeError(f"Pinecone 인덱스 차원 확인 실패: {e}")
 
 # --- GitHub 인증 헬퍼 --- #
 def get_github_instance(token: str) -> Github:
@@ -168,9 +219,12 @@ def _list_files_in_pull_request(**kwargs) -> List[Dict[str, Any]]:
         repo = g.get_repo(repo_full_name)
         pr = repo.get_pull(number=pr_number)
         files = pr.get_files()
-        return [{"filename": file.filename, "status": file.status, "changes": file.changes} for file in files]
+        return [{
+            "filename": file.filename, "status": file.status, "additions": file.additions,
+            "deletions": file.deletions, "changes": file.changes, "patch": file.patch
+        } for file in files]
     except UnknownObjectException:
-        raise ValueError(f"PR #{pr_number}을(를) 찾을 수 없어 파일 목록을 조회할 수 없습니다.")
+        raise ValueError(f"리포지토리 '{repo_full_name}'에서 PR #{pr_number}을(를) 찾을 수 없습니다.")
     except GithubException as e:
         raise RuntimeError(f"PR 파일 목록 조회 중 오류 발생: {e.data.get('message', e.status)}")
 
@@ -464,6 +518,159 @@ def _update_file(**kwargs) -> Dict[str, str]:
     except GithubException as e:
         raise RuntimeError(f"파일 수정 중 오류 발생: {e.data.get('message', e.status)}")
 
+# --- Pinecone 검색 도구 --- #
+
+# Pinecone 튜토리얼 검색 (사용자 ID 자동 사용)
+class SearchTutorialsSchema(BaseModel):
+    query: str = Field(..., description="검색할 쿼리 텍스트.")
+    repo_path: Optional[str] = Field(None, description="필터링할 리포지토리 경로 (예: 'owner/repo').")
+    branch: Optional[str] = Field(None, description="필터링할 브랜치 이름.")
+    top_k: int = Field(5, description="반환할 최대 결과 수.")
+
+def _search_tutorials(**kwargs) -> List[Dict[str, Any]]:
+    user_id = get_current_user_id()
+    if not user_id:
+        raise RuntimeError("사용자 ID가 설정되지 않았습니다. 시스템 오류입니다.")
+    
+    query = kwargs['query']
+    repo_path = kwargs.get('repo_path')
+    branch = kwargs.get('branch')
+    top_k = kwargs.get('top_k', 5)
+    
+    try:
+        index = get_pinecone_index()
+        dimension = get_pinecone_dimension()
+        
+        # 필터 구성 (실제 Pinecone 데이터 구조에 맞게 수정)
+        filter_dict = {}
+        if repo_path:
+            filter_dict["github_user_repo"] = {"$eq": repo_path}
+        if branch:
+            filter_dict["branch_name"] = {"$eq": branch}
+        
+        # 쿼리 실행
+        query_response = index.query(
+            namespace=str(user_id),
+            vector=[0.0] * dimension,  # 올바른 차원 사용
+            top_k=top_k,
+            filter=filter_dict if filter_dict else None,
+            include_metadata=True,
+            include_values=False
+        )
+        
+        # 결과 처리
+        results = []
+        for match in query_response.matches:
+            result = {
+                "id": match.id,
+                "score": match.score,
+                "metadata": match.metadata
+            }
+            results.append(result)
+        
+        return results
+        
+    except Exception as e:
+        raise RuntimeError(f"Pinecone 검색 중 오류 발생: {e}")
+
+# Pinecone 튜토리얼 상세 검색 (벡터 임베딩 포함, 사용자 ID 자동 사용)
+class SearchTutorialsWithEmbeddingSchema(BaseModel):
+    query: str = Field(..., description="검색할 쿼리 텍스트.")
+    repo_path: Optional[str] = Field(None, description="필터링할 리포지토리 경로 (예: 'owner/repo').")
+    branch: Optional[str] = Field(None, description="필터링할 브랜치 이름.")
+    top_k: int = Field(5, description="반환할 최대 결과 수.")
+    user_id: Optional[str] = Field(None, description="검색할 사용자의 ID (자동으로 설정됨).")
+
+def _search_tutorials_with_embedding(**kwargs) -> List[Dict[str, Any]]:
+    user_id = kwargs.get('user_id')  # user_id가 kwargs에 없을 수 있음
+    query = kwargs['query']
+    repo_path = kwargs.get('repo_path')
+    branch = kwargs.get('branch')
+    top_k = kwargs.get('top_k', 5)
+    
+    # 사용자 ID 디버깅
+    current_user_id = get_current_user_id()
+    print(f"---[PINECONE SEARCH] kwargs user_id: {user_id}")
+    print(f"---[PINECONE SEARCH] current_user_id: {current_user_id}")
+    
+    # 사용자 ID 결정 (kwargs 우선, 없으면 전역 변수 사용)
+    final_user_id = user_id if user_id else current_user_id
+    
+    if not final_user_id:
+        error_msg = "사용자 ID가 설정되지 않았습니다. Pinecone 검색을 수행할 수 없습니다."
+        print(f"---[PINECONE SEARCH ERROR] {error_msg}")
+        raise RuntimeError(error_msg)
+    
+    print(f"---[PINECONE SEARCH] Using user_id: {final_user_id}")
+    
+    try:
+        # OpenAI 임베딩 모델을 사용하여 쿼리를 벡터로 변환
+        import openai
+        
+        client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        response = client.embeddings.create(
+            model="text-embedding-3-large",  # 3072차원 벡터를 생성하는 모델
+            input=query
+        )
+        query_vector = response.data[0].embedding
+        
+        index = get_pinecone_index()
+        
+        # 필터 구성 (실제 Pinecone 데이터 구조에 맞게 수정)
+        filter_dict = {}
+        if repo_path:
+            filter_dict["github_user_repo"] = {"$eq": repo_path}
+        if branch:
+            filter_dict["branch_name"] = {"$eq": branch}
+        
+        print(f"---[PINECONE SEARCH] Query: {query}")
+        print(f"---[PINECONE SEARCH] Namespace: {final_user_id}")
+        print(f"---[PINECONE SEARCH] Filter: {filter_dict}")
+        
+        # 쿼리 실행
+        query_response = index.query(
+            namespace=str(final_user_id),
+            vector=query_vector,
+            top_k=top_k,
+            filter=filter_dict if filter_dict else None,
+            include_metadata=True,
+            include_values=False
+        )
+        
+        print(f"---[PINECONE SEARCH] Found {len(query_response.matches)} matches")
+        
+        # 결과 처리
+        results = []
+        for match in query_response.matches:
+            result = {
+                "id": match.id,
+                "score": match.score,
+                "metadata": match.metadata
+            }
+            results.append(result)
+        
+        return results
+        
+    except ImportError:
+        raise RuntimeError("OpenAI 라이브러리가 설치되지 않았습니다. 'pip install openai'를 실행하세요.")
+    except Exception as e:
+        raise RuntimeError(f"Pinecone 검색 중 오류 발생: {e}")
+
+# --- Pinecone 검색 도구 래퍼 함수 ---
+def _search_tutorials_with_embedding_wrapper(**kwargs) -> List[Dict[str, Any]]:
+    """
+    Pinecone 검색 도구의 래퍼 함수. 사용자 ID를 자동으로 추가합니다.
+    """
+    # 현재 설정된 사용자 ID 가져오기
+    current_user_id = get_current_user_id()
+    if not current_user_id:
+        raise RuntimeError("사용자 ID가 설정되지 않았습니다. Pinecone 검색을 수행할 수 없습니다.")
+    
+    # kwargs에 사용자 ID 추가
+    kwargs['user_id'] = current_user_id
+    
+    # 원본 함수 호출
+    return _search_tutorials_with_embedding(**kwargs)
 
 # --- 도구 리스트 취합 --- #
 
@@ -587,6 +794,14 @@ def get_all_coding_tools() -> List[Tool]:
             func=_search_code,
             args_schema=SearchCodeSchema
         ),
+        # Pinecone 검색 도구
+
+        StructuredTool(
+            name="github_search_code_documents_with_embedding",
+            description="Pinecone을 사용하여 문서화된 레포지터리 코드를 벡터 임베딩을 포함하여 검색합니다.",
+            func=_search_tutorials_with_embedding_wrapper,
+            args_schema=SearchTutorialsWithEmbeddingSchema
+        ),
     ]
 
     # Python REPL 도구 추가
@@ -603,23 +818,6 @@ def get_all_coding_tools() -> List[Tool]:
     for i, tool in enumerate(all_tools):
         print(f"--- [DEBUG] Tool[{i}]: {tool.name}")
     print("--- [DEBUG] Tool assembly finished ---\n")
-
-    return all_tools
-
-    # Python REPL 도구 추가
-    python_repl = PythonREPL()
-    python_repl_tool = Tool(
-        name="python_repl",
-        description="A Python shell. Use this to execute python commands. Input should be a valid python command. If you want to see the output of a value, you should print it out with `print(...)`.",
-        func=python_repl.run,
-    )
-
-    all_tools = github_tools + [python_repl_tool]
-    
-    print("\n--- Assembling tools for Coding Assistant (Token-Based) ---")
-    for i, tool in enumerate(all_tools):
-        print(f"--- Tool[{i}]: {tool.name}")
-    print("--- Tool assembly finished ---\n")
 
     return all_tools
 

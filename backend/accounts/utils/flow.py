@@ -1,6 +1,6 @@
 from pocketflow import Flow
 # Import all node classes from nodes.py
-from nodes import (
+from .nodes import (
     FetchRepo,
     IdentifyAbstractions,
     AnalyzeRelationships,
@@ -33,4 +33,4 @@ def create_tutorial_flow():
     # Create the flow starting with FetchRepo
     tutorial_flow = Flow(start=fetch_repo)
 
-    return tutorial_flow
+    return tutorial_flow 

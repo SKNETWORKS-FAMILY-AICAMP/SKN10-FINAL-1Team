@@ -220,6 +220,12 @@ async def chat_stream(request, session_id):
                 headers = {"X-Internal-Secret": internal_secret} if internal_secret else {}
                 async with httpx.AsyncClient() as client:
                     github_token = request.user.github_token if hasattr(request.user, 'github_token') else None
+                    user_id = str(request.user.id)
+                    
+                    # 사용자 ID 디버깅 로그 추가
+                    print(f"---[DJANGO] Sending user_id: {user_id}")
+                    print(f"---[DJANGO] User ID type: {type(user_id)}")
+                    
                     payload = {
                         "input": {
                             "messages": [
@@ -229,11 +235,15 @@ async def chat_stream(request, session_id):
                         "config": {
                             "configurable": {
                                 "thread_id": thread_id,
-                                "user_id": str(request.user.id),
+                                "user_id": user_id,
                                 "github_token": github_token,
                             }
                         },
                     }
+                    
+                    # 페이로드 디버깅 로그 추가
+                    print(f"---[DJANGO] Full payload config: {payload['config']}")
+                    
                     async with client.stream("POST", f"{fastapi_url}/invoke", json=payload, headers=headers, timeout=300.0) as response:
                         response.raise_for_status()
                         tool_use_started_sent = False # Flag to send start event only once

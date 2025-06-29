@@ -126,25 +126,200 @@
   max-width: 100%;
   box-sizing: border-box;
 }
+
 .prose code {
   word-break: break-word;
 }
 
-.prose pre, .prose code {
-  font-size: 0.95em;
-  padding: 0.5em 0.75em;
-  background: #f8fafc;
-  border-radius: 0.375rem;
-  line-height: 1.5;
+/* 인라인 코드 스타일 */
+.prose :not(pre) > code {
+  font-size: 0.875em;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  padding: 0.2em 0.4em;
+  background: #f1f3f4;
+  border: 1px solid #e1e5e9;
+  border-radius: 0.25rem;
+  color: #d63384;
+  font-weight: 500;
+  line-height: 1.4;
 }
+
+/* 코드 블록 스타일 */
 .prose pre {
-  margin: 0.5em 0;
+  margin: 1em 0;
+  padding: 1.25em;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 0.5rem;
+  color: #212529;
+  overflow-x: auto;
+  font-size: 0.875em;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  line-height: 1.6;
+  position: relative;
 }
-.prose code {
-  color: #2563eb;
-  background: #f1f5f9;
+
+.prose pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-weight: normal;
+  border-radius: 0;
 }
+
 .prose p, .prose ul, .prose ol, .prose pre, .prose blockquote {
-  margin-top: 0.3em;
-  margin-bottom: 0.3em;
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+
+/* 코드 에디터 스타일 */
+.code-editor-style {
+  background: #1e1e1e !important;
+  color: #d4d4d4 !important;
+  border: 1px solid #3c3c3c !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  margin: 12px 0 !important;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  overflow-x: auto !important;
+  position: relative !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+.code-editor-style::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: linear-gradient(135deg, #2d2d30 0%, #1e1e1e 100%);
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+.code-editor-style::after {
+  content: '● ● ●';
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  color: #6a6a6a;
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+
+.code-editor-style code {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  color: inherit !important;
+  font-weight: normal !important;
+  border-radius: 0 !important;
+  margin-top: 24px !important;
+  display: block !important;
+}
+
+/* Prism.js 테마 커스터마이징 */
+.code-editor-style .token.comment,
+.code-editor-style .token.prolog,
+.code-editor-style .token.doctype,
+.code-editor-style .token.cdata {
+  color: #6a9955 !important;
+}
+
+.code-editor-style .token.punctuation {
+  color: #d4d4d4 !important;
+}
+
+.code-editor-style .token.property,
+.code-editor-style .token.tag,
+.code-editor-style .token.boolean,
+.code-editor-style .token.number,
+.code-editor-style .token.constant,
+.code-editor-style .token.symbol,
+.code-editor-style .token.deleted {
+  color: #b5cea8 !important;
+}
+
+.code-editor-style .token.selector,
+.code-editor-style .token.attr-name,
+.code-editor-style .token.string,
+.code-editor-style .token.char,
+.code-editor-style .token.builtin,
+.code-editor-style .token.inserted {
+  color: #ce9178 !important;
+}
+
+.code-editor-style .token.operator,
+.code-editor-style .token.entity,
+.code-editor-style .token.url,
+.language-css .token.string,
+.style .token.string {
+  color: #d4d4d4 !important;
+}
+
+.code-editor-style .token.atrule,
+.code-editor-style .token.attr-value,
+.code-editor-style .token.keyword {
+  color: #c586c0 !important;
+}
+
+.code-editor-style .token.function {
+  color: #dcdcaa !important;
+}
+
+.code-editor-style .token.regex,
+.code-editor-style .token.important,
+.code-editor-style .token.variable {
+  color: #d16969 !important;
+}
+
+.code-editor-style .token.important,
+.code-editor-style .token.bold {
+  font-weight: bold !important;
+}
+
+.code-editor-style .token.italic {
+  font-style: italic !important;
+}
+
+.code-editor-style .token.entity {
+  cursor: help !important;
+}
+
+/* 사이드바 스크롤 영역 스타일 */
+[data-slot="scroll-area"] {
+  overflow: hidden;
+}
+
+[data-slot="scroll-area-viewport"] {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+[data-slot="scroll-area-viewport"]::-webkit-scrollbar {
+  width: 6px;
+}
+
+[data-slot="scroll-area-viewport"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-slot="scroll-area-viewport"]::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 3px;
+}
+
+[data-slot="scroll-area-viewport"]::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* 세션 목록 스크롤 영역 */
+.session-list-scroll {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
 }

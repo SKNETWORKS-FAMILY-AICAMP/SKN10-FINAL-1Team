@@ -3,10 +3,39 @@ import re
 import yaml
 import boto3
 from pocketflow import Node, BatchNode
+import sys
+
+# Add project root to path for imports
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+if PROJECT_ROOT not in sys.path:
+    sys.path.append(PROJECT_ROOT)
+
 from crawl_github_files import crawl_github_files
 from call_llm import call_llm
 from dotenv import load_dotenv
 import shutil
+
+# Import for progress tracking
+try:
+    from accounts.models import ScanTask
+except ImportError:
+    # Fallback for when running as standalone
+    ScanTask = None
+
+
+def update_task_progress(task_id, stage, step):
+    """Update task progress if task_id is provided"""
+    if task_id and ScanTask:
+        try:
+            task = ScanTask.objects.get(id=task_id)
+            task.update_progress(stage, step)
+            print(f"✅ Progress updated: Task {task_id} - Stage: {stage}, Step: {step}, Progress: {task.progress}%")
+        except ScanTask.DoesNotExist:
+            print(f"Warning: Task {task_id} not found for progress update")
+        except Exception as e:
+            print(f"Warning: Failed to update task progress: {e}")
+    else:
+        print(f"⚠️ No task_id provided or ScanTask not available. task_id: {task_id}, ScanTask: {ScanTask}")
 
 
 # Helper to get content for specific file indices
@@ -80,6 +109,8 @@ class FetchRepo(Node):
 
     def post(self, shared, prep_res, exec_res):
         shared["files"] = exec_res  # List of (path, content) tuples
+        # Update progress - Step 1: Fetching Repository
+        update_task_progress(shared.get("task_id"), "fetching", 1)
 
 
 class IdentifyAbstractions(Node):
@@ -240,9 +271,9 @@ Ensure the output is valid YAML.
         return abstractions
 
     def post(self, shared, prep_res, exec_res):
-        shared["abstractions"] = (
-            exec_res  # List of {"name": str, "description": str, "file_indices": [int]}
-        )
+        shared["abstractions"] = exec_res
+        # Update progress - Step 2: Identifying Abstractions
+        update_task_progress(shared.get("task_id"), "identifying", 2)
 
 
 class AnalyzeRelationships(Node):
@@ -400,6 +431,8 @@ Now, provide the YAML output:
 
     def post(self, shared, prep_res, exec_res):
         shared["relationships"] = exec_res
+        # Update progress - Step 3: Analyzing Relationships
+        update_task_progress(shared.get("task_id"), "analyzing", 3)
 
 
 class OrderChapters(Node):
@@ -526,7 +559,9 @@ Now, provide the YAML output:
 
     def post(self, shared, prep_res, exec_res):
         # exec_res is already the list of ordered indices
-        shared["chapter_order"] = exec_res  # List of indices
+        shared["chapter_order"] = exec_res
+        # Update progress - Step 4: Ordering Chapters
+        update_task_progress(shared.get("task_id"), "ordering", 4)
 
 
 class WriteChapters(BatchNode):
@@ -740,9 +775,8 @@ Now, directly provide a super beginner-friendly Markdown output (DON'T need ```m
     def post(self, shared, prep_res, exec_res_list):
         # exec_res_list contains the generated Markdown for each chapter, in order
         shared["chapters"] = exec_res_list
-        # Clean up the temporary instance variable
-        del self.chapters_written_so_far
-        print(f"Finished writing {len(exec_res_list)} chapters.")
+        # Update progress - Step 5: Writing Chapters
+        update_task_progress(shared.get("task_id"), "writing", 5)
 
 
 class CombineTutorial(Node):
@@ -890,8 +924,9 @@ class CombineTutorial(Node):
         return output_path  # Return the final path
 
     def post(self, shared, prep_res, exec_res):
-        shared["final_output_dir"] = exec_res  # Store the output path
-        print(f"\nTutorial generation complete! Files are in: {exec_res}")
+        shared["final_output_dir"] = exec_res
+        # Update progress - Step 6: Combining Tutorial
+        update_task_progress(shared.get("task_id"), "combining", 6)
 
 
 class UploadToPinecone(Node):
@@ -904,12 +939,30 @@ class UploadToPinecone(Node):
         repo_url = shared.get("repo_url")
         project_name = shared.get("project_name")
         github_user_name = shared.get("github_user_name")
+        user_id = shared.get("user_id")  # 로그인 유저 ID 추가
 
         pinecone_api_key = os.getenv("PINECONE_API_KEY")
         pinecone_environment = os.getenv("PINECONE_ENVIRONMENT")
 
+        # Debug information
+        print(f"DEBUG: final_output_dir = {final_output_dir}")
+        print(f"DEBUG: repo_url = {repo_url}")
+        print(f"DEBUG: project_name = {project_name}")
+        print(f"DEBUG: github_user_name = {github_user_name}")
+        print(f"DEBUG: user_id = {user_id}")
+        print(f"DEBUG: PINECONE_API_KEY = {'Set' if pinecone_api_key else 'Not Set'}")
+        print(f"DEBUG: PINECONE_ENVIRONMENT = {pinecone_environment}")
+
         if not all([final_output_dir, repo_url, project_name, github_user_name, pinecone_api_key, pinecone_environment]):
-            print("Skipping Pinecone upload due to missing configuration or data.")
+            missing_items = []
+            if not final_output_dir: missing_items.append("final_output_dir")
+            if not repo_url: missing_items.append("repo_url")
+            if not project_name: missing_items.append("project_name")
+            if not github_user_name: missing_items.append("github_user_name")
+            if not pinecone_api_key: missing_items.append("PINECONE_API_KEY")
+            if not pinecone_environment: missing_items.append("PINECONE_ENVIRONMENT")
+            
+            print(f"Skipping Pinecone upload due to missing configuration or data: {', '.join(missing_items)}")
             return None
 
         # Extract branch name from repo_url
@@ -917,12 +970,26 @@ class UploadToPinecone(Node):
         if '/tree/' in repo_url:
             branch_name = repo_url.split('/tree/')[-1]
 
+        # Extract owner from repo_url (could be username or organization)
+        from urllib.parse import urlparse
+        try:
+            parsed_url = urlparse(repo_url)
+            path_parts = parsed_url.path.strip('/').split('/')
+            if len(path_parts) >= 2:
+                owner = path_parts[0]  # This could be username or organization
+            else:
+                owner = github_user_name  # Fallback to github_user_name
+        except Exception:
+            owner = github_user_name  # Fallback to github_user_name
+
         return {
             "final_output_dir": final_output_dir,
             "repo_url": repo_url,
             "project_name": project_name,
             "github_user_name": github_user_name,
             "branch_name": branch_name,
+            "user_id": user_id,  # 로그인 유저 ID 추가
+            "owner": owner,  # 실제 레포지터리 소유자 (username 또는 organization)
             "pinecone_api_key": pinecone_api_key,
             "pinecone_environment": pinecone_environment,
         }
@@ -941,13 +1008,15 @@ class UploadToPinecone(Node):
         project_name = prep_res["project_name"]
         github_user_name = prep_res["github_user_name"]
         branch_name = prep_res["branch_name"]
+        user_id = prep_res["user_id"]  # 로그인 유저 ID 추가
+        owner = prep_res["owner"]  # 실제 레포지터리 소유자
         pinecone_api_key = prep_res["pinecone_api_key"]
         pinecone_environment = prep_res["pinecone_environment"]
 
         try:
             # 1. Initialize Pinecone
             pc = Pinecone(api_key=pinecone_api_key)
-            index_name = github_user_name.lower()
+            index_name = "code-documents"  # 언더스코어를 하이픈으로 변경
 
             # Correct common region name typos
             if pinecone_environment == "us-east1":
@@ -975,22 +1044,21 @@ class UploadToPinecone(Node):
             md_files = [f for f in os.listdir(final_output_dir) if f.endswith('.md')]
             
             vectors_to_upsert = []
-            namespace = f"{project_name}/{branch_name}"
+            namespace = str(user_id) if user_id else "anonymous"  # 네임스페이스를 로그인 유저명으로 변경
 
             for filename in md_files:
                 file_path = os.path.join(final_output_dir, filename)
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
 
-                # 5. Create metadata
+                # 5. Create metadata with new structure
                 original_document_id = f"{project_name}_{uuid.uuid4().hex}"
                 metadata = {
-                    'chunk_index': 1,
-                    'namespace': namespace,
-                    'branch_name': branch_name,
-                    'original_document_id': original_document_id,
-                    'original_filename': filename,
-                    'text': content
+                    'github_user_repo': f"{owner}/{project_name}",  # 실제 레포지터리 소유자/레포지터리명
+                    'branch_name': branch_name,  # 브랜치명
+                    'original_filename': filename,  # 원본 파일 이름
+                    'original_document_id': original_document_id,  # 원본 파일 ID
+                    'text': content  # 원본 텍스트
                 }
 
                 # 6. Embed content using OpenAI
@@ -1036,3 +1104,6 @@ class UploadToPinecone(Node):
                     print(f"Successfully deleted local tutorial directory: {final_output_dir}")
                 except Exception as e:
                     print(f"Error deleting local tutorial directory {final_output_dir}: {e}")
+
+        # Update progress - Step 7: Uploading to Pinecone
+        update_task_progress(shared.get("task_id"), "uploading", 7)

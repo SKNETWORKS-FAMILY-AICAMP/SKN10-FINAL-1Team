@@ -465,6 +465,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
+            // Show progress section and initialize
+            scanProgressSection.style.display = 'block';
+            overallStage.textContent = 'Starting scan...';
+            overallPercentage.textContent = '0%';
+            overallProgressBar.style.width = '0%';
+            currentTaskName.textContent = 'Initializing...';
+            currentTaskStage.textContent = 'Preparing...';
+            currentTaskPercentage.textContent = '0%';
+            currentTaskProgressBar.style.width = '0%';
+            
             scanFeedback.innerHTML = '<p class="text-blue-600 text-sm">Initiating scan for selected repositories...</p>';
 
             try {
@@ -480,17 +490,42 @@ document.addEventListener('DOMContentLoaded', function () {
                 const result = await response.json();
 
                 if (response.ok && result.status === 'completed') {
-                    let resultHtml = '<p class="text-green-600 text-sm mb-2">Scan process results:</p><ul class="list-disc list-inside text-sm space-y-1">';
-                    if (result.results && Array.isArray(result.results)){
-                        result.results.forEach(res => {
-                            resultHtml += `<li class="${res.status === 'success' ? 'text-green-700' : 'text-red-700'} break-all"><strong>${res.repo_url}</strong>: ${res.message}</li>`;
-                        });
-                    } else {
-                        resultHtml += '<li class="text-orange-500">No detailed results returned.</li>';
+                    // Start monitoring the first task (for now, we'll track one at a time)
+                    if (result.results && result.results.length > 0) {
+                        const firstResult = result.results[0];
+                        console.log('Scan result:', firstResult);
+                        
+                        if (firstResult.status === 'success' && firstResult.task_id) {
+                            // Extract repo name from URL for display
+                            const repoName = firstResult.repo_url.split('/').slice(-2).join('/');
+                            console.log(`Starting progress tracking for task: ${firstResult.task_id}, repo: ${repoName}`);
+                            
+                            // Start progress tracking with the task_id
+                            startTaskStreaming(firstResult.task_id, repoName);
+                            
+                            scanFeedback.innerHTML = `<p class="text-blue-600 text-sm">🔄 ${repoName} 스캔이 시작되었습니다. 진행률을 실시간으로 확인하세요.</p>`;
+                        } else if (firstResult.status === 'success') {
+                            console.log('No task_id in result:', firstResult);
+                            // Fallback if no task_id
+                            const repoName = firstResult.repo_url.split('/').slice(-2).join('/');
+                            overallStage.textContent = 'Scan completed';
+                            overallPercentage.textContent = '100%';
+                            overallProgressBar.style.width = '100%';
+                            currentTaskName.textContent = repoName;
+                            currentTaskStage.textContent = 'Completed';
+                            currentTaskPercentage.textContent = '100%';
+                            currentTaskProgressBar.style.width = '100%';
+                            currentTaskStatus.textContent = 'Completed';
+                            currentTaskStatus.className = 'px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800';
+                            
+                            scanFeedback.innerHTML = `<p class="text-green-600 text-sm">✅ ${repoName} 스캔이 완료되었습니다!</p>`;
+                        } else {
+                            console.log('Scan failed:', firstResult);
+                            scanFeedback.innerHTML = `<p class="text-red-500 text-sm">❌ ${firstResult.repo_url} 스캔 중 오류가 발생했습니다: ${firstResult.message}</p>`;
+                        }
                     }
-                    resultHtml += '</ul>';
-                    scanFeedback.innerHTML = resultHtml;
                 } else {
+                    console.log('Scan response error:', result);
                     scanFeedback.innerHTML = `<p class="text-red-500 text-sm">Error: ${result.message || result.error || 'Scan failed or did not complete as expected.'}</p>`;
                 }
             } catch (error) {
@@ -665,6 +700,139 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
     // --- End Public Repository Scan Logic ---
+
+    // --- Scan Progress Tracking ---
+    const scanProgressSection = document.getElementById('scanProgressSection');
+    const overallProgress = document.getElementById('overallProgress');
+    const overallStage = document.getElementById('overallStage');
+    const overallPercentage = document.getElementById('overallPercentage');
+    const overallProgressBar = document.getElementById('overallProgressBar');
+    const currentTaskProgress = document.getElementById('currentTaskProgress');
+    const currentTaskStatus = document.getElementById('currentTaskStatus');
+    const currentTaskName = document.getElementById('currentTaskName');
+    const currentTaskStage = document.getElementById('currentTaskStage');
+    const currentTaskPercentage = document.getElementById('currentTaskPercentage');
+    const currentTaskProgressBar = document.getElementById('currentTaskProgressBar');
+    
+    // Task progress tracking
+    const taskProgressMap = new Map();
+    const eventSourceMap = new Map();
+    let currentTaskId = null;
+    
+    function getStatusText(status) {
+        const statusMap = {
+            'pending': '대기 중',
+            'running': '진행 중',
+            'completed': '완료',
+            'failed': '실패'
+        };
+        return statusMap[status] || status;
+    }
+    
+    function getStatusClass(status) {
+        const classMap = {
+            'pending': 'bg-yellow-100 text-yellow-800',
+            'running': 'bg-blue-100 text-blue-800',
+            'completed': 'bg-green-100 text-green-800',
+            'failed': 'bg-red-100 text-red-800'
+        };
+        return classMap[status] || 'bg-gray-100 text-gray-800';
+    }
+    
+    function getStageText(stage) {
+        const stageMap = {
+            'fetching': '저장소 가져오는 중...',
+            'identifying': '추상화 식별 중...',
+            'analyzing': '관계 분석 중...',
+            'ordering': '챕터 순서 정렬 중...',
+            'writing': '챕터 작성 중...',
+            'combining': '튜토리얼 결합 중...',
+            'uploading': 'Pinecone 업로드 중...'
+        };
+        return stageMap[stage] || '준비 중...';
+    }
+    
+    function startTaskStreaming(taskId, repoName) {
+        if (eventSourceMap.has(taskId)) {
+            eventSourceMap.get(taskId).close();
+        }
+        
+        console.log(`Starting task streaming for task: ${taskId}, repo: ${repoName}`);
+        
+        // Update current task info
+        currentTaskId = taskId;
+        currentTaskName.textContent = repoName;
+        currentTaskStatus.textContent = 'Running';
+        currentTaskStatus.className = 'px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800';
+        
+        // Show progress section
+        scanProgressSection.style.display = 'block';
+        
+        // Create the correct URL for the task stream
+        const streamUrl = `/accounts/tasks/${taskId}/progress/stream/`;
+        console.log(`Connecting to EventSource: ${streamUrl}`);
+        const eventSource = new EventSource(streamUrl);
+        
+        eventSource.onopen = function() {
+            console.log('EventSource connection opened');
+        };
+        
+        eventSource.onmessage = function(event) {
+            console.log('Received EventSource message:', event.data);
+            const data = JSON.parse(event.data);
+            
+            if (data.error) {
+                console.error('Task streaming error:', data.error);
+                eventSource.close();
+                return;
+            }
+            
+            // Update current task progress
+            const stageText = getStageText(data.current_stage);
+            currentTaskStage.textContent = stageText;
+            currentTaskPercentage.textContent = `${data.progress}%`;
+            currentTaskProgressBar.style.width = `${data.progress}%`;
+            
+            // Update overall progress (assuming single task for now)
+            overallStage.textContent = stageText;
+            overallPercentage.textContent = `${data.progress}%`;
+            overallProgressBar.style.width = `${data.progress}%`;
+            
+            // Update status
+            const statusText = getStatusText(data.status);
+            currentTaskStatus.textContent = statusText;
+            currentTaskStatus.className = `px-2 py-1 text-xs font-medium rounded-full ${getStatusClass(data.status)}`;
+            
+            // Update feedback with current stage
+            const feedback = document.getElementById('scanFeedback');
+            if (data.status === 'running') {
+                feedback.innerHTML = `<p class="text-blue-600 text-sm">🔄 ${repoName} - ${stageText} (${data.progress}%)</p>`;
+            }
+            
+            // Stop streaming if task is completed or failed
+            if (data.status === 'completed' || data.status === 'failed') {
+                eventSource.close();
+                eventSourceMap.delete(taskId);
+                
+                // Update feedback
+                if (data.status === 'completed') {
+                    feedback.innerHTML = `<p class="text-green-600 text-sm">✅ ${repoName} 스캔이 완료되었습니다!</p>`;
+                } else {
+                    feedback.innerHTML = `<p class="text-red-600 text-sm">❌ ${repoName} 스캔 중 오류가 발생했습니다: ${data.error_message || 'Unknown error'}</p>`;
+                }
+            }
+        };
+        
+        eventSource.onerror = function(error) {
+            console.error('EventSource error:', error);
+            eventSource.close();
+            eventSourceMap.delete(taskId);
+        };
+        
+        eventSourceMap.set(taskId, eventSource);
+    }
+    
+    // --- End Scan Progress Tracking ---
 });
 
   </script>
@@ -688,6 +856,37 @@ document.addEventListener('DOMContentLoaded', function () {
                     <input type="checkbox" id="selectAllReposCheckbox" class="form-checkbox h-4 w-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 mr-2">
                     Select All Repositories
                 </label>
+            </div>
+        </div>
+
+        <!-- Progress Bar Section -->
+        <div id="scanProgressSection" class="mb-4" style="display: none;">
+            <h4 class="text-sm font-medium text-slate-900 mb-2">Scan Progress</h4>
+            <div class="space-y-3">
+                <div id="overallProgress" class="border border-slate-200 rounded-lg p-3 bg-slate-50">
+                    <div class="flex justify-between text-xs text-slate-600 mb-1">
+                        <span id="overallStage">Initializing...</span>
+                        <span id="overallPercentage">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-3">
+                        <div id="overallProgressBar" class="bg-blue-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+                
+                <div id="currentTaskProgress" class="border border-slate-200 rounded-lg p-3 bg-slate-50">
+                    <div class="flex justify-between items-center mb-2">
+                        <h5 class="text-xs font-medium text-slate-900">Current Repository</h5>
+                        <span id="currentTaskStatus" class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">Pending</span>
+                    </div>
+                    <p id="currentTaskName" class="text-xs text-slate-600 mb-2">No repository selected</p>
+                    <div class="flex justify-between text-xs text-slate-600 mb-1">
+                        <span id="currentTaskStage">Waiting...</span>
+                        <span id="currentTaskPercentage">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-2">
+                        <div id="currentTaskProgressBar" class="bg-green-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -737,6 +936,47 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
     </div>
 </div>
+
+<!-- Task Progress Modal -->
+<div id="taskProgressModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center" style="display: none; z-index: 80;">
+    <div class="relative p-8 bg-white w-full max-w-2xl m-auto flex-col flex rounded-lg shadow-lg">
+        <button id="closeTaskProgressModalBtn" class="absolute top-0 right-0 mt-4 mr-4 text-gray-400 hover:text-gray-600">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+        <h3 class="text-xl font-semibold text-slate-900 mb-6">작업 진행률</h3>
+        
+        <div id="taskProgressContent" class="space-y-4">
+            <!-- Task list will be loaded here -->
+        </div>
+    </div>
+</div>
+
+<!-- Task Progress Bar Component -->
+<template id="taskProgressTemplate">
+    <div class="task-item border border-slate-200 rounded-lg p-4 bg-slate-50">
+        <div class="flex justify-between items-start mb-3">
+            <div class="flex-1">
+                <h4 class="text-sm font-medium text-slate-900 task-name"></h4>
+                <p class="text-xs text-slate-500 task-repo"></p>
+            </div>
+            <div class="ml-4">
+                <span class="task-status px-2 py-1 text-xs font-medium rounded-full"></span>
+            </div>
+        </div>
+        
+        <div class="mb-3">
+            <div class="flex justify-between text-xs text-slate-600 mb-1">
+                <span class="task-stage">준비 중...</span>
+                <span class="task-percentage">0%</span>
+            </div>
+            <div class="w-full bg-slate-200 rounded-full h-2">
+                <div class="task-progress-bar bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+        
+        <div class="task-error text-xs text-red-600" style="display: none;"></div>
+    </div>
+</template>
 
  
   </div>

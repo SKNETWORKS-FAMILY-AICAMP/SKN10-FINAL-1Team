@@ -15,6 +15,7 @@ import os
 from contextlib import asynccontextmanager
 from collections import ChainMap
 from agent.graph import get_swarm_graph
+from agent.coding_agent_tools import set_current_user_id
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 app = FastAPI(
@@ -76,9 +77,16 @@ async def invoke_agent(invocation_request: InvocationRequest):
     """
     messages = [("user", msg.content) for msg in invocation_request.input.messages]
 
-    # Extract github_token from the config and prepend it as a system message
+    # Extract github_token and user_id from the config and prepend them as system messages
     configurable_data = invocation_request.config.get("configurable", {})
     github_token = configurable_data.get("github_token")
+    user_id = configurable_data.get("user_id")
+    
+    # 사용자 ID를 전역 변수로 설정하여 도구에서 자동으로 사용할 수 있도록 함
+    if user_id:
+        set_current_user_id(str(user_id))
+        print(f"---[USER ID SET] Current user ID set to: {user_id}")
+    
     if github_token:
         messages.insert(0, ("system", f"GitHub token is available for this session. Use this token for all GitHub API calls: {github_token}"))
 
