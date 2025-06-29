@@ -189,7 +189,7 @@ def get_namespaces(index_name) :
 
     # 3. 네임스페이스 전처리
     flatten_namespaces = {
-        (name if name != '' else 'unknown'): info['vector_count']
+        (name if name != '' else 'unknown') : info['vector_count']
         for name, info in namespaces.items()
     }
     print(flatten_namespaces)

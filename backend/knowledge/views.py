@@ -157,25 +157,49 @@ def create_multi_user(request) :
                 data = raw.decode('euc-kr', errors='ignore')  
                 # (필요하면 errors 옵션 추가)
         reader = csv.DictReader(io.StringIO(data))
+
+        # 3) 해당 파일에 name, id, authority, department만 존재하는지 확인 (예외 처리)
+        if len(reader.fieldnames) != 4 or ['name', 'id', 'authority', 'department'] != reader.fieldnames : 
+            print("컬럼 수 : ",len(reader.fieldnames), "컬럼 : ", reader.fieldnames)
+            messages.error(request, '⚠️ 오류 : 파일의 컬럼이 잘못된 형식입니다!')
+            print("⚠️ 오류 : 파일의 컬럼이 잘못된 형식입니다!")
+            return redirect(redirect_url)
+
+
+        # created_user : 실제 삭제한 유저 수
+        created_user = 0
+        print("컬럼 수 : ",len(reader.fieldnames), "컬럼 : ", reader.fieldnames)
         rows = list(reader) 
         print("✅ 정상적으로 csv파일을 읽었습니다.")
 
-        # 3) rows 순회하면서 회원 생성
-        for row in rows:
+        # 4) rows 순회하면서 회원 생성
+        for i, row in enumerate(rows):
             name = row['name'].strip()
             id = row['id'].strip()
             authority = row['authority'].strip()
             dept = row['department'].strip()
-            org = Organization.objects.get(name=dept)  # 예시
-
-            User.objects.create_user(
+            
+            if len(name) == 0 or len(id) == 0 or len(authority) == 0 or len(dept) == 0 :
+                print(f"⚠️ {i+1}. 컬럼값이 일부 비어있어 건너뜀.")
+            elif authority not in ['admin', "employee", "guest"] : 
+                print(f"⚠️ {i+1}. authority 컬럼값이 잘못되어 건너뜀.")
+            elif dept not in ["development", "business_strategy", "customer_management", "administrator"] :
+                print(f"⚠️ {i+1}. department 컬럼값이 잘못되어 건너뜀.")
+            elif User.objects.filter(email=f'{id}@example.com').exists():
+                print(f"⚠️ {i+1}. {id}@example.com 이미 존재하여 건너뜀")
+            else:
+                org = Organization.objects.get(name=dept)
+                User.objects.create_user(
                 email=f'{id}@example.com', # 이메일 생성 로직
                 password=generate_password(),     # 비번 지정
                 name=name,
                 role=authority,
                 org=org,
-            )
-        messages.success(request, f'✅ {len(rows)}명의 계정을 생성했어!')
+                )
+                created_user += 1
+                print(f"✅ {i+1}. {id}@example.com 계정 생성 완료")
+
+        messages.success(request, f'✅ {len(rows)}개의 데이터 중 {created_user}개의 계정 생성 완료!')
         return redirect(redirect_url)
     else : 
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
@@ -206,31 +230,46 @@ def delete_multi_user(request) :
         uploaded = request.FILES.get('file')
         redirect_url = reverse('knowledge:dashboard', args=['user'])
         if not uploaded:
-            messages.error(request, '파일이 없습니다!')
+            messages.error(request, '⚠️ 오류 : 파일이 없습니다!')
             return redirect(redirect_url)
 
         # 2) CSV 읽기 (csv 모듈 + StringIO 사용)
-        raw = uploaded.read()  # 바이너리 데이터
+        raw = uploaded.read()  # 파일 전체를 바이너리(바이트) 로 읽어서 raw 에 저장
         try:
-            data = raw.decode('utf-8')          # 먼저 UTF-8 시도
+            data = raw.decode('utf-8')          # 먼저 UTF-8 디코딩시도
         except UnicodeDecodeError:
             try:
-                data = raw.decode('cp949')      # 실패하면 CP949로 재시도
+                data = raw.decode('cp949')      # 실패하면 CP949로 디코딩 재시도
             except UnicodeDecodeError:
                 data = raw.decode('euc-kr', errors='ignore')  
-                # (필요하면 errors 옵션 추가)
+        
+        # csv.DictReader() : 첫 줄(헤더)을 키(key)로, 그 이후 줄을 값(value)으로 읽어서 딕셔너리 형태로 반환
         reader = csv.DictReader(io.StringIO(data))
+
+        # 3) 해당 파일에 email 컬럼만 존재하는지 확인 (예외 처리)
+        if len(reader.fieldnames) != 1 or 'email' not in reader.fieldnames : 
+            print("컬럼 수 : ",len(reader.fieldnames), "컬럼 : ", reader.fieldnames)
+            messages.error(request, '⚠️ 오류 : 파일의 컬럼이 잘못된 형식입니다!')
+            print("⚠️ 오류 : 파일의 컬럼이 잘못된 형식입니다!")
+            return redirect(redirect_url)
+        
+        # deleted_user : 실제 삭제한 유저 수
+        deleted_user = 0
         rows = list(reader) 
-        print("✅ 정상적으로 csv파일을 읽었습니다.")
+        print("컬럼 수 : ",len(reader.fieldnames), "컬럼 : ", reader.fieldnames)
+        print("✅ 정상적인 구조의 csv파일을 읽었습니다.")
 
-        # 3) rows 순회하면서 회원 생성
-        for row in rows:
+        # 4) rows 순회하면서 회원 생성
+        for i, row in enumerate(rows):
             email = row['email'].strip()
-            user = User.objects.get(email=email)
-            user.delete()
-
-
-        messages.success(request, f'✅ {len(rows)}명의 계정을 삭제했어!')
+            if User.objects.filter(email=email).exists():
+                User.objects.filter(email=email).delete()
+                deleted_user += 1
+                print(f"✅ {i+1}. {email} 삭제 완료")
+            else:
+                print(f"⚠️ {i+1}. {email} 계정이 없어 건너뜀")
+        
+        messages.success(request, f'✅ {len(rows)}개의 계정 중 {deleted_user}개의 계정 삭제 완료!')
         return redirect(redirect_url)
     else : 
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
@@ -256,8 +295,8 @@ def recent_session_counts(request):
     data = [{'day': x['day'].strftime('%Y-%m-%d'), 'count': x['count']} for x in qs]
     return JsonResponse(data, safe=False)
 
+"""chart.js로 최근 7일간의 가입자 수 그래프로 그리기"""
 def user_counts(request):
-    # 최근 7일 기준
     today = timezone.localtime().date()
     start_date = today - timedelta(days=6)
 
@@ -283,6 +322,14 @@ def index_detail(request, index_name) :
 
 """해당 namespace 상세화면"""
 def namespace_detail(request,index_name,namespace_name) :
+    if namespace_name == 'unknown' : namespace_name = ""
+    documents = get_documents(index_name,namespace_name)
+    print("✅ 정상적으로 문서들을 받았습니다!")
+    return render(request, 'knowledge/documents.html', {'documents': documents,'index_name': index_name,'namespace_name': namespace_name,})
+
+"""해당 namespace가 default일때 상세화면"""
+def no_namespace_detail(request,index_name) :
+    namespace_name = ""
     documents = get_documents(index_name,namespace_name)
     print("✅ 정상적으로 문서들을 받았습니다!")
     return render(request, 'knowledge/documents.html', {'documents': documents,'index_name': index_name,'namespace_name': namespace_name,})

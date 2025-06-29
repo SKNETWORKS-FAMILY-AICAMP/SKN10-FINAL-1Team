@@ -28,6 +28,7 @@
                 // 확인창 띄우기
                 if (confirm('⚠️ 정말 이 계정을 삭제하시겠습니까?')) {
                     this.loading = true
+                    this.close()
                     this.$nextTick(() => event.target.submit())
                 }   
             }
@@ -47,6 +48,7 @@
                 // 확인창 띄우기
                 if (confirm('⚠️ 정말 이 계정을 추가할까요?')) {
                     this.loading = true
+                    this.close()
                     this.$nextTick(() => event.target.submit())
                 }   
             }
@@ -65,11 +67,12 @@
                 return;
             }
             // 3) 확인창
-            if (!confirm(`⚠️ 정말 해당 파일을 기반으로 다중 계정을 추가하시겠습니까?`)) {
+            if (!confirm(`⚠️ 주의사항 : 주어진 파일에서 컬럼값이 일부 비어있거나 형식이 맞지 않다면 일부 데이터는 추가가 되지 않습니다! 계정 추가를 진행하시겠습니까?`)) {
                 return
             }
             // 4) 모두 통과하면 로딩 켜고 폼 제출
             this.loading = true
+            this.close()
             $refs.multiAddForm.submit()
         },
         submitMultiDelete() {
@@ -86,11 +89,12 @@
                 return;
             }
             // 3) 확인창
-            if (!confirm(`⚠️ 정말 해당 파일을 기반으로 다중 계정을 삭제하시겠습니까?`)) {
+            if (!confirm(`⚠️ 주의사항 : 주어진 파일에서 해당 이메일을 가진 유저들은 모두 지워집니다. 삭제를 진행하시겠습니까?`)) {
                 return
             }
             // 4) 모두 통과하면 로딩 켜고 폼 제출
             this.loading = true
+            this.close()
             $refs.multiDeleteForm.submit()
         },
     }"
