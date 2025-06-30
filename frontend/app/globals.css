@@ -323,3 +323,13 @@
   max-height: calc(100vh - 200px);
   overflow-y: auto;
 }
+
+/* 테이블 테두리 명확하게 */
+table, th, td {
+  border: 1px solid #d1d5db;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 8px;
+}
