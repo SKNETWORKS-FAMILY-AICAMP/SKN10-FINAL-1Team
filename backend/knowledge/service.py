@@ -284,14 +284,12 @@ def get_s3_buckets():
     print(buckets) # 디버깅용
     return buckets
 
-def s3_objects_api(request):
+def s3_objects_api(request,bucket, prefix):
     """
     AJAX로 호출될 JSON API.
     ?bucket=이름&prefix=경로 형태로 호출.
     """
     s3 = get_s3_client()
-    bucket = request.GET.get("bucket")
-    prefix = request.GET.get("prefix", "")
 
     if not bucket:
         # 1) bucket 파라미터가 없으면 “버킷 목록” 화면
@@ -330,5 +328,15 @@ def s3_objects_api(request):
             "file_type":     (name.rsplit(".",1)[-1] if "." in name else "-"),
             "last_modified": f["LastModified"].strftime("%Y-%m-%d %H:%M:%S"),
         })
+
     return data
 
+def get_previous_prefix(prefix) :
+    # 루트 / 폴더1일때
+    if not prefix:
+        return None
+    parts = prefix.strip("/").split("/")  # ['a', 'b', 'c', 'd']
+    # 루트 / 폴더1 / 폴더2일때
+    if len(parts) <= 1:
+        return ""  # 최상위로 간주
+    return "/".join(parts[:-1]) + "/"  # 'a/b/c/
