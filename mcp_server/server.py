@@ -33,11 +33,12 @@ def search_proceedings(query: str, top_k: int = 3) -> str:
     """회의록, 결정 사항, 업무 지시사항을 검색합니다."""
     return doc_search_tools.proceedings_search(query, top_k)
 
-# --- 텍스트 기반 회의록 검색 툴 등록 (임베딩 없이 Pinecone 텍스트 검색) ---
+
+# --- 파일명 기반 회의록 검색 툴 등록 ---
 @mcp.tool
-def search_proceedings_text(query: str, top_k: int = 3) -> str:
-    """임베딩 없이 텍스트로만 Pinecone에서 회의록을 검색합니다."""
-    return doc_search_tools.proceedings_text_search(query, top_k)
+def search_proceedings_by_filename(filename: str, top_k: int = 3) -> str:
+    """파일명으로 Pinecone proceedings namespace에서 회의록을 검색합니다."""
+    return doc_search_tools.proceedings_text_with_filename(filename, top_k)
 
 
 # --- Prediction Tools 등록 (머신러닝 예측) ---
