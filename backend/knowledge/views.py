@@ -8,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from .utils import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table
-from .utils import make_index, remove_index, generate_password, get_documents, get_5_sessions
+from .utils import make_index, remove_index, generate_password, get_documents, get_5_sessions, get_s3_buckets, s3_objects_api, get_s3_client
 from conversations.models import ChatSession, ChatMessage
 from accounts.models import User, Organization
 import csv, io, json, os, boto3, datetime
@@ -37,7 +37,7 @@ def dashboard_view(request, screen_type):
         elif db == "pinecone" :
             context['indexes'] = get_index_lists()
         elif db == "s3" :
-            pass
+            context['directory'] = s3_objects_api(request)
 
     elif screen_type == "log" :
         context['sessions'] = get_sessions(request) 
@@ -46,6 +46,7 @@ def dashboard_view(request, screen_type):
     else : 
         return JsonResponse({'error': 'Invalid section'}, status=400)
     return render(request, 'knowledge/dashboard.html', context)
+    
 
 """Index 생성"""
 def create_index(request):
@@ -66,7 +67,8 @@ def create_index(request):
         # 정상적으로 입력했을때 
         else : 
             dimension = int(dimension)
-            is_created = make_index(name=index_name, vector_type=vector_type, metric=metric, dimension=dimension, cloud=cloud, region=region)
+            is_created = make_index(name=index_name, vector_type=vector_type,
+                                    metric=metric, dimension=dimension, cloud=cloud, region=region)
 
             if is_created: 
                 messages.success(request, '✅ 성공적으로 인덱스가 생성되었습니다!')
@@ -327,13 +329,6 @@ def namespace_detail(request,index_name,namespace_name) :
     print("✅ 정상적으로 문서들을 받았습니다!")
     return render(request, 'knowledge/documents.html', {'documents': documents,'index_name': index_name,'namespace_name': namespace_name,})
 
-"""해당 namespace가 default일때 상세화면"""
-def no_namespace_detail(request,index_name) :
-    namespace_name = ""
-    documents = get_documents(index_name,namespace_name)
-    print("✅ 정상적으로 문서들을 받았습니다!")
-    return render(request, 'knowledge/documents.html', {'documents': documents,'index_name': index_name,'namespace_name': namespace_name,})
-
 """해당 session 상세화면"""
 def session_detail(request, session_id) :
     session = ChatSession.objects.get(id=session_id)
@@ -349,7 +344,24 @@ def session_detail(request, session_id) :
         })
     return JsonResponse({"messages" : messages})
 
+"""해당 s3 파일 상세화면"""
+def s3_detail(request,bucket,key) :
+    s3 = get_s3_client()
+    filename = request.GET.get('filename', '')
 
+    obj = s3.get_object(Bucket=bucket, Key=key)
+    raw = obj["Body"].read()
+    content = ""              
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        content = raw.decode("cp949", errors="ignore")  
+
+    data = {
+        "filename" : filename,
+        "content" : content
+    }
+    return render(request, 'knowledge/s3_doc.html', data)
 
 
 @api_view(['GET', 'POST'])

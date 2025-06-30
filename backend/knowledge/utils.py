@@ -25,6 +25,7 @@ from django.core.paginator import Paginator
 import secrets
 import string
 import boto3
+
                     
 def get_postgre_db() : 
     """PostgreSQL 데이터베이스 연결 정보 가져오는 함수"""
@@ -265,3 +266,69 @@ def get_5_sessions() :
     """세션 목록을 가져오는 함수""" 
     sessions = ChatSession.objects.order_by('-started_at')[:5]
     return sessions
+
+def get_s3_client() :
+    return boto3.client(
+        "s3",
+        aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+        region_name=os.getenv('AWS_S3_REGION_NAME')
+    )
+
+def get_s3_buckets():
+    s3 = get_s3_client()
+    buckets = [
+        {"name": b["Name"]}
+        for b in s3.list_buckets().get("Buckets", [])
+    ]
+    print(buckets) # 디버깅용
+    return buckets
+
+def s3_objects_api(request):
+    """
+    AJAX로 호출될 JSON API.
+    ?bucket=이름&prefix=경로 형태로 호출.
+    """
+    s3 = get_s3_client()
+    bucket = request.GET.get("bucket")
+    prefix = request.GET.get("prefix", "")
+
+    if not bucket:
+        # 1) bucket 파라미터가 없으면 “버킷 목록” 화면
+        data = [{ "type" : "folder", "name" : b["Name"], "bucket" : b['Name'], "prefix" : ""} for b in s3.list_buckets().get("Buckets", [])]
+        print(data)
+        return data
+    
+    # s3.list_objects_v2() : 버킷 안의 객체(파일) 목록을 가져오는 메서드
+    # Bucket : 가져올 버킷, Prefix : 이전 경로
+    # prefix="logs/2025/" 로 주면 버킷 안에서 logs/2025/ 로 시작하는 모든 파일만 조회
+    resp = s3.list_objects_v2(
+        Bucket=bucket,
+        Prefix=prefix,
+        Delimiter="/"  # 가상 폴더 단위로 끊어줌
+    )
+
+    # CommonPrefixes → 한 단계 하위 폴더들, Contents → 한 단계 하위 파일들
+    folders = [p["Prefix"] for p in resp.get("CommonPrefixes", [])] # 폴더 이름 리스트
+    files   = [o for o in resp.get("Contents", []) if o["Key"] != prefix] # 파일 객체 리스트
+
+    data = []
+    for f in folders :
+        data.append({
+            "type" : "folder",
+            "name" : f[len(prefix):].rstrip("/"),
+            "bucket" : bucket,
+            "prefix" : prefix+f[len(prefix):] 
+        })
+    
+    for f in files :
+        data.append({
+            "key" : f["Key"],
+            "bucket" : bucket,
+            "type" : "file",
+            "name": (name := f["Key"][len(prefix):]),
+            "file_type":     (name.rsplit(".",1)[-1] if "." in name else "-"),
+            "last_modified": f["LastModified"].strftime("%Y-%m-%d %H:%M:%S"),
+        })
+    return data
+

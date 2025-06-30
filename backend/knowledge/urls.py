@@ -27,9 +27,9 @@ api_urlpatterns = [
 urlpatterns = [
     # Web page route for dashboard
     path('dashboard/index_detail/<str:index_name>/<str:namespace_name>/',views.namespace_detail, name='namespace_detail'),
-    path('dashboard/index_detail/<str:index_name>//', views.no_namespace_detail, name='no_namespace_detail'),
     path('dashboard/index_detail/<str:index_name>/', views.index_detail, name='index_detail'),
     path('dashboard/session_detail/<uuid:session_id>', views.session_detail, name='session_detail'),
+    path('dashboard/s3_detail/<str:bucket>/<path:key>/', views.s3_detail, name='s3_detail'),
     path('dashboard/create_index/', views.create_index, name='create_index'),
     path('dashboard/create_user/', views.create_user, name='create_user'),
     path('dashboard/create_multi_user/', views.create_multi_user, name='create_multi_user'),
