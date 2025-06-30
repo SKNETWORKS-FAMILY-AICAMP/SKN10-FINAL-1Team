@@ -518,9 +518,47 @@
 
     
     {% if db == 's3' %}
+        <section class="mt-6 mb-10 rounded-lg bg-white p-6 shadow-md border border-gray-200">
+        <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em] mb-6">s3 버킷 탐색기</h3>
 
-
+        <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
+        <table class="min-w-full divide-y divide-[var(--border-color)]">
+        <thead class="bg-slate-50">
+        <tr>
+            <th class="px-4 py-2 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">이름</th>
+            <th class="px-4 py-2 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">유형</th>
+            <th class="px-4 py-2 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">마지막 수정</th>
+        </tr>
+        </thead>
+        <tbody class="divide-y divide-[var(--border-color)] bg-white">
+            {% for d in directory %}
+                {% if d.type == "folder" %}
+                        <tr class="text-sm">
+                            <td class= "px-4 py-1 ">
+                                <a href="{% url 'knowledge:dashboard' 'db' %}?db=s3&bucket={{ d.bucket }}&prefix={{ d.prefix }}">
+                                    📁 <span class="text-blue-500 underline">{{ d.name }}</span>
+                                </a>
+                            </td>
+                            <td class= "px-4 py-1">폴더</td>
+                            <td class= "px-4 py-1">-</td>
+                        </tr>
+                {% else %}
+                    <tr class="text-sm">
+                    <td class="text-black-500 px-4 py-1">
+                        <a href="{% url 'knowledge:s3_detail' bucket=d.bucket key=d.key %}?filename={{d.name}}"
+                        target="_blank">
+                        📜 <span class="text-black-400 underline">{{ d.name }}</span>
+                        </a>
+                    </td>
+                    <td class= "px-4 py-1">{{d.file_type}}</td>
+                    <td class= "px-4 py-1">{{d.last_modified}}</td>
+                    </tr>
+                {% endif %}
+            {% endfor %}
+        </tbody>
+        </section>
     {% endif %}
+
     <!-- 성공 메시지 출력 또는 에러 메시지 출력-->
     {% if messages %}
         {% for message in messages %}
