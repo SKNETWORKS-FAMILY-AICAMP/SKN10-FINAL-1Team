@@ -192,7 +192,7 @@ async def chat_stream(request, session_id):
 
                     payload = {
                         "input": payload_input,
-                        "config": {"configurable": {"thread_id": str(session.id)}}
+                        "config": {"configurable": {"thread_id": str(uuid.uuid4())}} # Use a new thread_id for each turn to avoid context pollution
                     }
                     
                     request_url = f"{fastapi_base_url}/prediction/invoke" if agent == 'prediction' else f"{fastapi_base_url}/default/invoke"
