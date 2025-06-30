@@ -11,6 +11,7 @@ from django.contrib.auth.decorators import login_required
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods, require_POST
 from .models import ChatSession, ChatMessage, AgentType
+from asgiref.sync import sync_to_async
 
 @login_required
 def chatbot_view(request, session_id=None):
@@ -221,9 +222,14 @@ async def chat_stream(request, session_id):
                 async with httpx.AsyncClient() as client:
                     github_token = request.user.github_token if hasattr(request.user, 'github_token') else None
                     user_id = str(request.user.id)
+                    user_role = request.user.role
+                    # Use sync_to_async to safely access the org relationship
+                    user_org = await sync_to_async(lambda: request.user.org.name if request.user.org else None)()
                     
-                    # 사용자 ID 디버깅 로그 추가
+                    # 사용자 권한 정보 디버깅 로그 추가
                     print(f"---[DJANGO] Sending user_id: {user_id}")
+                    print(f"---[DJANGO] User role: {user_role}")
+                    print(f"---[DJANGO] User organization: {user_org}")
                     print(f"---[DJANGO] User ID type: {type(user_id)}")
                     
                     payload = {
@@ -236,6 +242,8 @@ async def chat_stream(request, session_id):
                             "configurable": {
                                 "thread_id": thread_id,
                                 "user_id": user_id,
+                                "user_role": user_role,
+                                "user_org": user_org,
                                 "github_token": github_token,
                             }
                         },

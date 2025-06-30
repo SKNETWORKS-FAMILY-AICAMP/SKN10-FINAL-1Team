@@ -18,11 +18,13 @@ from datetime import timedelta
 from django.db.models.functions import TruncDate
 from django.conf import settings
 from dotenv import load_dotenv
+from .decorators import admin_required, IsAdminUser
 
 # 모듈이 로딩될 때 단 한 번 실행
 load_dotenv()
 
 """dashboard 출력"""
+@admin_required
 def dashboard_view(request, screen_type):
     context = {"screen_type" : screen_type}
     if screen_type == "home" :
@@ -48,6 +50,7 @@ def dashboard_view(request, screen_type):
     return render(request, 'knowledge/dashboard.html', context)
 
 """Index 생성"""
+@admin_required
 def create_index(request):
     if request.method == 'POST':
         index_name = request.POST.get('name') # 인덱스명
@@ -79,6 +82,7 @@ def create_index(request):
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
 
 """Index 삭제"""
+@admin_required
 def delete_index(request):
     """특정 index를 제거"""
     if request.method == 'POST':
@@ -101,6 +105,7 @@ def delete_index(request):
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
 
 """User 생성"""
+@admin_required
 def create_user(request) :
     if request.method == 'POST':
         email = request.POST.get('email', '').strip() # 이메일
@@ -137,6 +142,7 @@ def create_user(request) :
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
 
 """User 다중 생성"""
+@admin_required
 def create_multi_user(request) :
     if request.method == 'POST':
         # 1) 파일 꺼내기
@@ -181,6 +187,7 @@ def create_multi_user(request) :
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
 
 """User 삭제"""
+@admin_required
 def delete_user(request):
     if request.method == 'POST':
         email = request.POST.get('email') # 이메일
@@ -200,6 +207,7 @@ def delete_user(request):
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
 
 """User 다중 삭제"""
+@admin_required
 def delete_multi_user(request) :
     if request.method == 'POST':
         # 1) 파일 꺼내기
@@ -240,6 +248,7 @@ def delete_multi_user(request) :
 # These should be properly implemented later.
 
 """chart.js로 최근 7일간의 세션 수 그래프로 그리기"""
+@admin_required
 def recent_session_counts(request):
     # 예: 최근 7일
     today = timezone.localtime().date()
@@ -256,6 +265,7 @@ def recent_session_counts(request):
     data = [{'day': x['day'].strftime('%Y-%m-%d'), 'count': x['count']} for x in qs]
     return JsonResponse(data, safe=False)
 
+@admin_required
 def user_counts(request):
     # 최근 7일 기준
     today = timezone.localtime().date()
@@ -277,17 +287,20 @@ def user_counts(request):
 
 
 """해당 index 상세화면"""
+@admin_required
 def index_detail(request, index_name) :
     namespaces = get_namespaces(index_name)
     return JsonResponse({'namespaces': namespaces})
 
 """해당 namespace 상세화면"""
+@admin_required
 def namespace_detail(request,index_name,namespace_name) :
     documents = get_documents(index_name,namespace_name)
     print("✅ 정상적으로 문서들을 받았습니다!")
     return render(request, 'knowledge/documents.html', {'documents': documents,'index_name': index_name,'namespace_name': namespace_name,})
 
 """해당 session 상세화면"""
+@admin_required
 def session_detail(request, session_id) :
     session = ChatSession.objects.get(id=session_id)
     related_messages = session.messages.all()
@@ -306,7 +319,7 @@ def session_detail(request, session_id) :
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAdminUser])
 def document_list_create_view(request):
     if request.method == 'GET':
         # Placeholder for listing documents
@@ -316,19 +329,19 @@ def document_list_create_view(request):
         return Response({'message': 'API: Create document placeholder'}, status=status.HTTP_201_CREATED)
 
 @api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAdminUser])
 def document_detail_view(request, pk):
     # Placeholder for document detail, update, delete
     return Response({'message': f'API: Document detail for {pk} placeholder (method: {request.method})'}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAdminUser])
 def document_summary_view(request, pk):
     # Placeholder for document summary
     return Response({'message': f'API: Document summary for {pk} placeholder'}, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAdminUser])
 def search_documents_view(request):
     # Placeholder for searching documents (as in Pinecone example)
     return Response({'message': 'API: Search documents placeholder'}, status=status.HTTP_200_OK)

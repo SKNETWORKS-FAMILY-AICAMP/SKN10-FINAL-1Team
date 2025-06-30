@@ -5,13 +5,13 @@ import boto3
 from pocketflow import Node, BatchNode
 import sys
 
-# Add project root to path for imports
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-if PROJECT_ROOT not in sys.path:
-    sys.path.append(PROJECT_ROOT)
+# Add project root to path for imports - 이제 필요 없음 (상대 임포트 사용)
+# PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+# if PROJECT_ROOT not in sys.path:
+#     sys.path.append(PROJECT_ROOT)
 
-from crawl_github_files import crawl_github_files
-from call_llm import call_llm
+from .crawl_github_files import crawl_github_files
+from .call_llm import call_llm
 from dotenv import load_dotenv
 import shutil
 
@@ -885,8 +885,6 @@ class CombineTutorial(Node):
 
         # --- S3 Upload Logic for Generated Tutorial --- #
         s3_bucket_name = prep_res.get("s3_bucket_name")
-        aws_access_key_id = prep_res.get("aws_access_key_id")
-        aws_secret_access_key = prep_res.get("aws_secret_access_key")
         aws_region_name = prep_res.get("aws_region_name")
         github_user_name = prep_res.get("github_user_name")
         project_name = prep_res.get("project_name")
@@ -897,13 +895,13 @@ class CombineTutorial(Node):
         if repo_url and '/tree/' in repo_url:
             branch_name = repo_url.split('/tree/')[-1]
 
-        if s3_bucket_name and aws_access_key_id and aws_secret_access_key and aws_region_name:
+        if s3_bucket_name and aws_region_name:
             print(f"S3에 튜토리얼 업로드 시작: {s3_bucket_name}")
             try:
+                # IAM 역할 사용 시 Access Key를 명시적으로 전달하지 않음
+                # boto3가 자동으로 EC2 인스턴스 프로파일의 자격 증명을 찾음
                 s3_client = boto3.client(
                     's3',
-                    aws_access_key_id=aws_access_key_id,
-                    aws_secret_access_key=aws_secret_access_key,
                     region_name=aws_region_name
                 )
 

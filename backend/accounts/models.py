@@ -13,6 +13,7 @@ class UserRole(models.TextChoices):
     ADMIN = "admin", "Admin"
     ENGINEER = "engineer", "Engineer"
     ANALYST = "analyst", "Analyst"
+    CUSTOMER_MANAGER = "customer_manager", "Customer Manager"
     GUEST = "guest", "Guest"
 
 
