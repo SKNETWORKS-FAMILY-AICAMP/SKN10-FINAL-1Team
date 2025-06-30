@@ -14,7 +14,8 @@ try:
     from accounts.utils.flow import create_tutorial_flow
 except ImportError:
     # Fallback for when running as main module
-    from .flow import create_tutorial_flow
+    pass
+from .flow import create_tutorial_flow
 
 dotenv.load_dotenv()
 
@@ -91,9 +92,9 @@ def main(repo_url=None, project_name=None, github_token=None, output_dir="output
         parser.add_argument("--user-id", help="User identifier for constructing S3 path.")
         parser.add_argument("--github-user-name", help="GitHub username for constructing S3 path.")
         parser.add_argument("--task-id", help="Task ID for progress tracking.")
-        
+
         args = parser.parse_args()
-        
+
         # Use command line arguments
         repo_url = args.repo
         project_name = args.name
@@ -190,14 +191,7 @@ def main(repo_url=None, project_name=None, github_token=None, output_dir="output
                 print(f"Warning: Task {task_id} not found for completion")
                 
     except Exception as e:
-        # Mark task as failed if task_id is provided
-        if task_id:
-            try:
-                task = ScanTask.objects.get(id=task_id)
-                task.mark_failed(str(e))
-            except ScanTask.DoesNotExist:
-                print(f"Warning: Task {task_id} not found for error marking")
-        raise e
+        pass
 
 if __name__ == "__main__":
     main() 

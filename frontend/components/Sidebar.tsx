@@ -83,13 +83,13 @@ export function Sidebar({
               </div>
             ) : (
               sessions.map((session) => (
-                <SessionItem
-                  key={session.id}
-                  session={session}
-                  isActive={activeSessionId === session.id}
-                  onSelect={() => onSessionSelect(session.id)}
-                  onDelete={() => onDeleteSession(session.id)}
-                />
+              <SessionItem
+                key={session.id}
+                session={session}
+                isActive={activeSessionId === session.id}
+                onSelect={() => onSessionSelect(session.id)}
+                onDelete={() => onDeleteSession(session.id)}
+              />
               ))
             )}
           </div>

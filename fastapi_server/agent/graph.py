@@ -6,27 +6,24 @@ from typing import Any, Dict, TypedDict
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph
 
+from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.prebuilt import create_react_agent
 from langgraph_swarm import create_swarm, create_handoff_tool
 import os
 import sys
-from typing import List, Dict, Any # Added Type for Pinecone tools
-from pydantic import BaseModel, Field # For tool input schema
-from openai import OpenAI
-from pinecone import Pinecone as PineconeClient # Renamed to avoid conflict
-from langchain_core.tools import StructuredTool
-from .tools import analyst_chart_tool, predict_churn_tool, sql_tools_for_analyst # Import chart, churn, and SQL tools
-from .coding_agent_tools import get_all_coding_tools # Import coding tools
-from .web_search_tool import openai_web_search_tool # Import new web search tool
+from typing import List, Dict, Any
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
 
+# Import separated tools for each agent
+from .analyst_tools import analyst_tools
+from .predict_tools import predict_tools
+from .coding_agent_tools import get_all_coding_tools
+from .web_search_tool import openai_web_search_tool
+
 # Follow the steps here to configure your credentials:
 # https://docs.aws.amazon.com/bedrock/latest/userguide/getting-started.html
-
-
-
 
 # Environment variables are loaded from the main.py entrypoint.
 load_dotenv()
@@ -35,137 +32,14 @@ llm_code = init_chat_model(
     model_provider="bedrock",
 )
 print(os.getenv("langsmith_API_KEY"))
-# --- Pinecone/OpenAI Client Initialization ---
-def init_clients():
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    if not openai_api_key:
-        raise ValueError("Environment variable OPENAI_API_KEY is not set.")
-    openai_client = OpenAI(api_key=openai_api_key)
 
-    pinecone_api_key = os.getenv("PINECONE_API_KEY")
-    pinecone_env = os.getenv("PINECONE_ENV")
-    if not pinecone_api_key or not pinecone_env:
-        raise ValueError("Environment variables PINECONE_API_KEY or PINECONE_ENV are missing.")
-    
-    pc = PineconeClient(api_key=pinecone_api_key)
-    index_name = os.getenv("PINECONE_INDEX_NAME1", "dense-index")
-
-    existing_indexes = [idx_spec['name'] for idx_spec in pc.list_indexes()]
-    if index_name not in existing_indexes:
-        raise ValueError(f"Index '{index_name}' does not exist in Pinecone. Current indexes: {existing_indexes}")
-
-    pinecone_index = pc.Index(index_name)
-    print(f"Successfully connected to Pinecone index '{index_name}'.", file=sys.stderr)
-    return openai_client, pinecone_index
-
-OPENAI_CLIENT, PINECONE_INDEX = None, None
-try:
-    OPENAI_CLIENT, PINECONE_INDEX = init_clients()
-except ValueError as e:
-    print(f"Error initializing clients: {e}", file=sys.stderr)
-    # Allow graph to load but tools will fail if clients are needed.
-
-# --- Embedding and Context Building Functions (for Pinecone tools) ---
-def embed_query(text: str) -> List[float]:
-    if not OPENAI_CLIENT:
-        raise ValueError("OpenAI client not initialized for embedding.")
-    resp = OPENAI_CLIENT.embeddings.create(
-        model="text-embedding-3-large",
-        input=text
-    )
-    return resp.data[0].embedding
-
-def build_context_from_matches(matches: List[Dict[str, Any]]) -> str:
-    contexts = []
-    if not matches:
-        return ""
-    for m in matches:
-        metadata = m.get("metadata", {})
-        chunk_text = metadata.get("text", "")
-        filename = metadata.get("original_filename", "Unknown")
-        
-        if chunk_text:
-            context_entry = f"Source File: {filename}\nContent:\n{chunk_text}"
-            contexts.append(context_entry)
-    return "\n\n---\n\n".join(contexts)
-
-# --- Pydantic Model for Search Tool Inputs ---
-class SearchInput(BaseModel):
-    query: str = Field(..., description="Search query")
-    top_k: int = Field(default=3, description="Number of documents to retrieve")
-
-# --- Pinecone Search Tool Functions ---
-def _run_pinecone_search(query: str, namespace: str, top_k: int = 3) -> str:
-    if not OPENAI_CLIENT or not PINECONE_INDEX:
-        return "Error: OpenAI or Pinecone client not initialized."
-    if not namespace:
-        return "Error: Namespace not specified for Pinecone search."
-    try:
-        query_vector = embed_query(query)
-        index_stats = PINECONE_INDEX.describe_index_stats()
-        if namespace not in index_stats.namespaces or \
-           index_stats.namespaces[namespace].vector_count == 0:
-            return f"Namespace '{namespace}' not found in Pinecone or is empty."
-
-        res = PINECONE_INDEX.query(
-            vector=query_vector,
-            namespace=namespace,
-            top_k=top_k,
-            include_metadata=True
-        )
-        matches = res.get("matches", [])
-        if not matches:
-            return f"No relevant information found in namespace '{namespace}' for query: '{query}'."
-        
-        context = build_context_from_matches(matches)
-        return context if context else "Could not extract context from search results."
-    except Exception as e:
-        return f"Error during Pinecone search in namespace '{namespace}': {e}"
-
-def internal_policy_search(query: str, top_k: int = 3) -> str:
-    """Searches internal company policies and HR documents (e.g., vacation policy, benefits, code of conduct)."""
-    return _run_pinecone_search(query, namespace="internal_policy", top_k=top_k)
-
-def tech_doc_search(query: str, top_k: int = 3) -> str:
-    """Searches technical documents, development guides, and API specifications."""
-    return _run_pinecone_search(query, namespace="technical_document", top_k=top_k)
-
-def product_doc_search(query: str, top_k: int = 3) -> str:
-    """Searches product manuals, feature descriptions, and user guides."""
-    return _run_pinecone_search(query, namespace="product_document", top_k=top_k)
-
-def proceedings_search(query: str, top_k: int = 3) -> str:
-    """Searches meeting minutes, decisions, and work instructions."""
-    return _run_pinecone_search(query, namespace="proceedings", top_k=top_k)
-
-# --- StructuredTool Objects for Pinecone Search ---
-tool_internal_policy = StructuredTool.from_function(
-    func=internal_policy_search,
-    name="InternalPolicySearch",
-    description="Searches internal company policies and HR documents. Use for queries about vacation, benefits, code of conduct, etc.",
-    args_schema=SearchInput
-)
-
-tool_tech_doc = StructuredTool.from_function(
-    func=tech_doc_search,
-    name="TechnicalDocumentSearch",
-    description="Searches technical documents, development guides, and API specifications. Use for technical questions, API usage, etc.",
-    args_schema=SearchInput
-)
-
-tool_product_doc = StructuredTool.from_function(
-    func=product_doc_search,
-    name="ProductDocumentSearch",
-    description="Searches product manuals, feature descriptions, and user guides. Use for questions about product features or how to use a product.",
-    args_schema=SearchInput
-)
-
-tool_proceedings = StructuredTool.from_function(
-    func=proceedings_search,
-    name="ProceedingsSearch",
-    description="Searches meeting minutes, decisions, and work instructions. Use for finding past decisions or discussion summaries.",
-    args_schema=SearchInput
-)
+# MCP 서버 툴 클라이언트 생성
+client = MultiServerMCPClient({
+    "doc": {
+        "url": "http://localhost:8002/mcp/",
+        "transport": "streamable_http",
+    }
+})
 
 # --- Handoff Tool Definitions ---
 transfer_to_doc_search_assistant = create_handoff_tool(
@@ -190,6 +64,7 @@ transfer_to_predict_assistant = create_handoff_tool(
         "Example use: 'Here is the customer data, predict the churn risk.'"
     )
 )
+
 transfer_to_coding_assistant = create_handoff_tool(
     agent_name="coding_assistant",
     description=(
@@ -199,13 +74,13 @@ transfer_to_coding_assistant = create_handoff_tool(
 )
 
 # --- Agent Definitions ---
+import asyncio
+
+tools = asyncio.run(client.get_tools())
+
 doc_search_assistant = create_react_agent(
     model="openai:gpt-4.1-2025-04-14", # Consistent model
-    tools=[
-        tool_internal_policy,
-        tool_tech_doc,
-        tool_product_doc,
-        tool_proceedings,
+    tools=tools + [
         transfer_to_analyst_assistant,
         transfer_to_predict_assistant,
         transfer_to_coding_assistant,
@@ -239,9 +114,7 @@ doc_search_assistant = create_react_agent(
 
 analyst_assistant = create_react_agent(
     model="openai:gpt-4.1-2025-04-14",
-    tools=[
-        analyst_chart_tool,
-        *sql_tools_for_analyst, # Unpack all SQL tools
+    tools=analyst_tools + [
         transfer_to_doc_search_assistant,
         transfer_to_predict_assistant,
         transfer_to_coding_assistant,
@@ -284,8 +157,7 @@ analyst_assistant = create_react_agent(
 
 predict_assistant = create_react_agent(
     model="openai:gpt-4.1-2025-04-14",
-    tools=[
-        predict_churn_tool,
+    tools=predict_tools + [
         transfer_to_doc_search_assistant, # Added doc_search handoff
         transfer_to_analyst_assistant,    # Added analyst handoff
         transfer_to_coding_assistant,
@@ -311,8 +183,8 @@ predict_assistant = create_react_agent(
     ),
     name="predict_assistant"
 )
-# --- Coding Assistant Definition ---
 
+# --- Coding Assistant Definition ---
 coding_assistant_prompt = """You are an expert AI software engineer. Your goal is to help users understand, modify, and improve their GitHub repositories.
 
 **CRITICAL WORKFLOW RULES:**
@@ -357,9 +229,6 @@ coding_assistant = create_react_agent(
     prompt=coding_assistant_prompt,
     name="coding_assistant"
 )
-
-
-
 
 def get_swarm_graph(checkpointer: AsyncPostgresSaver):
     """Compiles and returns the swarm graph with the given checkpointer."""

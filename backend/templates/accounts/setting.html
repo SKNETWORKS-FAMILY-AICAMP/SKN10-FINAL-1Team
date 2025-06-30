@@ -519,10 +519,10 @@ document.addEventListener('DOMContentLoaded', function () {
                             currentTaskStatus.className = 'px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800';
                             
                             scanFeedback.innerHTML = `<p class="text-green-600 text-sm">✅ ${repoName} 스캔이 완료되었습니다!</p>`;
-                        } else {
+                    } else {
                             console.log('Scan failed:', firstResult);
                             scanFeedback.innerHTML = `<p class="text-red-500 text-sm">❌ ${firstResult.repo_url} 스캔 중 오류가 발생했습니다: ${firstResult.message}</p>`;
-                        }
+                    }
                     }
                 } else {
                     console.log('Scan response error:', result);
