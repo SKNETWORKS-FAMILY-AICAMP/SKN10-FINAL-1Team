@@ -20,14 +20,12 @@ def init_clients():
         raise ValueError("Environment variables PINECONE_API_KEY or PINECONE_ENV are missing.")
     
     pc = PineconeClient(api_key=pinecone_api_key)
-    index_name = os.getenv("PINECONE_INDEX_NAME1", "dense-index")
-
-    existing_indexes = [idx_spec['name'] for idx_spec in pc.list_indexes()]
-    if index_name not in existing_indexes:
-        raise ValueError(f"Index '{index_name}' does not exist in Pinecone. Current indexes: {existing_indexes}")
-
-    pinecone_index = pc.Index(index_name)
-    print(f"Successfully connected to Pinecone index '{index_name}'.", file=sys.stderr)
+    # host 기반으로 인덱스 생성
+    index_host = os.getenv("PINECONE_INDEX_HOST")
+    if not index_host:
+        raise ValueError("Environment variable PINECONE_INDEX_HOST is not set. Please set your Pinecone index host URL.")
+    pinecone_index = pc.Index(host=index_host)
+    print(f"Successfully connected to Pinecone index host '{index_host}'.", file=sys.stderr)
     return openai_client, pinecone_index
 
 OPENAI_CLIENT, PINECONE_INDEX = None, None
@@ -105,29 +103,30 @@ def proceedings_search(query: str, top_k: int = 3) -> str:
     """Searches meeting minutes, decisions, and work instructions."""
     return _run_pinecone_search(query, namespace="proceedings", top_k=top_k)
 
-def proceedings_text_search(query: str, top_k: int = 3) -> str:
-    """임베딩 없이 텍스트로만 Pinecone에서 회의록 검색 (Pinecone v2 hybrid/text search)."""
+def proceedings_text_with_filename(filename: str, top_k: int = 3) -> str:
+    """파일명으로 Pinecone proceedings namespace에서 회의록 검색 (벡터+파이썬 필터, 3072차원)"""
     if not PINECONE_INDEX:
         return "Error: Pinecone client not initialized."
     namespace = "proceedings"
     try:
-        res = PINECONE_INDEX.search(
+        # 전체 벡터 중 top_k*10개를 받아서 filename으로 필터링 (3072차원 zero vector)
+        res = PINECONE_INDEX.query(
             namespace=namespace,
-            query={
-                "inputs": {"text": query},
-                "top_k": top_k
-            },
-            fields=["original_filename", "text"]
+            vector=[0.0]*3072,  # 3072차원 zero vector
+            top_k=top_k,
+            include_metadata=True,
+            include_values=False
         )
         matches = res.get("matches", [])
-        if not matches:
-            return f"No relevant information found in namespace '{namespace}' for query: '{query}'."
+        filtered = [m for m in matches if m.get("metadata", {}).get("original_filename") == filename]
+        if not filtered:
+            return f"No relevant information found in namespace '{namespace}' for filename: '{filename}'."
         results = []
-        for m in matches:
+        for m in filtered[:top_k]:
             meta = m.get("metadata", {})
-            filename = meta.get("original_filename", "Unknown")
+            fname = meta.get("original_filename", "Unknown")
             text = meta.get("text", "")
-            results.append(f"Source File: {filename}\nContent:\n{text}")
+            results.append(f"Source File: {fname}\nContent:\n{text}")
         return "\n\n---\n\n".join(results)
     except Exception as e:
-        return f"Error during text search in namespace '{namespace}': {e}" 
+        return f"Error during filename search in namespace '{namespace}': {e}" 
