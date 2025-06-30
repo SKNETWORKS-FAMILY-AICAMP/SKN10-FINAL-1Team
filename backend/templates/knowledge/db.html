@@ -519,8 +519,34 @@
     
     {% if db == 's3' %}
         <section class="mt-6 mb-10 rounded-lg bg-white p-6 shadow-md border border-gray-200">
-        <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em] mb-6">s3 버킷 탐색기</h3>
+        <h3 class="text-[var(--text-primary)] text-3xl font-semibold leading-tight tracking-[-0.015em] mb-6">s3 버킷 탐색기</h3>
+        <div class="flex items-center gap-3 mb-4">
+            {% if bucket %}
+                <button onclick="location.href=`{% url 'knowledge:dashboard' 'db' %}?db=s3`"
+                    class="flex items-center justify-center w-8 h-8 bg-blue-400 hover:bg-blue-600 rounded-full shadow">
+                    <img src="https://cdn-icons-png.flaticon.com/512/25/25694.png" alt="🏠" class="w-4 h-4">
+                </button>
 
+            
+                <!-- 뒤로가기 버튼 -->
+                {% if prefix %}
+                    <button onclick="location.href=`{% url 'knowledge:dashboard' 'db' %}?db=s3&bucket={{ bucket }}&prefix={{ pre_prefix }}`"
+                        class="flex items-center justify-center w-8 h-8 bg-orange-400 hover:bg-orange-600 rounded-full shadow">
+                        <img src="https://cdn-icons-png.flaticon.com/512/93/93634.png" alt="←" class="w-4 h-4">
+                    </button>
+                {% else %}
+                    <button onclick="location.href=`{% url 'knowledge:dashboard' 'db' %}?db=s3`"
+                        class="flex items-center justify-center w-8 h-8 bg-orange-400 hover:bg-orange-600 rounded-full shadow">
+                        <img src="https://cdn-icons-png.flaticon.com/512/93/93634.png" alt="←" class="w-4 h-4">
+                    </button>
+                {% endif %}
+
+                <!-- 경로 pill -->
+                <div class="flex-1 rounded-full bg-gray-100 px-4 py-1 text-sm text-gray-800 shadow-sm whitespace-nowrap max-w-full">
+                    버킷 / {{ prefix }}
+                </div>
+            {% endif %}
+        </div>
         <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
         <table class="min-w-full divide-y divide-[var(--border-color)]">
         <thead class="bg-slate-50">

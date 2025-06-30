@@ -7,8 +7,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from .utils import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table
-from .utils import make_index, remove_index, generate_password, get_documents, get_5_sessions, get_s3_buckets, s3_objects_api, get_s3_client
+from .service import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table, get_previous_prefix
+from .service import make_index, remove_index, generate_password, get_documents, get_5_sessions, get_s3_buckets, s3_objects_api, get_s3_client
 from conversations.models import ChatSession, ChatMessage
 from accounts.models import User, Organization
 import csv, io, json, os, boto3, datetime
@@ -18,11 +18,29 @@ from datetime import timedelta
 from django.db.models.functions import TruncDate
 from django.conf import settings
 from dotenv import load_dotenv
+from functools import wraps
+
 
 # 모듈이 로딩될 때 단 한 번 실행
 load_dotenv()
 
+
+def admin_required(view_func):
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('accounts:login_page')  # 로그인 페이지 name에 맞게 수정
+
+        if getattr(request.user, 'role', '') != 'admin':
+            messages.warning(request, "해당 계정은 접근할 수 없습니다.") 
+            return redirect('home')
+
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
+
+
 """dashboard 출력"""
+@admin_required
 def dashboard_view(request, screen_type):
     context = {"screen_type" : screen_type}
     if screen_type == "home" :
@@ -37,11 +55,16 @@ def dashboard_view(request, screen_type):
         elif db == "pinecone" :
             context['indexes'] = get_index_lists()
         elif db == "s3" :
-            context['directory'] = s3_objects_api(request)
+            bucket = request.GET.get("bucket")
+            prefix = request.GET.get("prefix","")
+            context['directory'] = s3_objects_api(request,bucket,prefix)
+            context['bucket'] = bucket
+            context['prefix'] = prefix.rstrip("/").replace("/", " / ")
+            context['pre_prefix'] = get_previous_prefix(prefix)
 
     elif screen_type == "log" :
         context['sessions'] = get_sessions(request) 
-    elif screen_type == "user" :
+    elif screen_type == "user" : 
         context['users'] = get_users(request) 
     else : 
         return JsonResponse({'error': 'Invalid section'}, status=400)
@@ -208,22 +231,32 @@ def create_multi_user(request) :
 
 """User 삭제"""
 def delete_user(request):
-    if request.method == 'POST':
-        email = request.POST.get('email') # 이메일
-        url = reverse('knowledge:dashboard', args=['user'])
+    try:
+        if request.method != 'POST':
+            raise Exception()
 
-        try : 
-            target = User.objects.get(email=email)
-            print(User.objects.all())
-        except : 
-            messages.error(request, '⚠️ 해당 이메일의 계정이 없습니다!')
+        if request.method == 'POST':
+            email = request.POST.get('email') # 이메일
+            url = reverse('knowledge:dashboard', args=['user'])
+
+            try : 
+                target = User.objects.get(email=email)
+                print(User.objects.all())
+            except : 
+                messages.error(request, '⚠️ 해당 이메일의 계정이 없습니다!')
+                return redirect(url)
+            
+            target.delete() # 완전 삭제
+            messages.success(request, f'✅ {email} 계정이 삭제되었습니다.')
             return redirect(url)
-        
-        target.delete() # 완전 삭제
-        messages.success(request, f'✅ {email} 계정이 삭제되었습니다.')
-        return redirect(url)
-    else : 
-        return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
+        else : 
+            return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
+    except EnvironmentError as e:
+        return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405) 
+    except Exception as e:
+        messages.error(request, '⚠️ 해당 이메일의 계정이 없습니다!')
+        return redirect(url) 
+
 
 """User 다중 삭제"""
 def delete_multi_user(request) :
