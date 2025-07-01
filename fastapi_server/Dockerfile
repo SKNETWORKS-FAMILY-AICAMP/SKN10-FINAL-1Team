@@ -7,11 +7,14 @@ WORKDIR /app
 # Update and upgrade packages to patch vulnerabilities
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
+# Install uv (fast Python package installer)
+RUN pip install --upgrade pip && pip install uv
+
 # Copy the dependencies file to the working directory
 COPY requirements.txt .
 
-# Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# Install any needed packages specified in requirements.txt using uv
+RUN uv pip install -r requirements.txt
 
 # Copy the rest of the application code to the working directory
 COPY . .
