@@ -31,19 +31,19 @@ app = FastAPI(
 # --- Security Middleware ---
 INTERNAL_SECRET = os.getenv("FASTAPI_INTERNAL_SECRET")
 
-@app.middleware("http")
-async def verify_internal_secret(request: Request, call_next):
-    # Allow access to docs and openapi.json without the secret header for convenience
-    if request.url.path in ["/docs", "/openapi.json", "/redoc"]:
-        return await call_next(request)
+# @app.middleware("http")
+# async def verify_internal_secret(request: Request, call_next):
+#     # Allow access to docs and openapi.json without the secret header for convenience
+#     if request.url.path in ["/docs", "/openapi.json", "/redoc"]:
+#         return await call_next(request)
 
-    # For all other paths, require the secret header
-    secret_header = request.headers.get("X-Internal-Secret")
-    if not INTERNAL_SECRET or secret_header != INTERNAL_SECRET:
-        raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing internal secret key")
+#     # For all other paths, require the secret header
+#     secret_header = request.headers.get("X-Internal-Secret")
+#     if not INTERNAL_SECRET or secret_header != INTERNAL_SECRET:
+#         raise HTTPException(status_code=403, detail="Forbidden: Invalid or missing internal secret key")
 
-    response = await call_next(request)
-    return response
+#     response = await call_next(request)
+#     return response
 
 # --- Pydantic Models for API ---
 class UserInput(BaseModel):

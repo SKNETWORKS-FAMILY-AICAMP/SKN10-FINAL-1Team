@@ -22,6 +22,7 @@ urlpatterns = [
     # Web page routes
     path('profile/', views.profile_view, name='profile'), # New view for profile.html
     path('settings/', views.settings_view, name='settings'), # New view for setting.html
+    re_path(r'^settings$', views.settings_view), # 슬래시 없는 경로도 처리
     path('delete_github_token/', views.delete_github_token, name='delete_github_token'),
     path('github/repositories/', views.list_github_repositories, name='list_github_repositories'),
     path('github/connect/', views.github_connect_view, name='github_connect'),
