@@ -25,6 +25,7 @@ from django.core.paginator import Paginator
 import secrets
 import string
 import boto3
+
                     
 def get_postgre_db() : 
     """PostgreSQL 데이터베이스 연결 정보 가져오는 함수"""
@@ -69,6 +70,69 @@ def get_all_table():
                 "count" : count,
                 "size" : size
             })
+    return result
+
+def get_news():
+    """PostgreSQL 데이터베이스의 news 테이블 정보들을 가져오는 함수"""
+    result = []
+    table = "summary_news_keywords" # 테이블
+    with connection.cursor() as cursor:
+        cursor.execute(f'SELECT id, title, keyword, date FROM {table} ORDER BY date DESC;')
+        rows = cursor.fetchall()  # ✅ 모든 행 가져오기
+        for row in rows:
+            result.append({
+                "id": row[0],
+                "title": row[1],
+                "keyword": row[2],
+                "date": row[3],
+            })
+    print(result)
+    return result
+
+def get_postgre_table(table) : 
+    result = []
+    with connection.cursor() as cursor:
+        if table == "summary_news_keywords" : 
+            cursor.execute(f'SELECT id, title, keyword, date FROM {table} ORDER BY date DESC;')
+            rows = cursor.fetchall()  # ✅ 모든 행 가져오기
+            for row in rows:
+                result.append({
+                    "id": row[0], 
+                    "title": row[1],
+                    "keyword": row[2], 
+                    "date": row[3],
+                })
+        elif table == "accounts_scantask" :
+            cursor.execute(f'SELECT id, repo_url, project_name, status, current_stage, progress, created_at FROM {table} ORDER BY created_at DESC;')
+            rows = cursor.fetchall()  # ✅ 모든 행 가져오기
+            for row in rows:
+                result.append({
+                    "id": row[0], 
+                    "repo_url": row[1],
+                    "project_name": row[2], 
+                    "status": row[3],
+                    "current_stage" : row[4],
+                    "progress" : row[5],
+                    "created_at" : row[6]
+                })
+    print(result)
+    return result
+
+def get_repo_analysis():
+    """PostgreSQL 데이터베이스의 news 테이블 정보들을 가져오는 함수"""
+    result = []
+    table = "summary_news_keywords" # 테이블
+    with connection.cursor() as cursor:
+        cursor.execute(f'SELECT id, title, keyword, date FROM {table} ORDER BY date DESC;')
+        rows = cursor.fetchall()  # ✅ 모든 행 가져오기
+        for row in rows:
+            result.append({
+                "id": row[0],
+                "title": row[1],
+                "keyword": row[2],
+                "date": row[3],
+            })
+    print(result)
     return result
 
 @lru_cache(maxsize=1)
@@ -189,7 +253,7 @@ def get_namespaces(index_name) :
 
     # 3. 네임스페이스 전처리
     flatten_namespaces = {
-        (name if name != '' else 'unknown'): info['vector_count']
+        (name if name != '' else 'unknown') : info['vector_count']
         for name, info in namespaces.items()
     }
     print(flatten_namespaces)
@@ -244,6 +308,25 @@ def generate_password(length=15):
     alphabet = string.ascii_letters + string.digits + string.punctuation
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
+def get_summary_news_keywords():
+    """PostgreSQL 데이터베이스 모든 테이블의 정보를 가져오는 함수"""
+    result = []
+    table = "summary_news_keywords" # 테이블
+    count = 5 # 가져오는 데이터 수
+    with connection.cursor() as cursor:
+        cursor.execute(f'SELECT id, title, keyword, date FROM {table} ORDER BY date DESC LIMIT {count};')
+        rows = cursor.fetchall()  # ✅ 모든 행 가져오기
+        for row in rows:
+            result.append({
+                "id": row[0],
+                "title": row[1],
+                "keyword": row[2],
+                "date": row[3],
+            })
+    print(result)
+    return result 
+    
+    
 
 def get_sessions(request) :
     """세션 목록을 가져오는 함수""" 
@@ -265,3 +348,78 @@ def get_5_sessions() :
     """세션 목록을 가져오는 함수""" 
     sessions = ChatSession.objects.order_by('-started_at')[:5]
     return sessions
+
+def get_s3_client() :
+    return boto3.client(
+        "s3",
+        aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+        region_name=os.getenv('AWS_S3_REGION_NAME')
+    )
+
+def get_s3_buckets():
+    s3 = get_s3_client()
+    buckets = [
+        {"name": b["Name"]}
+        for b in s3.list_buckets().get("Buckets", [])
+    ]
+    print(buckets) # 디버깅용
+    return buckets
+
+def s3_objects_api(request,bucket, prefix):
+    """
+    AJAX로 호출될 JSON API.
+    ?bucket=이름&prefix=경로 형태로 호출.
+    """
+    s3 = get_s3_client()
+
+    if not bucket:
+        # 1) bucket 파라미터가 없으면 “버킷 목록” 화면
+        data = [{ "type" : "folder", "name" : b["Name"], "bucket" : b['Name'], "prefix" : ""}
+                for b in s3.list_buckets().get("Buckets", [])]
+        print(data)
+        return data
+    
+    # s3.list_objects_v2() : 버킷 안의 객체(파일) 목록을 가져오는 메서드
+    # Bucket : 가져올 버킷, Prefix : 이전 경로
+    # prefix="logs/2025/" 로 주면 버킷 안에서 logs/2025/ 로 시작하는 모든 파일만 조회
+    resp = s3.list_objects_v2(
+        Bucket=bucket,
+        Prefix=prefix,
+        Delimiter="/"  # 가상 폴더 단위로 끊어줌
+    )
+
+    # CommonPrefixes → 한 단계 하위 폴더들, Contents → 한 단계 하위 파일들
+    folders = [p["Prefix"] for p in resp.get("CommonPrefixes", [])] # 폴더 이름 리스트
+    files   = [o for o in resp.get("Contents", []) if o["Key"] != prefix] # 파일 객체 리스트
+
+    data = []
+    for f in folders :
+        data.append({
+            "type" : "folder",
+            "name" : f[len(prefix):].rstrip("/"),
+            "bucket" : bucket,
+            "prefix" : prefix+f[len(prefix):] 
+        })
+    
+    for f in files :
+        data.append({
+            "key" : f["Key"],
+            "bucket" : bucket,
+            "type" : "file",
+            "name": (name := f["Key"][len(prefix):]),
+            "file_type":     (name.rsplit(".",1)[-1] if "." in name else "-"),
+            "last_modified": f["LastModified"].strftime("%Y-%m-%d %H:%M:%S"),
+        })
+
+    return data
+
+def get_previous_prefix(prefix) :
+    # 루트 / 폴더1일때
+    if not prefix:
+        return None
+    parts = prefix.strip("/").split("/")  # ['a', 'b', 'c', 'd']
+    # 루트 / 폴더1 / 폴더2일때
+    if len(parts) <= 1:
+        return ""  # 최상위로 간주
+    return "/".join(parts[:-1]) + "/"  # 'a/b/c/

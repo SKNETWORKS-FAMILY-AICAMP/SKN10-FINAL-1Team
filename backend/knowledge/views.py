@@ -7,8 +7,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from .utils import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table
-from .utils import make_index, remove_index, generate_password, get_documents, get_5_sessions
+from .service import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_previous_prefix, get_summary_news_keywords
+from .service import make_index, remove_index, generate_password, get_documents, get_5_sessions, get_postgre_table, s3_objects_api, get_s3_client
 from conversations.models import ChatSession, ChatMessage
 from accounts.models import User, Organization
 import csv, io, json, os, boto3, datetime
@@ -19,9 +19,26 @@ from django.db.models.functions import TruncDate
 from django.conf import settings
 from dotenv import load_dotenv
 from .decorators import admin_required, IsAdminUser
+from functools import wraps
+
 
 # 모듈이 로딩될 때 단 한 번 실행
 load_dotenv()
+
+
+def admin_required(view_func):
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('accounts:login_page')  # 로그인 페이지 name에 맞게 수정
+
+        if getattr(request.user, 'role', '') != 'admin':
+            messages.warning(request, "해당 계정은 접근할 수 없습니다.") 
+            return redirect('home')
+
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
+
 
 """dashboard 출력"""
 @admin_required
@@ -29,25 +46,41 @@ def dashboard_view(request, screen_type):
     context = {"screen_type" : screen_type}
     if screen_type == "home" :
         context['recent_sessions'] = get_5_sessions()
+        context['recent_news'] = get_summary_news_keywords()
     elif screen_type == "db" :
-        db = request.GET.get('db', 'postgre')
-        context['db'] = db
-
-        if db == "postgre" :
-            context['postgre_db'] = get_postgre_db()
-            context['tables'] = get_all_table()
-        elif db == "pinecone" :
-            context['indexes'] = get_index_lists()
-        elif db == "s3" :
-            pass
-
+        context = db_manage_view(request, context)
     elif screen_type == "log" :
         context['sessions'] = get_sessions(request) 
-    elif screen_type == "user" :
+    elif screen_type == "user" : 
         context['users'] = get_users(request) 
     else : 
         return JsonResponse({'error': 'Invalid section'}, status=400)
     return render(request, 'knowledge/dashboard.html', context)
+
+def db_manage_view(request, context) :
+    db = request.GET.get('db', 'postgre')
+    context['db'] = db
+
+    if db == "postgre" :
+        table = request.GET.get('table', 'news')
+        context['postgre_db'] = get_postgre_db()
+        context['table'] = table
+        if table == "news" :
+            context['news'] = get_postgre_table("summary_news_keywords")
+        elif table == "repo_analysis" : 
+            context['repo_analysis'] = get_postgre_table("accounts_scantask")
+
+    elif db == "pinecone" :
+        context['indexes'] = get_index_lists()
+    elif db == "s3" :
+        bucket = request.GET.get("bucket")
+        prefix = request.GET.get("prefix","")
+        context['directory'] = s3_objects_api(request,bucket,prefix)
+        context['bucket'] = bucket
+        context['prefix'] = prefix.rstrip("/").replace("/", " / ")
+        context['pre_prefix'] = get_previous_prefix(prefix)
+
+    return context
 
 """Index 생성"""
 @admin_required
@@ -69,7 +102,8 @@ def create_index(request):
         # 정상적으로 입력했을때 
         else : 
             dimension = int(dimension)
-            is_created = make_index(name=index_name, vector_type=vector_type, metric=metric, dimension=dimension, cloud=cloud, region=region)
+            is_created = make_index(name=index_name, vector_type=vector_type,
+                                    metric=metric, dimension=dimension, cloud=cloud, region=region)
 
             if is_created: 
                 messages.success(request, '✅ 성공적으로 인덱스가 생성되었습니다!')
@@ -163,25 +197,49 @@ def create_multi_user(request) :
                 data = raw.decode('euc-kr', errors='ignore')  
                 # (필요하면 errors 옵션 추가)
         reader = csv.DictReader(io.StringIO(data))
+
+        # 3) 해당 파일에 name, id, authority, department만 존재하는지 확인 (예외 처리)
+        if len(reader.fieldnames) != 4 or ['name', 'id', 'authority', 'department'] != reader.fieldnames : 
+            print("컬럼 수 : ",len(reader.fieldnames), "컬럼 : ", reader.fieldnames)
+            messages.error(request, '⚠️ 오류 : 파일의 컬럼이 잘못된 형식입니다!')
+            print("⚠️ 오류 : 파일의 컬럼이 잘못된 형식입니다!")
+            return redirect(redirect_url)
+
+
+        # created_user : 실제 삭제한 유저 수
+        created_user = 0
+        print("컬럼 수 : ",len(reader.fieldnames), "컬럼 : ", reader.fieldnames)
         rows = list(reader) 
         print("✅ 정상적으로 csv파일을 읽었습니다.")
 
-        # 3) rows 순회하면서 회원 생성
-        for row in rows:
+        # 4) rows 순회하면서 회원 생성
+        for i, row in enumerate(rows):
             name = row['name'].strip()
             id = row['id'].strip()
             authority = row['authority'].strip()
             dept = row['department'].strip()
-            org = Organization.objects.get(name=dept)  # 예시
-
-            User.objects.create_user(
+            
+            if len(name) == 0 or len(id) == 0 or len(authority) == 0 or len(dept) == 0 :
+                print(f"⚠️ {i+1}. 컬럼값이 일부 비어있어 건너뜀.")
+            elif authority not in ['admin', "employee", "guest"] : 
+                print(f"⚠️ {i+1}. authority 컬럼값이 잘못되어 건너뜀.")
+            elif dept not in ["development", "business_strategy", "customer_management", "administrator"] :
+                print(f"⚠️ {i+1}. department 컬럼값이 잘못되어 건너뜀.")
+            elif User.objects.filter(email=f'{id}@example.com').exists():
+                print(f"⚠️ {i+1}. {id}@example.com 이미 존재하여 건너뜀")
+            else:
+                org = Organization.objects.get(name=dept)
+                User.objects.create_user(
                 email=f'{id}@example.com', # 이메일 생성 로직
                 password=generate_password(),     # 비번 지정
                 name=name,
                 role=authority,
                 org=org,
-            )
-        messages.success(request, f'✅ {len(rows)}명의 계정을 생성했어!')
+                )
+                created_user += 1
+                print(f"✅ {i+1}. {id}@example.com 계정 생성 완료")
+
+        messages.success(request, f'✅ {len(rows)}개의 데이터 중 {created_user}개의 계정 생성 완료!')
         return redirect(redirect_url)
     else : 
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
@@ -189,22 +247,32 @@ def create_multi_user(request) :
 """User 삭제"""
 @admin_required
 def delete_user(request):
-    if request.method == 'POST':
-        email = request.POST.get('email') # 이메일
-        url = reverse('knowledge:dashboard', args=['user'])
+    try:
+        if request.method != 'POST':
+            raise Exception()
 
-        try : 
-            target = User.objects.get(email=email)
-            print(User.objects.all())
-        except : 
-            messages.error(request, '⚠️ 해당 이메일의 계정이 없습니다!')
+        if request.method == 'POST':
+            email = request.POST.get('email') # 이메일
+            url = reverse('knowledge:dashboard', args=['user'])
+
+            try : 
+                target = User.objects.get(email=email)
+                print(User.objects.all())
+            except : 
+                messages.error(request, '⚠️ 해당 이메일의 계정이 없습니다!')
+                return redirect(url)
+            
+            target.delete() # 완전 삭제
+            messages.success(request, f'✅ {email} 계정이 삭제되었습니다.')
             return redirect(url)
-        
-        target.delete() # 완전 삭제
-        messages.success(request, f'✅ {email} 계정이 삭제되었습니다.')
-        return redirect(url)
-    else : 
-        return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
+        else : 
+            return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
+    except EnvironmentError as e:
+        return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405) 
+    except Exception as e:
+        messages.error(request, '⚠️ 해당 이메일의 계정이 없습니다!')
+        return redirect(url) 
+
 
 """User 다중 삭제"""
 @admin_required
@@ -214,31 +282,46 @@ def delete_multi_user(request) :
         uploaded = request.FILES.get('file')
         redirect_url = reverse('knowledge:dashboard', args=['user'])
         if not uploaded:
-            messages.error(request, '파일이 없습니다!')
+            messages.error(request, '⚠️ 오류 : 파일이 없습니다!')
             return redirect(redirect_url)
 
         # 2) CSV 읽기 (csv 모듈 + StringIO 사용)
-        raw = uploaded.read()  # 바이너리 데이터
+        raw = uploaded.read()  # 파일 전체를 바이너리(바이트) 로 읽어서 raw 에 저장
         try:
-            data = raw.decode('utf-8')          # 먼저 UTF-8 시도
+            data = raw.decode('utf-8')          # 먼저 UTF-8 디코딩시도
         except UnicodeDecodeError:
             try:
-                data = raw.decode('cp949')      # 실패하면 CP949로 재시도
+                data = raw.decode('cp949')      # 실패하면 CP949로 디코딩 재시도
             except UnicodeDecodeError:
                 data = raw.decode('euc-kr', errors='ignore')  
-                # (필요하면 errors 옵션 추가)
+        
+        # csv.DictReader() : 첫 줄(헤더)을 키(key)로, 그 이후 줄을 값(value)으로 읽어서 딕셔너리 형태로 반환
         reader = csv.DictReader(io.StringIO(data))
+
+        # 3) 해당 파일에 email 컬럼만 존재하는지 확인 (예외 처리)
+        if len(reader.fieldnames) != 1 or 'email' not in reader.fieldnames : 
+            print("컬럼 수 : ",len(reader.fieldnames), "컬럼 : ", reader.fieldnames)
+            messages.error(request, '⚠️ 오류 : 파일의 컬럼이 잘못된 형식입니다!')
+            print("⚠️ 오류 : 파일의 컬럼이 잘못된 형식입니다!")
+            return redirect(redirect_url)
+        
+        # deleted_user : 실제 삭제한 유저 수
+        deleted_user = 0
         rows = list(reader) 
-        print("✅ 정상적으로 csv파일을 읽었습니다.")
+        print("컬럼 수 : ",len(reader.fieldnames), "컬럼 : ", reader.fieldnames)
+        print("✅ 정상적인 구조의 csv파일을 읽었습니다.")
 
-        # 3) rows 순회하면서 회원 생성
-        for row in rows:
+        # 4) rows 순회하면서 회원 생성
+        for i, row in enumerate(rows):
             email = row['email'].strip()
-            user = User.objects.get(email=email)
-            user.delete()
-
-
-        messages.success(request, f'✅ {len(rows)}명의 계정을 삭제했어!')
+            if User.objects.filter(email=email).exists():
+                User.objects.filter(email=email).delete()
+                deleted_user += 1
+                print(f"✅ {i+1}. {email} 삭제 완료")
+            else:
+                print(f"⚠️ {i+1}. {email} 계정이 없어 건너뜀")
+        
+        messages.success(request, f'✅ {len(rows)}개의 계정 중 {deleted_user}개의 계정 삭제 완료!')
         return redirect(redirect_url)
     else : 
         return JsonResponse({'error': '잘못된 접근입니다! POST형식의 응답을 받지 못했습니다.'}, status=405)
@@ -267,7 +350,6 @@ def recent_session_counts(request):
 
 @admin_required
 def user_counts(request):
-    # 최근 7일 기준
     today = timezone.localtime().date()
     start_date = today - timedelta(days=6)
 
@@ -295,6 +377,7 @@ def index_detail(request, index_name) :
 """해당 namespace 상세화면"""
 @admin_required
 def namespace_detail(request,index_name,namespace_name) :
+    if namespace_name == 'unknown' : namespace_name = ""
     documents = get_documents(index_name,namespace_name)
     print("✅ 정상적으로 문서들을 받았습니다!")
     return render(request, 'knowledge/documents.html', {'documents': documents,'index_name': index_name,'namespace_name': namespace_name,})
@@ -315,7 +398,24 @@ def session_detail(request, session_id) :
         })
     return JsonResponse({"messages" : messages})
 
+"""해당 s3 파일 상세화면"""
+def s3_detail(request,bucket,key) :
+    s3 = get_s3_client()
+    filename = request.GET.get('filename', '')
 
+    obj = s3.get_object(Bucket=bucket, Key=key)
+    raw = obj["Body"].read()
+    content = ""              
+    try:
+        content = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        content = raw.decode("cp949", errors="ignore")  
+
+    data = {
+        "filename" : filename,
+        "content" : content
+    }
+    return render(request, 'knowledge/s3_doc.html', data)
 
 
 @api_view(['GET', 'POST'])
