@@ -28,7 +28,7 @@ load_dotenv()
 # 문서에이전트용 MCP 클라이언트
 client_doc = MultiServerMCPClient({
     "doc": {
-        "url": "http://localhost:8002/mcp/",
+        "url": "https://rgoqvqy404ncos-8000.proxy.runpod.net/mcp/",
         "transport": "streamable_http",
     }
 })
