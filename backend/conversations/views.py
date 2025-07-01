@@ -201,7 +201,7 @@ async def chat_stream(request, session_id):
             session.thread_id = uuid.UUID(thread_id)
             await session.asave()
 
-        fastapi_url = os.environ.get("FASTAPI_232SERVER_URL", "http://127.0.0.1:8001")
+        fastapi_url = os.environ.get("FASTAPI_SERVER_URL", "http://127.0.0.1:8001")
 
         async def event_stream():
             # Stream title first if it's the first message
