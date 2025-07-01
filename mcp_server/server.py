@@ -55,7 +55,7 @@ if __name__ == "__main__":
     print("  - Document Search: 내부 정책, 기술 문서, 제품 문서, 회의록 검색")
     print("  - Analyst Tools: 차트 생성")
     print("  - Prediction: 고객 이탈 예측")
-    print(f"🌐 서버가 http://0.0.0.0:8002 에서 실행됩니다.")
+    print(f"🌐 서버가 http://0.0.0.0:8000 에서 실행됩니다.")
     
     # HTTP 방식으로 MCP 서버 실행
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8002) 
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=8000) 
