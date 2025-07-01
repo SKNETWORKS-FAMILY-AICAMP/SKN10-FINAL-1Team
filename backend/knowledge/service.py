@@ -40,55 +40,6 @@ def get_postgre_db() :
     }
     return result
 
-
-def get_all_table():
-    """PostgreSQL 데이터베이스 모든 테이블의 정보를 가져오는 함수"""
-    result = []
-    all_table = set(connection.introspection.table_names()) 
-    default_table = {'auth_group','auth_permission','auth_group_permissions','users_groups', 'users_user_permissions'
-                    ,'django_content_type','django_session','django_admin_log','django_migrations'}
-    tables = all_table.difference(default_table)
-    print(tables)
-
-    with connection.cursor() as cursor:
-        for table in tables :
-            # 테이블 레코드 수 가져오기
-            cursor.execute(f'SELECT COUNT(*) FROM "{table}"')
-            count = cursor.fetchone()[0]
-
-            # 테이블 크기 가져오기
-            sql = f"""
-                SELECT COUNT(*) AS cnt, pg_size_pretty(
-                    pg_total_relation_size('public.{table}')
-                )                           AS size
-                FROM "{table}";
-            """
-            cursor.execute(sql)
-            _, size = cursor.fetchone()  # (12345, '890 MB') 이런 튜플이 돌아옴
-            result.append ({
-                "name" :table,
-                "count" : count,
-                "size" : size
-            })
-    return result
-
-def get_news():
-    """PostgreSQL 데이터베이스의 news 테이블 정보들을 가져오는 함수"""
-    result = []
-    table = "summary_news_keywords" # 테이블
-    with connection.cursor() as cursor:
-        cursor.execute(f'SELECT id, title, keyword, date FROM {table} ORDER BY date DESC;')
-        rows = cursor.fetchall()  # ✅ 모든 행 가져오기
-        for row in rows:
-            result.append({
-                "id": row[0],
-                "title": row[1],
-                "keyword": row[2],
-                "date": row[3],
-            })
-    print(result)
-    return result
-
 def get_postgre_table(table) : 
     result = []
     with connection.cursor() as cursor:
@@ -115,23 +66,6 @@ def get_postgre_table(table) :
                     "progress" : row[5],
                     "created_at" : row[6]
                 })
-    print(result)
-    return result
-
-def get_repo_analysis():
-    """PostgreSQL 데이터베이스의 news 테이블 정보들을 가져오는 함수"""
-    result = []
-    table = "summary_news_keywords" # 테이블
-    with connection.cursor() as cursor:
-        cursor.execute(f'SELECT id, title, keyword, date FROM {table} ORDER BY date DESC;')
-        rows = cursor.fetchall()  # ✅ 모든 행 가져오기
-        for row in rows:
-            result.append({
-                "id": row[0],
-                "title": row[1],
-                "keyword": row[2],
-                "date": row[3],
-            })
     print(result)
     return result
 
