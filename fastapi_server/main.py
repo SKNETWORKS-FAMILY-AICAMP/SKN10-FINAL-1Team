@@ -125,8 +125,10 @@ async def invoke_agent(invocation_request: InvocationRequest):
             }
             graph_function = role_graph_mapping.get(user_role, get_swarm_graph)
             print(f"---[GRAPH SELECTION] Fallback to role-based selection for role '{user_role}': {graph_function.__name__}")
-        
-        return graph_function(checkpointer)
+        graph=graph_function(checkpointer)
+        print("GRAPH DIR:", dir(graph))
+        print("GRAPH TYPE:", type(graph))
+        return graph
 
     async def event_stream():
         # Create the checkpointer and graph for each request to isolate lifecycles.
