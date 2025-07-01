@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
@@ -51,18 +52,18 @@ export function Sidebar({
 
       {/* 네비게이션 메뉴 */}
       <div className="flex-shrink-0 p-4 space-y-2">
-        <a href="/">
+        <Link href="/" passHref>
           <Button variant="ghost" className="w-full justify-start text-gray-700 hover:bg-blue-50 hover:text-blue-600">
             <Home className="mr-3 h-4 w-4" />홈
           </Button>
-        </a>
+        </Link>
 
-        <a href="/accounts/settings/">
+        <Link href="/accounts/settings/" passHref>
           <Button variant="ghost" className="w-full justify-start text-gray-700 hover:bg-blue-50 hover:text-blue-600">
             <Settings className="mr-3 h-4 w-4" />
             설정
           </Button>
-        </a>
+        </Link>
 
         <Button onClick={onNewSession} className="w-full justify-start bg-blue-600 text-white hover:bg-blue-700">
           <Plus className="mr-3 h-4 w-4" />새 세션 추가

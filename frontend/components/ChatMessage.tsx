@@ -17,14 +17,18 @@ declare global {
   }
 }
 
+interface CodeComponentProps {
+  className?: string;
+  children?: React.ReactNode;
+}
+
 interface ChatMessageProps {
   message: TMessage
-  chartContent: ChartContent | null
-  onOpenChart: (data?: any) => void
+  onOpenChart: (data?: ChartContent) => void
   forceRefresh?: boolean
 }
 
-export function ChatMessage({ message, chartContent, onOpenChart, forceRefresh = false }: ChatMessageProps) {
+export function ChatMessage({ message, onOpenChart, forceRefresh = false }: ChatMessageProps) {
   const [copied, setCopied] = useState(false)
 
   // Prism.js 하이라이팅 적용
@@ -68,6 +72,26 @@ export function ChatMessage({ message, chartContent, onOpenChart, forceRefresh =
     }
   }
 
+  // 차트 데이터 감지 (output이 string이든 object든 모두 지원)
+  const chartToolCall = useMemo(() => {
+    if (!message.tool_calls) return null;
+    return message.tool_calls.find((call) => {
+      if (call.name !== "ChartGenerator" && call.name !== "analyst_chart_tool") return false;
+      if (!call.output) return false;
+      let parsed = null;
+      if (typeof call.output === "string") {
+        try {
+          parsed = JSON.parse(call.output);
+        } catch {
+          return false;
+        }
+      } else if (typeof call.output === "object" && call.output !== null) {
+        parsed = call.output;
+      }
+      return parsed && parsed.canvas_html && parsed.script_js;
+    });
+  }, [message.tool_calls]);
+
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
@@ -106,26 +130,6 @@ export function ChatMessage({ message, chartContent, onOpenChart, forceRefresh =
     )
   }
 
-  // 차트 데이터 감지 (output이 string이든 object든 모두 지원)
-  const chartToolCall = useMemo(() => {
-    if (!message.tool_calls) return null;
-    return message.tool_calls.find((call) => {
-      if (call.name !== "ChartGenerator" && call.name !== "analyst_chart_tool") return false;
-      if (!call.output) return false;
-      let parsed = null;
-      if (typeof call.output === "string") {
-        try {
-          parsed = JSON.parse(call.output);
-        } catch {
-          return false;
-        }
-      } else if (typeof call.output === "object" && call.output !== null) {
-        parsed = call.output;
-      }
-      return parsed && parsed.canvas_html && parsed.script_js;
-    });
-  }, [message.tool_calls]);
-
   return (
     <div className="flex items-start gap-3">
       <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-r from-gray-100 to-gray-200 text-gray-600 flex items-center justify-center shadow-sm">
@@ -139,7 +143,7 @@ export function ChatMessage({ message, chartContent, onOpenChart, forceRefresh =
             <ReactMarkdown 
               remarkPlugins={[remarkGfm]}
               components={{
-                code({ node, className, children, ...props }: any) {
+                code({ className, children, ...props }: CodeComponentProps) {
                   const match = /language-(\w+)/.exec(className || '')
                   const isInline = !match
                   return !isInline ? (

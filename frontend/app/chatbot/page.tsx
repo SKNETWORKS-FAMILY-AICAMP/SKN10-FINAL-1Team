@@ -6,14 +6,13 @@ import { useState, useEffect, useRef, type FormEvent } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useChatSessions } from "@/hooks/useChatSessions"
 import { useChatMessages } from "@/hooks/useChatMessages"
-import type { TMessage, ChartContent, TToolCall } from "@/types/chat"
+import type { TMessage, ChartContent, TToolCall, StreamMessage } from "@/types/chat"
 import { API_BASE, getCookie } from "@/utils/api"
 import { Sidebar } from "@/components/Sidebar"
 import { ChatHeader } from "@/components/ChatHeader"
 import { ChatMessage } from "@/components/ChatMessage"
 import { LoadingIndicator } from "@/components/LoadingIndicator"
 import { MessageInput } from "@/components/MessageInput"
-import { ChartModal } from "@/components/ChartModal"
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog"
 import { ChartSidebar } from "@/components/ChartSidebar"
 
@@ -26,7 +25,6 @@ export default function ChatbotPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
-  const [isChartModalOpen, setChartModalOpen] = useState(false)
   const [chartContent, setChartContent] = useState<ChartContent | null>(null)
   const [forceRefresh, setForceRefresh] = useState(false)
   const [isChartSidebarOpen, setChartSidebarOpen] = useState(false)
@@ -168,23 +166,27 @@ export default function ChatbotPage() {
                   content: accumulatedContent,
                 })
               } else if (json.event === "tool_update") {
-                const assistantMessages = json.data.assistant.messages || []
+                const assistantMessages: StreamMessage[] = json.data.assistant.messages || []
 
                 // 1. Consolidate all tool calls from 'ai' messages
                 const allToolCalls = assistantMessages
-                  .filter((msg: any) => msg.type === "ai" && msg.tool_calls)
-                  .flatMap((msg: any) => msg.tool_calls)
+                  .filter((msg): msg is StreamMessage & { tool_calls: TToolCall[] } => 
+                    msg.type === "ai" && "tool_calls" in msg
+                  )
+                  .flatMap((msg) => msg.tool_calls)
 
                 // 2. Create a map of tool outputs from 'tool' messages
-                const toolOutputs = new Map()
+                const toolOutputs = new Map<string, string>()
                 assistantMessages
-                  .filter((msg: any) => msg.type === "tool")
-                  .forEach((msg: any) => {
+                  .filter((msg: StreamMessage) => msg.type === "tool")
+                  .forEach((msg: StreamMessage) => {
+                    if (msg.tool_call_id && msg.content) {
                     toolOutputs.set(msg.tool_call_id, msg.content)
+                    }
                   })
 
                 // 3. Combine calls and outputs into the final TToolCall array
-                const finalToolCalls: TToolCall[] = allToolCalls.map((call: any) => ({
+                const finalToolCalls: TToolCall[] = allToolCalls.map((call: TToolCall) => ({
                   ...call,
                   output: toolOutputs.get(call.id) || null,
                 }))
@@ -200,13 +202,13 @@ export default function ChatbotPage() {
                     (call.name === "ChartGenerator" || call.name === "analyst_chart_tool") && call.output,
                 )
 
-                if (chartToolCall) {
+                if (chartToolCall && typeof chartToolCall.output === "string") {
                   try {
                     // The output is already a string, which should be JSON
                     const chartData = JSON.parse(chartToolCall.output)
                     setChartContent(chartData)
-                  } catch (e) {
-                    console.error("Failed to parse chart data:", e)
+                  } catch (error) {
+                    console.error("Failed to parse chart data:", error)
                   }
                 }
 
@@ -303,10 +305,11 @@ export default function ChatbotPage() {
               <ChatMessage
                 key={message.id}
                 message={message}
-                chartContent={chartContent}
-                onOpenChart={(chartData) => {
+                onOpenChart={(chartData?: ChartContent) => {
+                  if (chartData) {
                   setChartContent(chartData);
                   setChartSidebarOpen(true);
+                  }
                 }}
                 forceRefresh={forceRefresh}
               />

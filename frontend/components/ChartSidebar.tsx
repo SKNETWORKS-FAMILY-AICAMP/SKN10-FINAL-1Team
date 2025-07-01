@@ -1,9 +1,14 @@
 import { useEffect, useRef } from "react";
+import type { ChartContent } from "@/types/chat";
 
 interface ChartSidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  chartContent: any;
+  chartContent: ChartContent | null;
+}
+
+interface WindowWithChart extends Window {
+  Chart?: unknown;
 }
 
 export function ChartSidebar({ isOpen, onClose, chartContent }: ChartSidebarProps) {
@@ -14,19 +19,27 @@ export function ChartSidebar({ isOpen, onClose, chartContent }: ChartSidebarProp
       chartRef.current.innerHTML = chartContent.canvas_html || "";
       try {
         // Chart.js가 없으면 CDN으로 동적 로드
-        if (!(window as any).Chart) {
+        const windowWithChart = window as WindowWithChart;
+        if (!windowWithChart.Chart) {
           const script = document.createElement("script");
           script.src = "https://cdn.jsdelivr.net/npm/chart.js";
           script.onload = () => {
-            // eslint-disable-next-line no-new-func
-            new Function(chartContent.script_js)();
+            try {
+              new Function(chartContent.script_js)();
+            } catch (error) {
+              console.error("Failed to execute chart script:", error);
+            }
           };
           document.body.appendChild(script);
         } else {
-          // eslint-disable-next-line no-new-func
-          new Function(chartContent.script_js)();
+          try {
+            new Function(chartContent.script_js)();
+          } catch (error) {
+            console.error("Failed to execute chart script:", error);
+          }
         }
-      } catch (e) {
+      } catch (error) {
+        console.error("Chart initialization error:", error);
         if (chartRef.current) {
           chartRef.current.innerHTML = "<div class='text-red-500'>차트 스크립트 실행 오류</div>";
         }

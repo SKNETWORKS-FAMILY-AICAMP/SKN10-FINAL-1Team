@@ -1,0 +1,73 @@
+# Django
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+db.sqlite3
+.venv
+venv/
+# .env 파일은 Docker 컨테이너에서 필요하므로 제외하지 않음
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Static files (will be collected during build)
+staticfiles/
+media/
+
+# Logs
+logs/
+*.log
+
+# Node modules (if any)
+node_modules/
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# Cache files
+.cache/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+env
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+nosetests.xml
+coverage.xml
+*.cover
+.mypy_cache
+.hypothesis
+
+.env.bak/
+venv.bak/
+
+*.sqlite3
+.ebextensions/
+backend.zip
+backend.rar 
