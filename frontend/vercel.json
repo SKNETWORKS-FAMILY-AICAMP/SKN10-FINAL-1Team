@@ -1,0 +1,21 @@
+{
+  "name": "django-nextjs-frontend",
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_BACKEND_URL": "https://your-django-backend.elasticbeanstalk.com",
+    "NEXT_PUBLIC_API_URL": "https://your-django-backend.elasticbeanstalk.com/api"
+  },
+  "regions": ["icn1"],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "https://your-django-backend.elasticbeanstalk.com/api/$1"
+    }
+  ]
+} 

@@ -1,20 +1,18 @@
-from django.urls import path, include
-from . import views
+from django.urls import path
+from .views import (
+    session_create_view,
+    session_delete_view,
+    session_list_view,
+    message_list_view,
+    chat_stream
+)
 
 app_name = 'conversations'
 
-# API routes are grouped under 'api/'
-api_urlpatterns = [
-    path('chat/stream/<uuid:session_id>/', views.chat_stream, name='chat_stream'),
-    path('session/create/', views.session_create_view, name='session_create'),
-    path('session/delete/<uuid:session_id>/', views.session_delete_view, name='session_delete'),
-]
-
 urlpatterns = [
-    # Web page routes
-    path('chat/', views.chatbot_view, name='chatbot'),
-    path('chat/<uuid:session_id>/', views.chatbot_view, name='chatbot_session'),
-
-    # Include API routes
-    path('api/', include((api_urlpatterns, 'api'), namespace='api')),
+    path('sessions/', session_list_view, name='session-list'),
+    path('sessions/create/', session_create_view, name='session-create'),
+    path('sessions/<uuid:session_id>/delete/', session_delete_view, name='session-delete'),
+    path('sessions/<uuid:session_id>/messages/', message_list_view, name='message-list'),
+    path('sessions/<uuid:session_id>/invoke/', chat_stream, name='chat-stream'),
 ]

@@ -1,23 +1,31 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  images: {
-    unoptimized: true,
-  },
-  // API 요청을 Django 백엔드로 프록시
   async rewrites() {
+    // Get the backend URL from environment variable with fallback
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
+    
     return [
       {
+        // Source: All paths starting with /accounts/
+        source: '/accounts/:path*',
+        // Destination: Forward to Django backend
+        destination: `${backendUrl}/accounts/:path*`,
+      },
+      {
+        // Also proxy API, admin, and other Django-specific routes
         source: '/api/:path*',
-        destination: 'http://localhost:8000/api/:path*',
+        destination: `${backendUrl}/api/:path*`,
+      },
+      {
+        source: '/admin/:path*',
+        destination: `${backendUrl}/admin/:path*`,
+      },
+      {
+        source: '/_header.html',
+        destination: `${backendUrl}/_header.html`,
       },
     ];
   },
-}
+};
 
-export default nextConfig
+export default nextConfig;

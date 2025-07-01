@@ -13,10 +13,15 @@ import os
 from dotenv import load_dotenv
 from pathlib import Path
 
-load_dotenv()
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Explicitly load the .env file from the backend directory (BASE_DIR)
+dotenv_path = BASE_DIR / '.env'
+print(f"--- Attempting to load .env from: {dotenv_path} ---")
+# Use override=True to ensure this .env file's values are used.
+loaded = load_dotenv(dotenv_path=dotenv_path, override=True)
+print(f"--- .env file at {dotenv_path} loaded: {loaded} ---")
 
 
 # Quick-start development settings - unsuitable for production
@@ -26,15 +31,27 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.elasticbeanstalk.com']
 
+# Pinecone 설정
+PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
+PINECONE_ENVIRONMENT = os.environ.get('PINECONE_ENVIRONMENT')
+# PINECONE_INDEX_NAME = 'your-pinecone-index-name' # Pinecone 인덱스 이름도 .env에 넣고 로드하거나 여기에 직접 지정
+
+# OpenAI 설정
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 
 # LangGraph API settings
 LANGGRAPH_API_URL = os.getenv("LANGGRAPH_API_URL", "http://127.0.0.1:2024")
 LANGGRAPH_API_KEY = os.getenv("LANGGRAPH_API_KEY", "")
 print(LANGGRAPH_API_KEY,"LANGGRAPH_API_KEY    ",LANGGRAPH_API_URL,"LANGGRAPH_API_URL")
+
+# Next.js Frontend settings
+NEXTJS_SERVER_URL = os.getenv("NEXTJS_SERVER_URL", "http://localhost:3000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+print(f"--- Frontend URL: {FRONTEND_URL} ---")
 # Application definition
 
 INSTALLED_APPS = [
@@ -46,15 +63,16 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework', 'rest_framework_simplejwt', 'corsheaders',
     'accounts', 'knowledge', 'conversations', 'mlops',
-    'pgvector.django'
+    'pgvector.django',
+    'storages', # For AWS S3 storage
+    'django_nextjs'
 ]
 
 # Custom user model
 AUTH_USER_MODEL = 'accounts.User'
 
 MIDDLEWARE = [
-    # 'corsheaders.middleware.CorsMiddleware',  # CORS 미들웨어는 가장 앞에 위치해야 함 (주석 처리)
-
+    'corsheaders.middleware.CorsMiddleware',  # CORS 미들웨어는 가장 앞에 위치해야 함
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -69,21 +87,44 @@ ROOT_URLCONF = 'config.urls'
 # URL configuration
 APPEND_SLASH = False  # Do not force appending slashes to URLs
 
-# CORS settings (주석 처리 - Django 템플릿 사용으로 전환)
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",  # Next.js 개발 서버
-# ]
-# CORS_ALLOW_CREDENTIALS = True
-#
-# # Add CORS_ALLOWED_METHODS
-# CORS_ALLOWED_METHODS = [
-#     'DELETE',
-#     'GET',
-#     'OPTIONS',
-#     'PATCH',
-#     'POST',
-#     'PUT',
-# ]
+# CORS settings - 프론트엔드가 분리 배포될 때 사용
+CORS_ALLOWED_ORIGINS = [
+    "https://hn4le5ns4ckzqy-3000.proxy.runpod.net",# Next.js 프론트엔드 URL (환경변수에서 가져옴)
+    "http://localhost:3000",  # 로컬 개발용
+    "http://127.0.0.1:3000",  # 로컬 개발용
+]
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    'content-type',
+    'authorization',
+    'x-requested-with',
+    'accept',
+    'origin',
+    'access-control-allow-origin',
+]
+# CORS 허용 메서드
+CORS_ALLOWED_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# CORS 허용 헤더
+CORS_ALLOWED_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 TEMPLATES = [
     {
@@ -106,24 +147,27 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+# PostgreSQL이 설정되어 있으면 PostgreSQL 사용, 아니면 SQLite 사용
+if os.getenv('DB_NAME') and os.getenv('DB_HOST'):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME'),
+            'USER': os.getenv('DB_USER'),
+            'PASSWORD': os.getenv('DB_PASSWORD'),
+            'HOST': os.getenv('DB_HOST'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+        }
     }
-}
-#print(DATABASES)
+    print("--- Using PostgreSQL database ---")
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+    print("--- Using SQLite database ---")
 
 
 # Password validation
@@ -150,7 +194,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Seoul'
 
 USE_I18N = True
 
@@ -160,7 +204,12 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Media files
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -202,7 +251,50 @@ SIMPLE_JWT = {
 # ]
 # CORS_ALLOW_CREDENTIALS = True
 
+# AWS S3 Storage Settings
+# ------------------------------------------------------------------------------
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.getenv('S3_BUCKET_NAME')
+AWS_S3_REGION_NAME = os.getenv('AWS_DEFAULT_REGION', 'ap-northeast-2') # Default to Seoul region
+
+
+
+# --- DEBUGGING PRINT STATEMENTS ---
+print("--- AWS S3 SETTINGS DEBUG ---")
+print(f"AWS_ACCESS_KEY_ID: {'Loaded' if os.getenv('AWS_ACCESS_KEY_ID') else 'Not Loaded'}")
+print(f"AWS_STORAGE_BUCKET_NAME: {os.getenv('S3_BUCKET_NAME')}")
+print(f"AWS_S3_REGION_NAME: {os.getenv('AWS_DEFAULT_REGION')}")
+print("-----------------------------")
+
+# Media files storage configuration using django-storages
+AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400', # Cache static files for 1 day
+}
+AWS_LOCATION = 'media' # Subfolder for media files within the S3 bucket
+
+# Django 4.2+ requires the STORAGES setting. DEFAULT_FILE_STORAGE is deprecated.
+STORAGES = {
+    # Media files (user uploads)
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+    },
+    # Static files (CSS, JS, etc.) - using standard storage for now
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
+MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/{AWS_LOCATION}/'
+# MEDIA_ROOT is not needed when using S3 for media storage
+
+
 # Login and Logout URLs for session-based authentication
 LOGIN_URL = 'accounts:login_page'
 LOGOUT_REDIRECT_URL = 'home'
 
+# django-nextjs settings
+NEXTJS_SETTINGS = {
+    "nextjs_server_url": os.getenv("NEXTJS_SERVER_URL", "http://127.0.0.1:3000")
+}
