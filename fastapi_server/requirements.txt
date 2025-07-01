@@ -23,19 +23,10 @@ psycopg2-binary
 langchain-pinecone
 langchain-experimental
 PyGithub
-<<<<<<< HEAD
-<<<<<<< HEAD
 langchain-mcp-adapters
-=======
-=======
->>>>>>> 136005de0d871e75c9cd7094a47b07d3f3346f5c
-langchain-mcp-adapters
+
 pinecone[grpc]
 langchain-core==0.3.66
 langgraph-prebuilt==0.2.2
-<<<<<<< HEAD
 langgraph-sdk==0.1.70
->>>>>>> 7c9cbaf (더 정확히 명시시)
-=======
-langgraph-sdk==0.1.70
->>>>>>> 136005de0d871e75c9cd7094a47b07d3f3346f5c
+
