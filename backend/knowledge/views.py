@@ -7,8 +7,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from .service import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_all_table, get_previous_prefix
-from .service import make_index, remove_index, generate_password, get_documents, get_5_sessions, get_s3_buckets, s3_objects_api, get_s3_client
+from .service import get_namespaces, get_index_lists, get_sessions, get_users, get_postgre_db, get_previous_prefix, get_summary_news_keywords
+from .service import make_index, remove_index, generate_password, get_documents, get_5_sessions, get_postgre_table, s3_objects_api, get_s3_client
 from conversations.models import ChatSession, ChatMessage
 from accounts.models import User, Organization
 import csv, io, json, os, boto3, datetime
@@ -45,23 +45,9 @@ def dashboard_view(request, screen_type):
     context = {"screen_type" : screen_type}
     if screen_type == "home" :
         context['recent_sessions'] = get_5_sessions()
+        context['recent_news'] = get_summary_news_keywords()
     elif screen_type == "db" :
-        db = request.GET.get('db', 'postgre')
-        context['db'] = db
-
-        if db == "postgre" :
-            context['postgre_db'] = get_postgre_db()
-            context['tables'] = get_all_table()
-        elif db == "pinecone" :
-            context['indexes'] = get_index_lists()
-        elif db == "s3" :
-            bucket = request.GET.get("bucket")
-            prefix = request.GET.get("prefix","")
-            context['directory'] = s3_objects_api(request,bucket,prefix)
-            context['bucket'] = bucket
-            context['prefix'] = prefix.rstrip("/").replace("/", " / ")
-            context['pre_prefix'] = get_previous_prefix(prefix)
-
+        context = db_manage_view(request, context)
     elif screen_type == "log" :
         context['sessions'] = get_sessions(request) 
     elif screen_type == "user" : 
@@ -69,7 +55,31 @@ def dashboard_view(request, screen_type):
     else : 
         return JsonResponse({'error': 'Invalid section'}, status=400)
     return render(request, 'knowledge/dashboard.html', context)
-    
+
+def db_manage_view(request, context) :
+    db = request.GET.get('db', 'postgre')
+    context['db'] = db
+
+    if db == "postgre" :
+        table = request.GET.get('table', 'news')
+        context['postgre_db'] = get_postgre_db()
+        context['table'] = table
+        if table == "news" :
+            context['news'] = get_postgre_table("summary_news_keywords")
+        elif table == "repo_analysis" : 
+            context['repo_analysis'] = get_postgre_table("accounts_scantask")
+
+    elif db == "pinecone" :
+        context['indexes'] = get_index_lists()
+    elif db == "s3" :
+        bucket = request.GET.get("bucket")
+        prefix = request.GET.get("prefix","")
+        context['directory'] = s3_objects_api(request,bucket,prefix)
+        context['bucket'] = bucket
+        context['prefix'] = prefix.rstrip("/").replace("/", " / ")
+        context['pre_prefix'] = get_previous_prefix(prefix)
+
+    return context
 
 """Index 생성"""
 def create_index(request):

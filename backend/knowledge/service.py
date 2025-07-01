@@ -72,6 +72,69 @@ def get_all_table():
             })
     return result
 
+def get_news():
+    """PostgreSQL 데이터베이스의 news 테이블 정보들을 가져오는 함수"""
+    result = []
+    table = "summary_news_keywords" # 테이블
+    with connection.cursor() as cursor:
+        cursor.execute(f'SELECT id, title, keyword, date FROM {table} ORDER BY date DESC;')
+        rows = cursor.fetchall()  # ✅ 모든 행 가져오기
+        for row in rows:
+            result.append({
+                "id": row[0],
+                "title": row[1],
+                "keyword": row[2],
+                "date": row[3],
+            })
+    print(result)
+    return result
+
+def get_postgre_table(table) : 
+    result = []
+    with connection.cursor() as cursor:
+        if table == "summary_news_keywords" : 
+            cursor.execute(f'SELECT id, title, keyword, date FROM {table} ORDER BY date DESC;')
+            rows = cursor.fetchall()  # ✅ 모든 행 가져오기
+            for row in rows:
+                result.append({
+                    "id": row[0], 
+                    "title": row[1],
+                    "keyword": row[2], 
+                    "date": row[3],
+                })
+        elif table == "accounts_scantask" :
+            cursor.execute(f'SELECT id, repo_url, project_name, status, current_stage, progress, created_at FROM {table} ORDER BY created_at DESC;')
+            rows = cursor.fetchall()  # ✅ 모든 행 가져오기
+            for row in rows:
+                result.append({
+                    "id": row[0], 
+                    "repo_url": row[1],
+                    "project_name": row[2], 
+                    "status": row[3],
+                    "current_stage" : row[4],
+                    "progress" : row[5],
+                    "created_at" : row[6]
+                })
+    print(result)
+    return result
+
+def get_repo_analysis():
+    """PostgreSQL 데이터베이스의 news 테이블 정보들을 가져오는 함수"""
+    result = []
+    table = "summary_news_keywords" # 테이블
+    with connection.cursor() as cursor:
+        cursor.execute(f'SELECT id, title, keyword, date FROM {table} ORDER BY date DESC;')
+        rows = cursor.fetchall()  # ✅ 모든 행 가져오기
+        for row in rows:
+            result.append({
+                "id": row[0],
+                "title": row[1],
+                "keyword": row[2],
+                "date": row[3],
+            })
+    print(result)
+    return result
+
 @lru_cache(maxsize=1)
 def connect_pinecone() :
     """Pinecone 클라이언트를 반환하는 헬퍼 함수"""
@@ -245,6 +308,25 @@ def generate_password(length=15):
     alphabet = string.ascii_letters + string.digits + string.punctuation
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
+def get_summary_news_keywords():
+    """PostgreSQL 데이터베이스 모든 테이블의 정보를 가져오는 함수"""
+    result = []
+    table = "summary_news_keywords" # 테이블
+    count = 5 # 가져오는 데이터 수
+    with connection.cursor() as cursor:
+        cursor.execute(f'SELECT id, title, keyword, date FROM {table} ORDER BY date DESC LIMIT {count};')
+        rows = cursor.fetchall()  # ✅ 모든 행 가져오기
+        for row in rows:
+            result.append({
+                "id": row[0],
+                "title": row[1],
+                "keyword": row[2],
+                "date": row[3],
+            })
+    print(result)
+    return result 
+    
+    
 
 def get_sessions(request) :
     """세션 목록을 가져오는 함수""" 
@@ -293,7 +375,8 @@ def s3_objects_api(request,bucket, prefix):
 
     if not bucket:
         # 1) bucket 파라미터가 없으면 “버킷 목록” 화면
-        data = [{ "type" : "folder", "name" : b["Name"], "bucket" : b['Name'], "prefix" : ""} for b in s3.list_buckets().get("Buckets", [])]
+        data = [{ "type" : "folder", "name" : b["Name"], "bucket" : b['Name'], "prefix" : ""}
+                for b in s3.list_buckets().get("Buckets", [])]
         print(data)
         return data
     
