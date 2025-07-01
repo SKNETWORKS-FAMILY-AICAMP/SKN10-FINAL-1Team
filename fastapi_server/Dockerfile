@@ -23,5 +23,5 @@ RUN chmod +x redeploy.sh
 # Expose the port the app runs on
 EXPOSE 8000
 
-# Run the application. Note: reload is disabled for production.
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application using main.py script (sync context for better asyncio.run() support)
+CMD ["python", "main.py"]
