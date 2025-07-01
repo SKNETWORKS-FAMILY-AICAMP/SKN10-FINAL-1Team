@@ -14,7 +14,7 @@ RUN pip install --upgrade pip && pip install uv
 COPY requirements.txt .
 
 # Install any needed packages specified in requirements.txt using uv
-RUN uv pip install -r requirements.txt
+RUN uv pip install -r requirements.txt --system
 
 # Copy the rest of the application code to the working directory
 COPY . .
