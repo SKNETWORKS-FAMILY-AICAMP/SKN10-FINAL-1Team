@@ -125,9 +125,14 @@ async def invoke_agent(invocation_request: InvocationRequest):
             }
             graph_function = role_graph_mapping.get(user_role, get_swarm_graph)
             print(f"---[GRAPH SELECTION] Fallback to role-based selection for role '{user_role}': {graph_function.__name__}")
-        graph=graph_function(checkpointer)
-        print("GRAPH DIR:", dir(graph))
-        print("GRAPH TYPE:", type(graph))
+        try:
+            graph = graph_function(checkpointer)
+            print("GRAPH 생성 성공:", type(graph), dir(graph))
+        except Exception as e:
+            print("GRAPH 생성 중 오류 발생:", e)
+            import traceback
+            traceback.print_exc()
+            # 필요하다면 raise로 다시 예외를 던질 수도 있음
         return graph
 
     async def event_stream():
