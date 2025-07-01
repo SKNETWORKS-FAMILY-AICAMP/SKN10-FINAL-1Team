@@ -47,6 +47,11 @@ OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 LANGGRAPH_API_URL = os.getenv("LANGGRAPH_API_URL", "http://127.0.0.1:2024")
 LANGGRAPH_API_KEY = os.getenv("LANGGRAPH_API_KEY", "")
 print(LANGGRAPH_API_KEY,"LANGGRAPH_API_KEY    ",LANGGRAPH_API_URL,"LANGGRAPH_API_URL")
+
+# Next.js Frontend settings
+NEXTJS_SERVER_URL = os.getenv("NEXTJS_SERVER_URL", "http://localhost:3000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+print(f"--- Frontend URL: {FRONTEND_URL} ---")
 # Application definition
 
 INSTALLED_APPS = [
@@ -67,8 +72,7 @@ INSTALLED_APPS = [
 AUTH_USER_MODEL = 'accounts.User'
 
 MIDDLEWARE = [
-    # 'corsheaders.middleware.CorsMiddleware',  # CORS 미들웨어는 가장 앞에 위치해야 함 (주석 처리)
-
+    'corsheaders.middleware.CorsMiddleware',  # CORS 미들웨어는 가장 앞에 위치해야 함
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -83,21 +87,44 @@ ROOT_URLCONF = 'config.urls'
 # URL configuration
 APPEND_SLASH = False  # Do not force appending slashes to URLs
 
-# CORS settings (주석 처리 - Django 템플릿 사용으로 전환)
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",  # Next.js 개발 서버
-# ]
-# CORS_ALLOW_CREDENTIALS = True
-#
-# # Add CORS_ALLOWED_METHODS
-# CORS_ALLOWED_METHODS = [
-#     'DELETE',
-#     'GET',
-#     'OPTIONS',
-#     'PATCH',
-#     'POST',
-#     'PUT',
-# ]
+# CORS settings - 프론트엔드가 분리 배포될 때 사용
+CORS_ALLOWED_ORIGINS = [
+    "https://hn4le5ns4ckzqy-3000.proxy.runpod.net",# Next.js 프론트엔드 URL (환경변수에서 가져옴)
+    "http://localhost:3000",  # 로컬 개발용
+    "http://127.0.0.1:3000",  # 로컬 개발용
+]
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    'content-type',
+    'authorization',
+    'x-requested-with',
+    'accept',
+    'origin',
+    'access-control-allow-origin',
+]
+# CORS 허용 메서드
+CORS_ALLOWED_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# CORS 허용 헤더
+CORS_ALLOWED_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 TEMPLATES = [
     {
@@ -120,24 +147,27 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
-# }
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT', '5432'),
+# PostgreSQL이 설정되어 있으면 PostgreSQL 사용, 아니면 SQLite 사용
+if os.getenv('DB_NAME') and os.getenv('DB_HOST'):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME'),
+            'USER': os.getenv('DB_USER'),
+            'PASSWORD': os.getenv('DB_PASSWORD'),
+            'HOST': os.getenv('DB_HOST'),
+            'PORT': os.getenv('DB_PORT', '5432'),
+        }
     }
-}
-#print(DATABASES)
+    print("--- Using PostgreSQL database ---")
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+    print("--- Using SQLite database ---")
 
 
 # Password validation
