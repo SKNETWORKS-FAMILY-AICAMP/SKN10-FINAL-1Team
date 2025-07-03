@@ -24,6 +24,10 @@ const nextConfig = {
         source: '/_header.html',
         destination: `${backendUrl}/_header.html`,
       },
+      {
+        source: '/knowledge/:path*',
+        destination: `${backendUrl}/knowledge/:path*`,
+      },
     ];
   },
 };

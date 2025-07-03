@@ -42,6 +42,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include(api_urlpatterns)),
     path('accounts/', include('accounts.urls')), # Added accounts urls here
+    path('knowledge/', include('knowledge.urls')), # Added direct knowledge urls
     
     # Django template views
     path('', home_view, name='home'),  # Django home template
@@ -54,5 +55,5 @@ urlpatterns = [
     path('nextjs/', nextjs_page(stream=True), name='nextjs_root'),
     
     # Catch-all for remaining Next.js pages (keep this last)
-    re_path(r'^(?!api/|admin/|accounts/|_header\.html|nextjs/).*$', nextjs_page(stream=True)),
+    re_path(r'^(?!api/|admin/|accounts/|knowledge/|_header\.html|nextjs/).*$', nextjs_page(stream=True)),
 ]

@@ -239,25 +239,40 @@ def remove_index(name) :
 
 def get_namespaces(index_name) :
     """Pinecone 해당 인덱스의 네임스페이스들을 가져오는 함수"""
-    pc = connect_pinecone()
-
-    # 1. 인덱스 존재 여부 확인
-    existing_indexes = pc.list_indexes().names()
-    if index_name not in existing_indexes :
-        raise ValueError(f"⚠️ 인덱스 '{index_name}'가 Pinecone에 존재하지 않습니다. 현재 인덱스 목록: {existing_indexes}")
+    print(f"🔍 get_namespaces 함수 호출됨 - 요청 인덱스: '{index_name}'")
     
-    # 2. 인덱스 연결
-    index = pc.Index(index_name)
-    namespaces = index.describe_index_stats().namespaces
-    print(f"✅ Pinecone 인덱스 '{index_name}' 연결 완료 (Namespaces: {len(namespaces)})")
+    try:
+        pc = connect_pinecone()
+        print(f"✅ Pinecone 연결 성공")
 
-    # 3. 네임스페이스 전처리
-    flatten_namespaces = {
-        (name if name != '' else 'unknown') : info['vector_count']
-        for name, info in namespaces.items()
-    }
-    print(flatten_namespaces)
-    return flatten_namespaces
+        # 1. 인덱스 존재 여부 확인
+        existing_indexes = pc.list_indexes().names()
+        print(f"📋 현재 Pinecone 인덱스 목록: {existing_indexes}")
+        
+        if index_name not in existing_indexes :
+            print(f"❌ 인덱스 '{index_name}'이 목록에 없음")
+            raise ValueError(f"⚠️ 인덱스 '{index_name}'가 Pinecone에 존재하지 않습니다. 현재 인덱스 목록: {existing_indexes}")
+        
+        print(f"✅ 인덱스 '{index_name}' 목록에서 확인됨")
+        
+        # 2. 인덱스 연결
+        index = pc.Index(index_name)
+        print(f"✅ 인덱스 객체 생성 완료")
+        
+        namespaces = index.describe_index_stats().namespaces
+        print(f"✅ Pinecone 인덱스 '{index_name}' 연결 완료 (Namespaces: {len(namespaces)})")
+
+        # 3. 네임스페이스 전처리
+        flatten_namespaces = {
+            (name if name != '' else 'unknown') : info['vector_count']
+            for name, info in namespaces.items()
+        }
+        print(f"📊 네임스페이스 결과: {flatten_namespaces}")
+        return flatten_namespaces
+        
+    except Exception as e:
+        print(f"💥 get_namespaces에서 예외 발생: {type(e).__name__}: {str(e)}")
+        raise
 
 def get_documents(index_name, namespace_name) :
     """Pinecone 해당 인덱스의 네임스페이스들을 가져오는 함수"""
