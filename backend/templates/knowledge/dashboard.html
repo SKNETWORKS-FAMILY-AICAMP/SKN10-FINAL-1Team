@@ -26,6 +26,16 @@
     </head>
     <body>
     
+    {% if show_permission_modal %}
+    <!-- 권한 요청 모달만 표시, 나머지 UI는 렌더링하지 않음 -->
+    <div id="permission-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 min-h-screen">
+      <div class="bg-white rounded-lg shadow-lg p-8 max-w-sm w-full text-center">
+        <h2 class="text-xl font-bold mb-4 text-red-600">권한이 필요합니다</h2>
+        <p class="mb-6">이 페이지에 접근할 권한이 없습니다.<br>관리자에게 권한을 요청하세요.</p>
+        <button onclick="window.location.href='/'" class="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">홈으로 이동</button>
+      </div>
+    </div>
+    {% else %}
     <div class="relative flex size-full min-h-screen flex-col group/design-root overflow-x-hidden">
     <div id="header-placeholder"></div>
     <div class="flex h-full grow">
@@ -295,3 +305,4 @@
         document.addEventListener('DOMContentLoaded', loadHeader);
     </script>
     </body></html>
+{% endif %}

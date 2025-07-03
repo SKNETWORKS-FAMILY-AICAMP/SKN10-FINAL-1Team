@@ -13,62 +13,7 @@ from django.views.decorators.http import require_http_methods, require_POST
 from .models import ChatSession, ChatMessage, AgentType
 from asgiref.sync import sync_to_async
 
-@login_required
-def chatbot_view(request, session_id=None):
-    user = request.user
-    if session_id:
-        session = get_object_or_404(ChatSession, id=session_id, user=user)
-        initial_messages = ChatMessage.objects.filter(session_id=session_id).order_by('created_at')
-        
-        for message in initial_messages:
-            message.tool_calls = []
-            if message.role == 'assistant' and isinstance(message.tool_data, dict):
-                tool_events = {}
-                # This loop finds all tool calls and their arguments
-                for agent_state in message.tool_data.values():
-                    if isinstance(agent_state, dict) and 'messages' in agent_state:
-                        for msg in agent_state.get('messages', []):
-                            if isinstance(msg, dict) and msg.get('type') == 'ai' and msg.get('tool_calls'):
-                                for tc in msg.get('tool_calls', []):
-                                    if isinstance(tc, dict) and 'id' in tc:
-                                        try:
-                                            args_pretty = json.dumps(tc.get('args', {}), indent=2, ensure_ascii=False)
-                                        except (TypeError, json.JSONDecodeError):
-                                            args_pretty = str(tc.get('args', {}))
-                                        tc['args_pretty'] = args_pretty
-                                        tool_events[tc['id']] = {'call': tc, 'output': 'Pending...'}
-                
-                # This loop finds the output for each tool call
-                for agent_state in message.tool_data.values():
-                    if isinstance(agent_state, dict) and 'messages' in agent_state:
-                        for msg in agent_state.get('messages', []):
-                            if isinstance(msg, dict) and msg.get('type') == 'tool' and 'tool_call_id' in msg:
-                                tool_call_id = msg['tool_call_id']
-                                if tool_call_id in tool_events:
-                                    tool_events[tool_call_id]['output'] = msg.get('content', '')
 
-                # This formats the data for the template
-                if tool_events:
-                    processed_calls = []
-                    for event in tool_events.values():
-                        call_data = event.get('call', {})
-                        # Combine the 'call' dict with the 'output' key
-                        call_data['output'] = event.get('output', '')
-                        processed_calls.append(call_data)
-                    message.tool_calls = processed_calls
-
-        active_session_id = session_id
-    else:
-        initial_messages = []
-        active_session_id = None
-    
-    sessions = ChatSession.objects.filter(user=user, deleted_check=False).order_by('-started_at')
-
-    return render(request, 'conversations/chatbot.html', {
-        'sessions': sessions,
-        'initial_messages': initial_messages,
-        'active_session_id': active_session_id,
-    })
 
 
 @login_required

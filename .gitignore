@@ -18,3 +18,5 @@ env.bak/
 venv.bak/
 *.pyc
 .pem
+#모든 zip 파일
+*.zip

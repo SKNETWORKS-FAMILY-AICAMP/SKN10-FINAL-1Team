@@ -30,12 +30,10 @@ def admin_required(view_func):
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
         if not request.user.is_authenticated:
-            return redirect('accounts:login_page')  # 로그인 페이지 name에 맞게 수정
+            return redirect('accounts:login_page')
 
         if getattr(request.user, 'role', '') != 'admin':
-            messages.warning(request, "해당 계정은 접근할 수 없습니다.") 
-            return redirect('home')
-
+            request.show_permission_modal = True
         return view_func(request, *args, **kwargs)
     return _wrapped_view
 
@@ -44,6 +42,8 @@ def admin_required(view_func):
 @admin_required
 def dashboard_view(request, screen_type):
     context = {"screen_type" : screen_type}
+    if hasattr(request, 'show_permission_modal') and request.show_permission_modal:
+        context['show_permission_modal'] = True
     if screen_type == "home" :
         context['recent_sessions'] = get_5_sessions()
         context['recent_news'] = get_summary_news_keywords()
