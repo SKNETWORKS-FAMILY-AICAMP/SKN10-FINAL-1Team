@@ -41,20 +41,11 @@ def search_proceedings_by_filename(filename: str, top_k: int = 3) -> str:
     return doc_search_tools.proceedings_text_with_filename(filename, top_k)
 
 
-# --- Prediction Tools 등록 (머신러닝 예측) ---
-@mcp.tool
-def predict_churn(csv_data_string: str) -> str:
-    """고객 이탈 예측을 수행합니다. CSV 형식의 고객 데이터를 입력하세요."""
-    return predict_tools.predict_customer_churn(csv_data_string)
-
-
 
 if __name__ == "__main__":
     print("🚀 SKN10 MCP Server 시작 중...")
     print("📍 사용 가능한 도구들:")
     print("  - Document Search: 내부 정책, 기술 문서, 제품 문서, 회의록 검색")
-    print("  - Analyst Tools: 차트 생성")
-    print("  - Prediction: 고객 이탈 예측")
     print(f"🌐 서버가 http://0.0.0.0:8000 에서 실행됩니다.")
     
     # HTTP 방식으로 MCP 서버 실행

@@ -69,7 +69,7 @@ doc_search_assistant = create_react_agent(
     ],
     prompt=(
         """You are an expert document search assistant for the **Business Strategy Team**. Your access is limited to business strategy-related documents.\n\n"
-        "**모든 출력은 반드시 마크다운(특히 GFM) 형식으로 유저에게 전달해야 합니다. 정보를 정리할 때는 마크다운 테이블, 리스트 등 GFM 요소를 적극 활용하세요.**\n\n"
+        "**All outputs must be delivered to the user in markdown format (especially GFM). When organizing information, actively utilize GFM elements such as markdown tables, lists, etc.**\n\n"
         **Your Capabilities (Business Strategy Team Access Only):**
         - You can search across limited document types using specific tools:
           - `tool_proceedings`: For meeting minutes and official records (business strategy-related only).
@@ -111,6 +111,7 @@ analyst_assistant = create_react_agent(
 
         **1. Database Analysis (SQL):**
            - You can directly interact with the company's database for business intelligence.
+           - You can query customer information from the `customers` table and automatically collected news information from the `summary_news_keywords` table. not new article table.
            - Your SQL toolkit (`sql_tools_for_analyst`) includes:
              - `sql_db_list_tables`: To see all available data tables.
              - `sql_db_schema`: To understand the structure (columns, types) of specific tables.

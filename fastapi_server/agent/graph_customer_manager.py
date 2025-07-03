@@ -99,6 +99,7 @@ analyst_assistant = create_react_agent(
 
         **1. Database Analysis (SQL):**
            - You can directly interact with the company's database for customer management insights.
+           - You can query customer information from the `customers` table and automatically collected news information from the `summary_news_keywords` table. not new article table.
            - Your SQL toolkit (`sql_tools_for_analyst`) includes:
              - `sql_db_list_tables`: To see all available data tables.
              - `sql_db_schema`: To understand the structure (columns, types) of specific tables.

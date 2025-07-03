@@ -39,7 +39,7 @@ export function Sidebar({
     >
       {/* 사이드바 헤더 */}
       <div className="flex-shrink-0 p-4 border-b border-gray-200 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-800">AI 챗봇</h1>
+        <h1 className="text-xl font-bold text-gray-800">Trace Hub</h1>
         <Button
           variant="ghost"
           size="sm"
