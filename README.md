@@ -1,6 +1,4 @@
-#test
-
-## SKN10-FINAL-1Team
+## TSKN10-FINAL-1Team
 
 ## 프로젝트 개요
 이 프로젝트는 사용자가 채팅으로 업무를 요청할 수 있는 **지능형 사내 업무 보조 챗봇 시스템**입니다. 사용자의 질문 의도를 **AI 에이전트 총괄 시스템 LangGraph Supervisor**이 파악하여 적절한 전문 에이전트에게 작업을 분배합니다. 마치 오케스트라의 지휘자처럼, 슈퍼바이저는 전체적인 요청을 보고 적임자(에이전트)를 찾아 지시를 내립니다. 예를 들어, 회사 규정 관련 질문은 **문서 검색 전문 에이전트 RAG Agent**에게, 데이터 분석 요청은 **데이터 분석 전문 에이전트 Analytics Agent**에게 전달됩니다. 코드 관련 질문은 **코드 분석 에이전트**가 담당할 수 있습니다. 모든 데이터는 **애플리케이션 데이터 설계도 Django 모델**에 따라 체계적으로 저장되며, 프론트엔드는 **실시간 AI 통신 게이트웨이 FastAPI & WebSocket**를 통해 AI 시스템과 매끄럽게 연결되어 AI 답변 생성 과정을 실시간으로 보여줍니다 (스트리밍). 이 시스템은 복잡한 내부 구조를 몰라도 사용자가 AI를 사람과 대화하듯 편안하게 사용할 수 있도록 설계되었습니다.
@@ -27,4 +25,113 @@
     *   객체 스토리지: ![AWS S3](https://img.shields.io/badge/AWS_S3-569A31?style=flat-square&logo=amazons3&logoColor=white) (업로드 파일, 원본 문서, 모델 저장 등).
     *   ETL 스크립트: ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) ![AWS Lambda](https://img.shields.io/badge/AWS_Lambda-FF9900?style=flat-square&logo=awslambda&logoColor=white) (requests, psycopg2, tqdm, pdfplumber, beautifulsoup, OpenAI API 등 활용).
     *   배포: ![AWS EC2](https://img.shields.io/badge/AWS_EC2-FF9900?style=flat-square&logo=amazonec2&logoColor=white), ![Runpod](https://img.shields.io/badge/Runpod-6C47FF?style=flat-square&logo=runpod&logoColor=white) (VLLM 서빙).
-    *   툴 호출 표준: ![MCP](https://img.shields.io/badge/MCP-007ACC?style=flat-square&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAqFBMVEX///8AAP8AgP8AgIAAgIBVVaoAYIBAgIBAYGBAYIBJbYBJbXFJbW1Nc21NbnZNbnFNbm1QcXFQcXZQcW1SdG1SdHFSdG1VVXFVVXZVVXFVVWpVVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1
+    *   툴 호출 표준: ![MCP](https://img.shields.io/badge/MCP-007ACC?style=flat-square&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAqFBMVEX///8AAP8AgP8AgIAAgIBVVaoAYIBAgIBAYGBAYIBJbYBJbXFJbW1Nc21NbnZNbnFNbm1QcXFQcXZQcW1SdG1SdHFSdG1VVXFVVXZVVXFVVWpVVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1)
+
+## 설치 및 실행 방법
+
+### 1. 공통 설정: 가상환경 생성 및 활성화 (Python 프로젝트용)
+
+프로젝트 루트 디렉토리(`SKN10-FINAL-1Team`)에서 다음 명령어를 실행하여 Python 가상환경을 생성하고 활성화합니다.
+
+```bash
+# 가상환경 생성 (최초 1회)
+python -m venv .venv
+
+# 가상환경 활성화 (터미널 실행 시마다)
+# Windows
+.\.venv\Scripts\activate
+# macOS/Linux
+source .venv/bin/activate
+```
+**참고:** 이후 Python 기반 서버(Backend, FastAPI Server) 실행 전에는 항상 가상환경이 활성화되어 있어야 합니다.
+
+### 2. 백엔드 (Django) 실행
+
+1.  새 터미널을 열고 `backend` 디렉토리로 이동합니다.
+    ```bash
+    cd backend
+    ```
+2.  (가상환경이 활성화된 상태에서) Python 패키지를 설치합니다.
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  필요한 경우, `.env.example` 파일을 `.env`로 복사하고 내부의 환경 변수(데이터베이스 정보, API 키 등)를 설정합니다.
+4.  Django 데이터베이스 마이그레이션을 실행합니다.
+    ```bash
+    python manage.py migrate
+    ```
+5.  Django 개발 서버를 실행합니다. (기본 포트: 8000)
+    ```bash
+    python manage.py runserver
+    ```
+    백엔드 서버는 `http://localhost:8000` 에서 실행됩니다.
+
+### 3. 프론트엔드 (Next.js) 실행
+
+1.  새 터미널을 열고 `frontend` 디렉토리로 이동합니다.
+    ```bash
+    cd frontend
+    ```
+2.  Node.js 패키지를 설치합니다. (pnpm 사용 권장)
+    ```bash
+    pnpm install
+    ```
+    *   만약 pnpm이 설치되어 있지 않다면, 먼저 `npm install -g pnpm` 명령으로 pnpm을 설치하거나, `npm install` 또는 `yarn install`을 사용하세요.
+3.  필요한 경우, `.env.local.example` 또는 유사한 파일을 `.env.local`로 복사하고 내부의 환경 변수(API URL 등)를 설정합니다.
+4.  Next.js 개발 서버를 실행합니다. (기본 포트: 3000)
+    ```bash
+    pnpm dev
+    ```
+    *   또는 `npm run dev` / `yarn dev`
+    프론트엔드 개발 서버는 `http://localhost:3000` 에서 실행됩니다.
+
+### 4. FastAPI 서버 (AI Agent) 실행
+
+1.  새 터미널을 열고 `fastapi_server` 디렉토리로 이동합니다.
+    ```bash
+    cd fastapi_server
+    ```
+2.  (가상환경이 활성화된 상태에서) Python 패키지를 설치합니다.
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  필요한 경우, `.env.example` 파일을 `.env`로 복사하고 내부의 환경 변수(API 키, Pinecone 설정 등)를 설정합니다.
+4.  FastAPI 개발 서버를 실행합니다.
+    ```bash
+    python start_server.py
+    ```
+    *   또는 `uvicorn main:app --reload --port 8888` (만약 `main.py`에 `app` 객체가 정의되어 있고, `start_server.py`가 다른 방식으로 서버를 실행하지 않는 경우. 포트는 `start_server.py` 또는 `main.py` 내부 설정에 따라 다를 수 있습니다.)
+    FastAPI 서버는 일반적으로 `http://localhost:8888` 또는 `start_server.py`에 설정된 포트에서 실행됩니다.
+
+---
+**중요 사항:**
+- 각 서버(`backend`, `frontend`, `fastapi_server`)는 별도의 터미널에서 실행해야 합니다.
+- 각 프로젝트 디렉토리 내에 `.env.example` (또는 유사한 이름의 파일)이 있다면, 이를 복사하여 `.env` (또는 `frontend`의 경우 `.env.local`) 파일을 만들고, 프로젝트 실행에 필요한 환경 변수(API 키, 데이터베이스 접속 정보 등)를 실제 값으로 채워넣어야 합니다.
+
+## 팀원 및 역할 (Roles and Responsibilities)
+| 이름 | 이미지 | 역할 |
+| ------ | ------ | ------ |
+| **신정우** (PM) | <img src="./img/신정우.png" width="150"> | 데이터 분석 에이전트 개발 및 머신러닝 모델링 (프로젝트 기획 및 일정/이슈 관리 포함) |
+| **경규휘** | <img src="./img/경규희.png" width="150"> | 문서 검색 전문 에이전트 (RAG) 개발 및 데이터 검색 (Product 문서 데이터 수집 및 RAG 테스트 포함) |
+| **남궁승원** | <img src="./img/남궁승원.png" width="150"> | 데이터 분석 에이전트 개발 및 머신러닝 모델링 (ML 부분 포함) (기술 문서 및 사내 정책 문서 데이터 수집 포함) |
+| **이태수** | <img src="./img/이태수.png" width="150"> | 시장 조사 및 문서 검색 전문 에이전트 (RAG) 개발 (뉴스 수집 API 개발 및 이슈/동향 수집 포함) |
+| **황인호** | <img src="./img/인호.jpeg" width="150"> | AI 에이전트 총괄 시스템 (LangGraph Supervisor), 코드 에이전트, 프론트엔드 개발 (ERD, 배포, 데이터 조회 프로그램 개발 포함) |
+
+## 문서 구조 (Chapters)
+프로젝트의 핵심 구성 요소 및 개발 과정에 대한 자세한 내용은 다음 장에서 확인할 수 있습니다.
+1.  [애플리케이션 데이터 설계도 (Django 모델)](docs/01_애플리케이션_데이터_설계도__django_모델__.md)
+2.  [프론트엔드 채팅 UI](docs/02_프론트엔드_채팅_ui_.md)
+3.  [실시간 AI 통신 게이트웨이 (FastAPI & WebSocket)](docs/03_실시간_ai_통신_게이트웨이__fastapi___websocket__.md)
+4.  [AI 에이전트 총괄 시스템 (LangGraph Supervisor)](docs/04_ai_에이전트_총괄_시스템__langgraph_supervisor__.md)
+5.  [데이터 분석 전문 에이전트 (Analytics Agent)](docs/05_데이터_분석_전문_에이전트__analytics_agent__.md)
+6.  [문서 검색 전문 에이전트 (RAG Agent)](docs/06_문서_검색_전문_에이전트__rag_agent__.md)
+7.  [외부 데이터 수집 및 처리 (ETL)](docs/07_외부_데이터_수집_및_처리__etl__.md)
+8.  [프론트엔드-데이터베이스 연동](docs/08_프론트엔드_데이터베이스_연동_.md)
+
+## 협업 및 일정 관리
+*   **회의**: 정기적인 팀 회의를 통해 프로젝트 진행 상황 공유 및 다음 업무 논의.
+*   **회의록**: Notion, ClovaNote 등을 활용하여 회의 내용, 결정 사항, 개별 업무 내용 기록 및 공유.
+*   **코드 관리**: Git Repository를 사용하여 코드 버전 관리 및 협업.
+*   **일정/이슈 관리**: GitHub Project를 활용하여 업무 이슈 등록, 담당자 배정, 진행 상황 추적.
+*   **커뮤니케이션**: Discord, KakaoTalk 등을 활용하여 실시간 소통.
+*   **기술 스터디**: LangGraph, LangSmith, Pinecone 사용법 등 핵심 기술에 대한 팀원 간 스터디 진행.
