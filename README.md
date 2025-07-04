@@ -1,3 +1,5 @@
+#test
+
 ## SKN10-FINAL-1Team
 
 ## 프로젝트 개요
@@ -25,4 +27,4 @@
     *   객체 스토리지: ![AWS S3](https://img.shields.io/badge/AWS_S3-569A31?style=flat-square&logo=amazons3&logoColor=white) (업로드 파일, 원본 문서, 모델 저장 등).
     *   ETL 스크립트: ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white) ![AWS Lambda](https://img.shields.io/badge/AWS_Lambda-FF9900?style=flat-square&logo=awslambda&logoColor=white) (requests, psycopg2, tqdm, pdfplumber, beautifulsoup, OpenAI API 등 활용).
     *   배포: ![AWS EC2](https://img.shields.io/badge/AWS_EC2-FF9900?style=flat-square&logo=amazonec2&logoColor=white), ![Runpod](https://img.shields.io/badge/Runpod-6C47FF?style=flat-square&logo=runpod&logoColor=white) (VLLM 서빙).
-    *   툴 호출 표준: ![MCP](https://img.shields.io/badge/MCP-007ACC?style=flat-square&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAqFBMVEX///8AAP8AgP8AgIAAgIBVVaoAYIBAgIBAYGBAYIBJbYBJbXFJbW1Nc21NbnZNbnFNbm1QcXFQcXZQcW1SdG1SdHFSdG1VVXFVVXZVVXFVVWpVVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1
+    *   툴 호출 표준: ![MCP](https://img.shields.io/badge/MCP-007ACC?style=flat-square&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAABGdBTUEAALGPC/xhBQAAACBjSFJNAAB6JgAAgIQAAPoAAACA6AAAdTAAAOpgAAA6mAAAF3CculE8AAAAqFBMVEX///8AAP8AgP8AgIAAgIBVVaoAYIBAgIBAYGBAYIBJbYBJbXFJbW1Nc21NbnZNbnFNbm1QcXFQcXZQcW1SdG1SdHFSdG1VVXFVVXZVVXFVVWpVVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1VVW1
