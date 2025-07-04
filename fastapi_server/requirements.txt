@@ -29,4 +29,5 @@ pinecone[grpc]
 langchain-core==0.3.66
 langgraph-prebuilt==0.2.2
 langgraph-sdk==0.1.70
+langsmith>=0.2.0
 
