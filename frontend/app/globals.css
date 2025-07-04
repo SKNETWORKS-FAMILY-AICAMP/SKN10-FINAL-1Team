@@ -1,0 +1,335 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.prose pre, .prose table {
+  overflow-x: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.prose code {
+  word-break: break-word;
+}
+
+/* 인라인 코드 스타일 */
+.prose :not(pre) > code {
+  font-size: 0.875em;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  padding: 0.2em 0.4em;
+  background: #f1f3f4;
+  border: 1px solid #e1e5e9;
+  border-radius: 0.25rem;
+  color: #d63384;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* 코드 블록 스타일 */
+.prose pre {
+  margin: 1em 0;
+  padding: 1.25em;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 0.5rem;
+  color: #212529;
+  overflow-x: auto;
+  font-size: 0.875em;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  line-height: 1.6;
+  position: relative;
+}
+
+.prose pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-weight: normal;
+  border-radius: 0;
+}
+
+.prose p, .prose ul, .prose ol, .prose pre, .prose blockquote {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+
+/* 코드 에디터 스타일 */
+.code-editor-style {
+  background: #1e1e1e !important;
+  color: #d4d4d4 !important;
+  border: 1px solid #3c3c3c !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  margin: 12px 0 !important;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  overflow-x: auto !important;
+  position: relative !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+
+.code-editor-style::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: linear-gradient(135deg, #2d2d30 0%, #1e1e1e 100%);
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid #3c3c3c;
+}
+
+.code-editor-style::after {
+  content: '● ● ●';
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  color: #6a6a6a;
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+
+.code-editor-style code {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  color: inherit !important;
+  font-weight: normal !important;
+  border-radius: 0 !important;
+  margin-top: 24px !important;
+  display: block !important;
+}
+
+/* Prism.js 테마 커스터마이징 */
+.code-editor-style .token.comment,
+.code-editor-style .token.prolog,
+.code-editor-style .token.doctype,
+.code-editor-style .token.cdata {
+  color: #6a9955 !important;
+}
+
+.code-editor-style .token.punctuation {
+  color: #d4d4d4 !important;
+}
+
+.code-editor-style .token.property,
+.code-editor-style .token.tag,
+.code-editor-style .token.boolean,
+.code-editor-style .token.number,
+.code-editor-style .token.constant,
+.code-editor-style .token.symbol,
+.code-editor-style .token.deleted {
+  color: #b5cea8 !important;
+}
+
+.code-editor-style .token.selector,
+.code-editor-style .token.attr-name,
+.code-editor-style .token.string,
+.code-editor-style .token.char,
+.code-editor-style .token.builtin,
+.code-editor-style .token.inserted {
+  color: #ce9178 !important;
+}
+
+.code-editor-style .token.operator,
+.code-editor-style .token.entity,
+.code-editor-style .token.url,
+.language-css .token.string,
+.style .token.string {
+  color: #d4d4d4 !important;
+}
+
+.code-editor-style .token.atrule,
+.code-editor-style .token.attr-value,
+.code-editor-style .token.keyword {
+  color: #c586c0 !important;
+}
+
+.code-editor-style .token.function {
+  color: #dcdcaa !important;
+}
+
+.code-editor-style .token.regex,
+.code-editor-style .token.important,
+.code-editor-style .token.variable {
+  color: #d16969 !important;
+}
+
+.code-editor-style .token.important,
+.code-editor-style .token.bold {
+  font-weight: bold !important;
+}
+
+.code-editor-style .token.italic {
+  font-style: italic !important;
+}
+
+.code-editor-style .token.entity {
+  cursor: help !important;
+}
+
+/* 사이드바 스크롤 영역 스타일 */
+[data-slot="scroll-area"] {
+  overflow: hidden;
+}
+
+[data-slot="scroll-area-viewport"] {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+[data-slot="scroll-area-viewport"]::-webkit-scrollbar {
+  width: 6px;
+}
+
+[data-slot="scroll-area-viewport"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-slot="scroll-area-viewport"]::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 3px;
+}
+
+[data-slot="scroll-area-viewport"]::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* 세션 목록 스크롤 영역 */
+.session-list-scroll {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+/* 테이블 테두리 명확하게 */
+table, th, td {
+  border: 1px solid #d1d5db;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 8px;
+}

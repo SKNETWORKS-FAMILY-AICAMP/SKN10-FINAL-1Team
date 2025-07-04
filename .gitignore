@@ -1,0 +1,22 @@
+.env
+.venv
+/node_modules
+
+# Next.js
+.next
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+*.pyc
+.pem
+#모든 zip 파일
+*.zip

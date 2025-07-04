@@ -1,0 +1,37 @@
+# 환경 변수 및 시크릿 파일
+.env
+.env.*
+*.env
+
+# Git 관련 파일
+.git
+.gitignore
+
+# Python 캐시 파일
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 가상 환경
+.venv
+venv/
+ENV/
+env/
+
+# IDE 설정 파일
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 로그 파일
+*.log
+logs/
+
+# 기타 불필요한 파일
+.DS_Store

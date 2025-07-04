@@ -1,0 +1,30 @@
+# Use an official Python runtime as a parent image
+FROM python:3.11-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Update and upgrade packages to patch vulnerabilities
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+
+# Install uv (fast Python package installer)
+RUN pip install --upgrade pip && pip install uv
+
+# Copy the dependencies file to the working directory
+COPY requirements.txt .
+
+# Install any needed packages specified in requirements.txt using uv
+RUN uv pip install -r requirements.txt --system
+
+# Copy the rest of the application code to the working directory
+COPY . .
+
+# Copy the redeploy script and make it executable
+COPY redeploy.sh .
+RUN chmod +x redeploy.sh
+
+# Expose the port the app runs on
+EXPOSE 8000
+
+# Run the application using main.py script (sync context for better asyncio.run() support)
+CMD ["python", "main.py"]

@@ -1,0 +1,506 @@
+<div class="p-8">
+    <div class="mx-auto max-w-4xl">
+    <!-- alpine.js 임포트-->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+    <!-- alpine.js 임포트--> 
+    <section x-data="{
+        // 현재 열려 있는 모달 구분: 'add' | 'delete' | 'multiadd' | 'multidelete' |null
+        active: null,
+        // 공통 상태
+        loading: false, error: '',
+        // 모달별 폼 데이터
+        add:    { email:'', pw:'', pw_confirm:'', username:'' },
+        del:    { email:'' },
+        // 모달 열고 닫기
+        open(name) { this.active = name},
+        close() { 
+            this.active = null
+            this.error = ''
+        },
+        submitDelete(event) {
+            if (!this.del.email) {
+                this.error = '이메일을 입력해주세요!'
+            }
+            else {
+                // 확인창 띄우기
+                if (confirm('⚠️ 정말 이 계정을 삭제하시겠습니까?')) {
+                    this.loading = true
+                    this.close()
+                    this.$nextTick(() => event.target.submit())
+                }   
+            }
+        },
+        submitAdd(event) {
+            if (!this.add.email) {
+                this.error = '이메일을 입력해주세요!'
+            } else if (!this.add.pw) {
+                this.error = '비밀번호를 입력해주세요!'
+            } else if (!this.add.pw_confirm) {
+                this.error = '비밀번호 확인을 입력해주세요!'
+            } else if (this.add.pw !== this.add.pw_confirm) {
+                this.error = '두 비밀번호가 일치하지 않아요!'
+            } else if (!this.add.username) {
+                this.error = '사용자명을 입력해주세요!'
+            } else {
+                // 확인창 띄우기
+                if (confirm('⚠️ 정말 이 계정을 추가할까요?')) {
+                    this.loading = true
+                    this.close()
+                    this.$nextTick(() => event.target.submit())
+                }   
+            }
+        },
+        submitMultiAdd() {
+            // 1) 파일 체크
+            if (!$refs.addfile.files.length) {
+                this.error = '오류 : 파일을 선택해줘!'
+                return
+            }
+            // 1-1) CSV 확장자 체크
+            const file = $refs.addfile.files[0];
+            const name = file.name.toLowerCase();
+            if (!name.endsWith('.csv')) {
+                this.error = '오류 : CSV 파일만 업로드할 수 있어!';
+                return;
+            }
+            // 3) 확인창
+            if (!confirm(`⚠️ 주의사항 : 주어진 파일에서 컬럼값이 일부 비어있거나 형식이 맞지 않다면 일부 데이터는 추가가 되지 않습니다! 계정 추가를 진행하시겠습니까?`)) {
+                return
+            }
+            // 4) 모두 통과하면 로딩 켜고 폼 제출
+            this.loading = true
+            this.close()
+            $refs.multiAddForm.submit()
+        },
+        submitMultiDelete() {
+            // 1) 파일 체크
+            if (!$refs.deletefile.files.length) {
+                this.error = '오류 : 파일을 선택해줘!'
+                return
+            }
+            // 1-1) CSV 확장자 체크
+            const file = $refs.deletefile.files[0];
+            const name = file.name.toLowerCase();
+            if (!name.endsWith('.csv')) {
+                this.error = '오류 : CSV 파일만 업로드할 수 있어!';
+                return;
+            }
+            // 3) 확인창
+            if (!confirm(`⚠️ 주의사항 : 주어진 파일에서 해당 이메일을 가진 유저들은 모두 지워집니다. 삭제를 진행하시겠습니까?`)) {
+                return
+            }
+            // 4) 모두 통과하면 로딩 켜고 폼 제출
+            this.loading = true
+            this.close()
+            $refs.multiDeleteForm.submit()
+        },
+    }"
+    class="rounded-lg bg-white p-6 shadow-md border border-gray-200">
+    <div class="flex items-center justify-between mb-6">
+        <h3 class="text-[var(--text-primary)] text-2xl font-semibold leading-tight tracking-[-0.015em]">사용자 목록</h3>
+        <div class="flex items-center gap-4 ml-auto">
+    
+        <!-- 계정 추가 Alpine 컴포넌트 시작 -->
+        <div class="relative">
+        <!-- 1) 계정 추가 버튼 -->
+
+        <button
+            @click="open('add')"
+            class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
+        ><span class="material-icons-outlined font-bold">계정 추가</span></button>
+
+        <!-- 2) 계정 추가 모달 박스 -->
+        <div x-show="active === 'add'" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 class="text-lg font-semibold">계정 추가</h2>
+                <button @click="close()" class="text-xl leading-none">&times;</button>
+            </div>
+
+
+            <form
+                action="{% url 'knowledge:create_user' %}"
+                method="post"
+                class="px-6 py-4 space-y-4"
+                @submit.prevent="submitAdd($event)">
+                {% csrf_token %}
+                
+                <!-- 에러 메시지 -->
+                <div
+                x-show="error"
+                class="flex items-start space-x-2 bg-red-50 border-l-4 border-red-600 text-red-700 p-3 rounded-md shadow-sm mt-2"
+                >
+                <!-- 실제 메시지 -->
+                <span x-text="error" class="text-sm"></span>
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">이메일</label>
+                <input type="email" name="email"
+                x-model="add.email"
+                @input="error = ''"
+                class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">비밀번호</label>
+                <input type="password" name="pw"
+                x-model="add.pw"
+                @input="error = ''"
+                class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">비밀번호 확인</label>
+                <input type="password" name="pw_confirm"
+                x-model="add.pw_confirm"
+                @input="error = ''"
+                class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">사용자명</label>
+                <input name="username"
+                x-model="add.username"
+                @input="error = ''"
+                class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">권한</label>
+                <select id="authority" name="authority" class="w-full border rounded p-2">
+                    <option value="admin">admin</option>
+                    <option value="employee">employee</option>
+                    <option value="guest">guest</option>
+                </select>
+                </div>
+
+                <div>
+                <label class="block text-sm font-medium">부서</label>
+                <select id="department" name="department" class="w-full border rounded p-2">
+                    <option value="development">development</option>
+                    <option value="business_strategy">business_strategy</option>
+                    <option value="customer_management">customer_management</option>
+                    <option value="administrator">administrator</option>
+                </select>
+                </div>
+
+
+                <div class="text-right space-x-2">
+                <button type="button" @click="close()" class="px-4 py-2 rounded border hover:bg-gray-100">취소</button>
+                <button type="submit" class="px-4 py-2 rounded bg-orange-400 hover:bg-orange-600 text-white">추가</button>
+                </div>
+            </form>
+            </div>
+        </div>
+        </div>
+        <!-- 계정 추가 Alpine 컴포넌트 끝 -->
+
+        <!-- 다중 계정 추가 Alpine 컴포넌트 시작 -->
+        <div class="relative">
+
+        <!-- 1) 다중 계정 생성 버튼 -->
+        <button 
+        @click="open('multiadd')"
+        class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-orange-400 hover:bg-orange-600 text-black"
+        ><span class="material-icons-outlined font-bold">다중 계정 추가</span></button>
+
+        <!-- 2) 다중 계정 생성 모달 박스 -->
+        <div x-show="active === 'multiadd'" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 class="text-lg font-semibold">다중 계정 추가</h2>
+                <button @click="close()" class="text-xl leading-none">&times;</button>
+            </div>
+            
+            <!-- 주의사항 -->
+            <p class="flex text-sm items-start space-x-2 bg-red-50 text-red-700 p-3 rounded-md shadow-sm m-4 ">
+                ※주의사항 :<br>
+                1. 입력 파일은 csv파일이어야 함. <br>
+                2. name, id, authority, department 컬럼으로 구성되어야 함.<br>
+                3. 컬럼값은 null값이 없어야 함.  
+            </p>
+
+            <form
+                action="{% url 'knowledge:create_multi_user' %}"
+                method="post"
+                class="px-6 space-y-4"
+                enctype="multipart/form-data"
+                x-ref="multiAddForm"
+                @submit.prevent="submitMultiAdd()">
+                {% csrf_token %}
+
+                <div>
+                <label class="block text-sm font-medium">📂 추가할 직원들의 정보가 담긴 csv파일을 넣어주세요! </label>
+                <input type="file" name="file" x-ref="addfile" class="mt-2 w-full border rounded px-3 py-2" />
+                </div>
+    
+                <!-- 에러 메시지 -->
+                <p x-show="error" x-text="error" class="text-red-600 text-sm mt-2"></p>
+
+                <div class="text-right space-x-2">
+                <button type="button" @click="close()" class="px-4 py-2 rounded border hover:bg-gray-100">취소</button>
+                <button type="submit" class="px-4 py-2 rounded bg-orange-500 hover:bg-orange-700 text-white">추가</button>
+                </div>
+                
+            </form>
+            </div>
+        </div>
+        </div>
+        <!-- 다중 계정 추가 Alpine 컴포넌트 끝 -->
+        
+        <!-- 계정 삭제 Alpine 컴포넌트 시작 -->
+        <div class="relative">
+
+        <!-- 1) 계정 삭제 버튼 -->
+        <button
+            @click="open('delete')"
+            class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-red-400 hover:bg-red-600 text-black"
+        ><span class="material-icons-outlined font-bold">계정 삭제</span></button>
+
+        <!-- 2) 계정 삭제 모달 박스 -->
+        <div
+            x-show="active === 'delete'"
+            class="fixed inset-0 flex items-center justify-center z-50 p-4"
+            x-cloak
+        >
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 class="text-lg font-semibold">계정 삭제</h2>
+                <button @click="close()" class="text-xl leading-none">&times;</button>
+            </div>
+
+            <form
+                action="{% url 'knowledge:delete_user' %}"
+                method="post"
+                class="px-6 py-4 space-y-4"
+                @submit.prevent="submitDelete($event)">
+                {% csrf_token %}
+
+                <!-- 에러 메시지 -->
+                <div x-show="error"
+                class="flex items-start space-x-2 bg-red-50 border-l-4 border-red-600 text-red-700 p-3 rounded-md shadow-sm mt-2">
+                <!-- 실제 메시지 -->
+                <span x-text="error" class="text-sm"></span>
+                </div>
+                
+                <div>
+                <label class="block text-sm font-medium">🆔<span class="text-red-500"> 삭제할 이메일</span>을 입력하세요! </label>
+                <input type="email" name="email" x-model="del.email" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+    
+                <div class="text-right space-x-2">
+                <button type="button" @click="close()" class="px-4 py-2 rounded border hover:bg-gray-100">취소</button>
+                <button type="submit" class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white">삭제</button>
+                </div>
+            </form>
+            </div>
+        </div>
+        </div>
+        <!-- 계정 삭제 Alpine 컴포넌트 끝 -->
+
+        <!-- 다중 계정 삭제 Alpine 컴포넌트 시작 -->
+        <div class="relative">
+
+        <!-- 1) 다중 계정 삭제 버튼 -->
+        <button 
+        @click="open('multidelete')"
+        class="flex items-center gap-3 rounded-full px-6 py-1.5 bg-red-400 hover:bg-red-600 text-black"
+        ><span class="material-icons-outlined font-bold">다중 계정 삭제</span></button>
+
+        <!-- 2) 다중 계정 삭제 모달 박스 -->
+        <div x-show="active === 'multidelete'" class="fixed inset-0 flex items-center justify-center z-50 p-4" x-cloak>
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 class="text-lg font-semibold">다중 계정 삭제</h2>
+                <button @click="close()" class="text-xl leading-none">&times;</button>
+            </div>
+            
+            <!-- 주의사항 -->
+            <p class="flex text-sm items-start space-x-2 bg-red-50 text-red-700 p-3 rounded-md shadow-sm m-4 ">
+                ※주의사항 :<br>
+                1. 입력 파일은 csv파일이어야 함. <br>
+                2. email 컬럼만 구성되어야 함.<br>
+                3. 컬럼값은 null값이 없어야 함.  
+            </p>
+
+            <form
+                action="{% url 'knowledge:delete_multi_user' %}"
+                method="post"
+                class="px-6 space-y-4"
+                enctype="multipart/form-data"
+                x-ref="multiDeleteForm"
+                @submit.prevent="submitMultiDelete()">
+                {% csrf_token %}
+
+                <div>
+                <label class="block text-sm font-medium">📂 <span class="text-red-500">삭제할 이메일들이 담긴 csv파일</span>을 넣어주세요! </label>
+                <input type="file" name="file" x-ref="deletefile" class="mt-2 w-full border rounded px-3 py-2" />
+                </div>
+    
+                <!-- 에러 메시지 -->
+                <p x-show="error" x-text="error" class="text-red-600 text-sm mt-2"></p>
+
+                <div class="text-right space-x-2">
+                <button type="button" @click="close()" class="px-4 py-2 rounded border hover:bg-gray-100">취소</button>
+                <button type="submit" class="px-4 py-2 rounded bg-red-500 hover:bg-red-700 text-white">삭제</button>
+                </div>
+                
+            </form>
+            </div>
+        </div>
+        </div>
+        <!-- 다중 계정 추가 Alpine 컴포넌트 끝 -->
+
+
+
+        <!-- 공통 백그라운드 오버레이 -->
+        <div
+            x-show="active"
+            x-cloak
+            class="fixed inset-0 bg-black bg-opacity-50 z-40"
+            @click="close()"
+        ></div>
+
+        <!-- 공통 로딩화면 -->
+        <div x-show="loading" class="fixed inset-0 flex items-center justify-center bg-white bg-opacity-70 z-60">
+        <svg class="animate-spin h-12 w-12 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" sroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z">
+        </path>
+        </svg>
+        </div>
+        </div>
+
+    </div>
+    <p class="text-base font-medium text-[var(--text-primary)] py-4">총 <span class="text-orange-500 font-semibold">{{users.paginator.count}}</span>명의 사용자가 있습니다.</p>
+    <div class="@container">
+    <div class="overflow-x-auto rounded-lg border border-[var(--border-color)]">
+    <table class="min-w-full divide-y divide-[var(--border-color)]">
+    <thead class="bg-slate-50">
+    <tr>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            사용자명
+                            </th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            이메일
+                            </th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            역할
+                            </th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            부서
+                            </th>
+    <th class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 px-6 py-4 text-left text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider" scope="col">
+                            생성 날짜
+                            </th>
+    </tr>
+    </thead>
+    <tbody class="divide-y divide-[var(--border-color)] bg-white">
+    {% for user in users %}
+        <tr>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 whitespace-nowrap px-6 py-4 text-sm font-medium text-[var(--text-primary)]">{{user.name}}</td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{user.email}}</td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{user.role}}</td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{user.org}}</td>
+        <td class="table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 whitespace-nowrap px-6 py-4 text-sm text-[var(--text-secondary)]">{{user.created_at}}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+    </table>
+    </div>
+    <!-- 페이징처리 시작 -->
+    <nav aria-label="Pagination" class="py-6">
+    <ul class="flex items-center justify-center space-x-2">
+        <!-- 이전 페이지 -->
+        {% if users.has_previous %}
+        <li>
+            <a href="?page={{ users.previous_page_number }}"
+                class="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100">
+                이전
+            </a>
+        </li>
+        {% else %}
+        <li>
+            <span
+                class="px-3 py-1 border border-gray-200 rounded-md text-gray-400 bg-gray-100 cursor-not-allowed">
+                이전
+            </span>
+        </li>
+        {% endif %}
+
+        <!-- 페이지 번호 -->
+        {% for page_number in users.paginator.page_range %}
+        {% if page_number >= users.number|add:-5 and page_number <= users.number|add:5 %}
+        {% if page_number == users.number %}
+        <li>
+            <span class="px-3 py-1 bg-blue-600 text-white border border-blue-600 rounded-md">
+            {{ page_number }}
+            </span>
+        </li>
+        {% else %}
+        <li>
+            <a href="?page={{ page_number }}"
+            class="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100">
+            {{ page_number }}
+            </a>
+        </li>
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+
+        <!-- 다음 페이지 -->
+        {% if users.has_next %}
+        <li>
+            <a href="?page={{ users.next_page_number }}"
+                class="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-100">
+                다음
+            </a>
+        </li>
+        {% else %}
+        <li>
+            <span
+                class="px-3 py-1 border border-gray-200 rounded-md text-gray-400 bg-gray-100 cursor-not-allowed">
+                다음
+            </span>
+        </li>
+        {% endif %}
+    </ul>
+    </nav>
+    <!-- 페이징처리 끝 -->
+    <style>
+                        @container(max-width:120px) {
+                        .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-120 {
+                            display: none;
+                        }
+                        }
+                        @container(max-width:240px) {
+                        .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-240 {
+                            display: none;
+                        }
+                        }
+                        @container(max-width:360px) {
+                        .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-360 {
+                            display: none;
+                        }
+                        }
+                        @container(max-width:480px) {
+                        .table-1fe95620-04dc-4fb3-af13-df40c44c1ea2-column-480 {
+                            display: none;
+                        }
+                        }
+                    </style>
+    </div>
+    </section>
+    <!-- 성공 메시지 출력 또는 에러 메시지 출력-->
+    {% if messages %}
+        {% for message in messages %}
+            <script>alert("{{ message|escapejs }}");</script>
+        {% endfor %}
+    {% endif %}
+    </div>
+    </div>
