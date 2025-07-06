@@ -2,7 +2,9 @@ from langchain_core.tools import Tool
 from pydantic import BaseModel, Field
 from openai import OpenAI
 import os
+from dotenv import load_dotenv
 
+load_dotenv()
 # OpenAI 클라이언트를 초기화합니다.
 # 환경 변수에서 OPENAI_API_KEY를 자동으로 사용합니다.
 client = OpenAI()

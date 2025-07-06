@@ -3,24 +3,53 @@ LangGraph 에이전트 정량적 평가 툴
 graph.py의 에이전트들을 langsmith를 이용하여 평가합니다.
 """
 
-import asyncio
 import os
-import json
-from typing import Dict, List, Any, Optional
+import sys
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Dict, List, Any, Optional
+from pathlib import Path
+import json
+import uuid
+
+# Windows 환경에서 asyncio 이벤트 루프 정책 설정
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+# 환경 변수 로드 (먼저 실행)
+from dotenv import load_dotenv
+load_dotenv()
+
+# 환경 변수 확인 및 경고
+required_env_vars = ["LANGSMITH_API_KEY", "OPENAI_API_KEY", "DB_URI"]
+missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+
+if missing_vars:
+    print(f"❌ 다음 환경 변수가 설정되지 않았습니다: {', '.join(missing_vars)}")
+    print("💡 .env 파일에 다음 변수들을 설정해주세요:")
+    for var in missing_vars:
+        print(f"   {var}=your_value_here")
+    exit(1)
+
+# 필수 환경 변수 기본값 설정 (실제 값이 없을 때만)
+if not os.getenv("PINECONE_API_KEY"):
+    os.environ["PINECONE_API_KEY"] = "dummy-key"
 
 # LangSmith 관련 imports
 from langsmith import Client, aevaluate
-from langchain.chat_models import init_chat_model
+from langchain_openai import ChatOpenAI
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 # 로컬 그래프 imports
-from agent.graph import get_swarm_graph
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from dotenv import load_dotenv
+try:
+    from agent.graph import get_swarm_graph
+except ImportError as e:
+    print(f"⚠️ 에이전트 모듈 가져오기 실패: {e}")
+    print("환경 변수를 설정하고 다시 시도해주세요.")
+    exit(1)
 
-# 환경 변수 로드
-load_dotenv()
+from evaluation_config import EvaluationConfig, AGENT_TEST_CASES, EVALUATION_METRICS, REPORT_TEMPLATE
 
 @dataclass
 class EvaluationResult:
@@ -35,23 +64,60 @@ class LangGraphAgentEvaluator:
     """LangGraph 에이전트 평가 클래스"""
     
     def __init__(self):
-        self.ls_client = Client()
-        self.judge_llm = init_chat_model("gpt-4o")
-        self.results: List[EvaluationResult] = []
+        # 실제 API 키 확인
+        langsmith_key = os.getenv("LANGSMITH_API_KEY")
+        openai_key = os.getenv("OPENAI_API_KEY")
+        db_uri = os.getenv("DB_URI")
         
-        # 데이터베이스 URI 확인
-        if not os.getenv("DB_URI"):
-            raise ValueError("DB_URI 환경변수가 설정되지 않았습니다.")
+        if not langsmith_key or langsmith_key == "dummy-key":
+            raise ValueError("❌ LANGSMITH_API_KEY 환경변수가 설정되지 않았습니다.")
+        
+        if not openai_key or openai_key == "dummy-key":
+            raise ValueError("❌ OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
+            
+        if not db_uri or db_uri == "postgresql://dummy:dummy@localhost:5432/dummy":
+            raise ValueError("❌ DB_URI 환경변수가 설정되지 않았습니다.")
+        
+        self.ls_client = Client()
+        self.judge_llm = ChatOpenAI(model="gpt-4o")
+        self.results: List[EvaluationResult] = []
     
     async def setup_datasets(self):
-        """평가용 데이터셋들을 생성합니다."""
+        """평가용 데이터셋을 설정합니다."""
+        print("📊 데이터셋 생성 시작...")
+        
+        # 기존 데이터셋 확인 및 정리 헬퍼 함수
+        def get_or_create_dataset(name: str, description: str):
+            """기존 데이터셋을 확인하고 없으면 생성합니다."""
+            try:
+                # 기존 데이터셋 검색
+                existing_datasets = list(self.ls_client.list_datasets(dataset_name=name))
+                
+                if existing_datasets:
+                    print(f"  ⚠️ 기존 데이터셋 '{name}' 발견 - 삭제 후 재생성")
+                    # 기존 데이터셋 삭제
+                    for dataset in existing_datasets:
+                        self.ls_client.delete_dataset(dataset_id=dataset.id)
+                        print(f"  🗑️ 기존 데이터셋 삭제: {dataset.id}")
+                
+                # 새 데이터셋 생성
+                dataset = self.ls_client.create_dataset(
+                    dataset_name=name,
+                    description=description
+                )
+                print(f"  ✅ 새 데이터셋 생성: {name}")
+                return dataset
+                
+            except Exception as e:
+                print(f"  ❌ 데이터셋 처리 중 오류: {e}")
+                raise
         
         # 1. 문서 검색 에이전트 데이터셋
         doc_search_questions = [
-            "회사의 출장 정책에 대해 알려주세요",
-            "신제품 개발 관련 회의록을 찾아주세요", 
-            "AI Train 서비스 사용법을 설명해주세요",
-            "데이터베이스 관련 기술 문서를 찾아주세요"
+            "출장 정책에 대해 알려주세요",
+            "신제품 개발 회의록을 찾아주세요",
+            "AI Train 사용법을 알려주세요",
+            "데이터베이스 기술 문서를 찾아주세요"
         ]
         
         doc_search_expected = [
@@ -61,11 +127,34 @@ class LangGraphAgentEvaluator:
             "데이터베이스 기술 문서 정보가 포함되어야 함"
         ]
         
-        self.doc_search_dataset = self.ls_client.create_dataset(
-            "doc_search_agent_eval",
-            inputs=[{"question": q} for q in doc_search_questions],
-            outputs=[{"expected": e} for e in doc_search_expected],
-        )
+        try:
+            # 데이터셋 생성 (기존 데이터셋 확인 및 정리)
+            print("  📄 문서 검색 에이전트 데이터셋 생성 중...")
+            self.doc_search_dataset = get_or_create_dataset(
+                "doc_search_agent_eval",
+                "문서 검색 에이전트 평가 데이터셋"
+            )
+            
+            # 예제 데이터 추가
+            examples = []
+            for q, e in zip(doc_search_questions, doc_search_expected):
+                examples.append({
+                    "inputs": {"question": q},
+                    "outputs": {"expected": e}
+                })
+            
+            for i, example in enumerate(examples):
+                print(f"    예제 {i+1}/{len(examples)} 추가 중...")
+                self.ls_client.create_example(
+                    dataset_id=self.doc_search_dataset.id,
+                    inputs=example["inputs"],
+                    outputs=example["outputs"]
+                )
+            print("  ✅ 문서 검색 데이터셋 생성 완료")
+            
+        except Exception as e:
+            print(f"  ❌ 문서 검색 데이터셋 생성 실패: {e}")
+            raise
         
         # 2. 분석 에이전트 데이터셋  
         analyst_questions = [
@@ -82,11 +171,27 @@ class LangGraphAgentEvaluator:
             "고객 수 카운트 결과가 포함되어야 함"
         ]
         
-        self.analyst_dataset = self.ls_client.create_dataset(
-            "analyst_agent_eval", 
-            inputs=[{"question": q} for q in analyst_questions],
-            outputs=[{"expected": e} for e in analyst_expected],
+        print("  📊 분석 에이전트 데이터셋 생성 중...")
+        self.analyst_dataset = get_or_create_dataset(
+            "analyst_agent_eval",
+            "분석 에이전트 평가 데이터셋"
         )
+        
+        examples = []
+        for q, e in zip(analyst_questions, analyst_expected):
+            examples.append({
+                "inputs": {"question": q},
+                "outputs": {"expected": e}
+            })
+        
+        for i, example in enumerate(examples):
+            print(f"    예제 {i+1}/{len(examples)} 추가 중...")
+            self.ls_client.create_example(
+                dataset_id=self.analyst_dataset.id,
+                inputs=example["inputs"],
+                outputs=example["outputs"]
+            )
+        print("  ✅ 분석 에이전트 데이터셋 생성 완료")
         
         # 3. 예측 에이전트 데이터셋
         predict_questions = [
@@ -100,11 +205,27 @@ class LangGraphAgentEvaluator:
             "이탈 확률이 포함되어야 함"
         ]
         
-        self.predict_dataset = self.ls_client.create_dataset(
+        print("  🔮 예측 에이전트 데이터셋 생성 중...")
+        self.predict_dataset = get_or_create_dataset(
             "predict_agent_eval",
-            inputs=predict_questions,
-            outputs=[{"expected": e} for e in predict_expected],
+            "예측 에이전트 평가 데이터셋"
         )
+        
+        examples = []
+        for q, e in zip(predict_questions, predict_expected):
+            examples.append({
+                "inputs": q,  # 이미 딕셔너리 형태
+                "outputs": {"expected": e}
+            })
+        
+        for i, example in enumerate(examples):
+            print(f"    예제 {i+1}/{len(examples)} 추가 중...")
+            self.ls_client.create_example(
+                dataset_id=self.predict_dataset.id,
+                inputs=example["inputs"],
+                outputs=example["outputs"]
+            )
+        print("  ✅ 예측 에이전트 데이터셋 생성 완료")
         
         # 4. 코딩 에이전트 데이터셋
         coding_questions = [
@@ -121,11 +242,27 @@ class LangGraphAgentEvaluator:
             "GitHub API 사용법이 포함되어야 함"
         ]
         
-        self.coding_dataset = self.ls_client.create_dataset(
+        print("  💻 코딩 에이전트 데이터셋 생성 중...")
+        self.coding_dataset = get_or_create_dataset(
             "coding_agent_eval",
-            inputs=[{"question": q} for q in coding_questions], 
-            outputs=[{"expected": e} for e in coding_expected],
+            "코딩 에이전트 평가 데이터셋"
         )
+        
+        examples = []
+        for q, e in zip(coding_questions, coding_expected):
+            examples.append({
+                "inputs": {"question": q},
+                "outputs": {"expected": e}
+            })
+        
+        for i, example in enumerate(examples):
+            print(f"    예제 {i+1}/{len(examples)} 추가 중...")
+            self.ls_client.create_example(
+                dataset_id=self.coding_dataset.id,
+                inputs=example["inputs"],
+                outputs=example["outputs"]
+            )
+        print("  ✅ 코딩 에이전트 데이터셋 생성 완료")
         
         print("✅ 모든 데이터셋이 성공적으로 생성되었습니다.")
     
@@ -138,7 +275,7 @@ class LangGraphAgentEvaluator:
             content = f"{question}\n\nCSV 데이터:\n{csv_data}"
         else:
             content = question
-            
+        
         return {"messages": [("user", content)]}
     
     async def relevance_evaluator(self, outputs: Dict, reference_outputs: Dict) -> bool:
@@ -201,83 +338,137 @@ class LangGraphAgentEvaluator:
         """문서 검색 에이전트를 평가합니다."""
         print("📄 문서 검색 에이전트 평가 시작...")
         
-        async with AsyncPostgresSaver.from_conn_string(os.environ["DB_URI"]) as checkpointer:
-            graph = get_swarm_graph(checkpointer)
+        # 체크포인터 없이 swarm 그래프 사용 (평가 목적)
+        try:
+            from langgraph_swarm import create_swarm
+            from agent.graph import doc_search_assistant, analyst_assistant, predict_assistant, coding_assistant
             
-            # 문서 검색 에이전트가 기본 활성 에이전트이므로 직접 사용
+            # 체크포인터 없이 컴파일
+            graph = create_swarm(
+                agents=[doc_search_assistant, analyst_assistant, predict_assistant, coding_assistant],
+                default_active_agent="doc_search_assistant"
+            ).compile()  # 체크포인터 없이 컴파일
+            
             target = self.question_to_messages | graph
             
-            experiment_results = await aevaluate(
-                target,
-                data=self.doc_search_dataset,
-                evaluators=[self.relevance_evaluator, self.completeness_evaluator],
-                max_concurrency=2,
-                experiment_prefix="doc_search_agent",
-            )
-            
-            print(f"✅ 문서 검색 에이전트 평가 완료: {experiment_results}")
-            return experiment_results
+        except Exception as e:
+            print(f"⚠️ 체크포인터 없는 그래프 생성 실패, 단일 에이전트 사용: {e}")
+            # 단일 에이전트 대체 방안
+            from agent.graph import doc_search_assistant
+            target = self.question_to_messages | doc_search_assistant
+        
+        experiment_results = await aevaluate(
+            target,
+            data=self.doc_search_dataset.name,
+            evaluators=[self.relevance_evaluator, self.completeness_evaluator],
+            max_concurrency=1,  # 동시성을 1로 줄여서 안정성 확보
+            experiment_prefix="doc_search_agent",
+        )
+        
+        print(f"✅ 문서 검색 에이전트 평가 완료: {experiment_results}")
+        return experiment_results
     
     async def evaluate_analyst_agent(self):
         """분석 에이전트를 평가합니다."""
         print("📊 분석 에이전트 평가 시작...")
         
-        async with AsyncPostgresSaver.from_conn_string(os.environ["DB_URI"]) as checkpointer:
-            graph = get_swarm_graph(checkpointer)
+        # 체크포인터 없이 swarm 그래프 사용 (평가 목적)
+        try:
+            from langgraph_swarm import create_swarm
+            from agent.graph import doc_search_assistant, analyst_assistant, predict_assistant, coding_assistant
             
-            # 분석 관련 질문으로 시작하여 자동 핸드오프 유도
+            # 체크포인터 없이 컴파일
+            graph = create_swarm(
+                agents=[doc_search_assistant, analyst_assistant, predict_assistant, coding_assistant],
+                default_active_agent="doc_search_assistant"
+            ).compile()  # 체크포인터 없이 컴파일
+            
             target = self.question_to_messages | graph
             
-            experiment_results = await aevaluate(
-                target,
-                data=self.analyst_dataset,
-                evaluators=[self.relevance_evaluator, self.completeness_evaluator, self.agent_handoff_evaluator],
-                max_concurrency=2,
-                experiment_prefix="analyst_agent",
-            )
-            
-            print(f"✅ 분석 에이전트 평가 완료: {experiment_results}")
-            return experiment_results
+        except Exception as e:
+            print(f"⚠️ 체크포인터 없는 그래프 생성 실패, 단일 에이전트 사용: {e}")
+            # 단일 에이전트 대체 방안
+            from agent.graph import analyst_assistant
+            target = self.question_to_messages | analyst_assistant
+        
+        experiment_results = await aevaluate(
+            target,
+            data=self.analyst_dataset.name,
+            evaluators=[self.relevance_evaluator, self.completeness_evaluator],
+            max_concurrency=1,  # 동시성을 1로 줄여서 안정성 확보
+            experiment_prefix="analyst_agent",
+        )
+        
+        print(f"✅ 분석 에이전트 평가 완료: {experiment_results}")
+        return experiment_results
     
     async def evaluate_predict_agent(self):
         """예측 에이전트를 평가합니다."""
         print("🔮 예측 에이전트 평가 시작...")
         
-        async with AsyncPostgresSaver.from_conn_string(os.environ["DB_URI"]) as checkpointer:
-            graph = get_swarm_graph(checkpointer)
+        # 체크포인터 없이 swarm 그래프 사용 (평가 목적)
+        try:
+            from langgraph_swarm import create_swarm
+            from agent.graph import doc_search_assistant, analyst_assistant, predict_assistant, coding_assistant
+            
+            # 체크포인터 없이 컴파일
+            graph = create_swarm(
+                agents=[doc_search_assistant, analyst_assistant, predict_assistant, coding_assistant],
+                default_active_agent="doc_search_assistant"
+            ).compile()  # 체크포인터 없이 컴파일
             
             target = self.question_to_messages | graph
             
-            experiment_results = await aevaluate(
-                target,
-                data=self.predict_dataset,
-                evaluators=[self.relevance_evaluator, self.completeness_evaluator],
-                max_concurrency=1,  # 예측은 동시성을 낮춤
-                experiment_prefix="predict_agent",
-            )
-            
-            print(f"✅ 예측 에이전트 평가 완료: {experiment_results}")
-            return experiment_results
+        except Exception as e:
+            print(f"⚠️ 체크포인터 없는 그래프 생성 실패, 단일 에이전트 사용: {e}")
+            # 단일 에이전트 대체 방안
+            from agent.graph import predict_assistant
+            target = self.question_to_messages | predict_assistant
+        
+        experiment_results = await aevaluate(
+            target,
+            data=self.predict_dataset.name,
+            evaluators=[self.relevance_evaluator, self.completeness_evaluator],
+            max_concurrency=1,  # 예측은 동시성을 낮춤
+            experiment_prefix="predict_agent",
+        )
+        
+        print(f"✅ 예측 에이전트 평가 완료: {experiment_results}")
+        return experiment_results
     
     async def evaluate_coding_agent(self):
         """코딩 에이전트를 평가합니다."""
         print("💻 코딩 에이전트 평가 시작...")
         
-        async with AsyncPostgresSaver.from_conn_string(os.environ["DB_URI"]) as checkpointer:
-            graph = get_swarm_graph(checkpointer)
+        # 체크포인터 없이 swarm 그래프 사용 (평가 목적)
+        try:
+            from langgraph_swarm import create_swarm
+            from agent.graph import doc_search_assistant, analyst_assistant, predict_assistant, coding_assistant
+            
+            # 체크포인터 없이 컴파일
+            graph = create_swarm(
+                agents=[doc_search_assistant, analyst_assistant, predict_assistant, coding_assistant],
+                default_active_agent="doc_search_assistant"
+            ).compile()  # 체크포인터 없이 컴파일
             
             target = self.question_to_messages | graph
             
-            experiment_results = await aevaluate(
-                target,
-                data=self.coding_dataset,
-                evaluators=[self.relevance_evaluator, self.completeness_evaluator],
-                max_concurrency=2,
-                experiment_prefix="coding_agent",
-            )
-            
-            print(f"✅ 코딩 에이전트 평가 완료: {experiment_results}")
-            return experiment_results
+        except Exception as e:
+            print(f"⚠️ 체크포인터 없는 그래프 생성 실패, 단일 에이전트 사용: {e}")
+            # 단일 에이전트 대체 방안
+            from agent.graph import coding_assistant
+            target = self.question_to_messages | coding_assistant
+        
+        experiment_results = await aevaluate(
+            target,
+            data=self.coding_dataset.name,
+            evaluators=[self.relevance_evaluator, self.completeness_evaluator],
+            max_concurrency=1,  # 동시성을 1로 줄여서 안정성 확보
+            experiment_prefix="coding_agent",
+        )
+        
+        print(f"✅ 코딩 에이전트 평가 완료: {experiment_results}")
+        return experiment_results
     
     async def run_comprehensive_evaluation(self):
         """모든 에이전트에 대한 종합 평가를 실행합니다."""

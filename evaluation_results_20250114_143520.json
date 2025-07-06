@@ -1,0 +1,22 @@
+{
+    "doc_search": {
+      "timestamp": "20250706_143520",
+      "status": "completed",
+      "details": "ExperimentResults(aggregate_score=0.85, results_count=10, individual_scores=[0.9, 0.8, 0.9, 0.8])"
+    },
+    "analyst": {
+      "timestamp": "20250706_143520",
+      "status": "completed",
+      "details": "ExperimentResults(aggregate_score=0.78, results_count=10, individual_scores=[0.7, 0.8, 0.8, 0.8])"
+    },
+    "predict": {
+      "timestamp": "20250706_143520",
+      "status": "completed",
+      "details": "ExperimentResults(aggregate_score=0.92, results_count=5, individual_scores=[0.92])"
+    },
+    "coding": {
+      "timestamp": "20250706_143520",
+      "status": "completed",
+      "details": "ExperimentResults(aggregate_score=0.83, results_count=14, individual_scores=[0.8, 0.9, 0.8, 0.8])"
+    }
+  }

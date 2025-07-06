@@ -5,6 +5,9 @@ from pydantic import BaseModel, Field
 from langchain_core.tools import StructuredTool
 from openai import OpenAI
 from pinecone import Pinecone as PineconeClient
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Pinecone/OpenAI Client Initialization ---
 def init_clients():

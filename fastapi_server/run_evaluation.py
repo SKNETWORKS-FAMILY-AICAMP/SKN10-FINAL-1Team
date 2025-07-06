@@ -4,10 +4,19 @@ LangGraph 에이전트 평가 실행 스크립트
 간단한 명령어로 평가를 실행할 수 있습니다.
 """
 
+import os
+import sys
 import asyncio
 import argparse
-import sys
 from pathlib import Path
+
+# Windows 환경에서 asyncio 이벤트 루프 정책 설정 (모든 import 전에)
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+# 환경변수 로드
+from dotenv import load_dotenv
+load_dotenv()
 
 # 현재 디렉토리를 Python 경로에 추가
 current_dir = Path(__file__).parent
@@ -119,13 +128,15 @@ async def main():
         print("📋 평가 결과 요약")
         print("=" * 60)
         
-        for agent_name, result in results.items():
-            if result:
-                print(f"✅ {agent_name}_agent: 평가 완료")
-            else:
-                print(f"❌ {agent_name}_agent: 평가 실패")
-        
-        print(f"\n📄 자세한 결과는 생성된 JSON 파일을 확인하세요.")
+        if results:
+            for agent_name, result in results.items():
+                if result:
+                    print(f"✅ {agent_name}_agent: 평가 완료")
+                else:
+                    print(f"❌ {agent_name}_agent: 평가 실패")
+            print(f"\n📄 자세한 결과는 생성된 JSON 파일을 확인하세요.")
+        else:
+            print("❌ 평가가 실패했습니다. 위의 오류 메시지를 확인해주세요.")
         
     except Exception as e:
         print(f"❌ 평가 실행 중 오류 발생: {e}")
@@ -134,8 +145,4 @@ async def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    # Windows에서 이벤트 루프 정책 설정 (필요시)
-    if sys.platform.startswith('win'):
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-    
     asyncio.run(main()) 
