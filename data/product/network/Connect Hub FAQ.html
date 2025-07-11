@@ -1,0 +1,43 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>GSLB Hub FAQ</title>{% endblock %}    
+{% block content %}
+<h1>Connect Hub FAQ</h1>
+<h2>Connect Hub FAQ</h2>
+<hr>
+<div style="background-color: #eaf4fb; padding-left:10px; padding-top:10px; padding-bottom: 20px; border-radius: 10px;">
+  <p>1. 개통에 걸리는 시간은 어떻게 되나요?</p>
+  <ul style="margin-left: 20px;">
+    <li>보통 영업일 기준 3일 이내 개통되나, VPN 혹은 전용회선 개통 일정에 따라 변동될 수 있습니다.</li>
+  </ul>
+
+  <br>
+
+  <p>2. 타 CSP와 연동이 가능한가요?</p>
+  <ul style="margin-left: 20px;">
+    <li>HCX 상품을 이용하여 타 CSP로의 연동을 진행할 수 있습니다. (자세한 상품 관련은 IDC HCX 상품 설명 페이지 참조 바랍니다.)</li>
+  </ul>
+</div>
+
+<h2>가상 라우터에 연결된 VPN 라우팅 추가, 삭제 FAQ</h2>
+<hr>
+<p>
+    커넥트허브 서비스를 이용한 전용 VPN "인터넷 연동" 요청의 경우 아래와 분류 대상 같이 요청 주시기 바랍니다.<br>
+    (2024.07월 기준으로 전용 VPN 서비스에 대한 포탈 자동화가 반영되었으며 24년 7월 이전 가입하신 고객과 신청 유형이 분류되니 꼭 아래 내용 필독 하시어 진행 부탁 드립니다.)
+</p><br>
+
+<h3>[고객 유형1] 신규 고객 . Connect Hub > 가상 라우터 생성의 연동 유형 "IDC/고객사" 확인 가능한 고객(신규 가상 라우터 연동 고객 24.07~ )</h3>
+
+<p>아래와 같이 빨간색 박스처럼 연동유형이 IDC/고객사, 연동 세부 유형이 인터넷 연동으로 연동 완료로 목록이 보이는 경우는 Cloud 매뉴얼 (kt.com) 매뉴얼의 Connect Hub 통신을 위한 추가 설정(Destination 추가) 매뉴얼 확인 후 On-prems 향 라우팅 설정</p>
+
+<img src="/static/images/network_hub3.png" alt="Connect Hub FAQ 1" width="700"><br><br>
+
+<h3>[고객 유형2 ] 기존 고객 중. Connect Hub > 가상 라우터 생성의 연동 유형 "IDC/고객사" 확인이 불가능한 기존 가입 고객 / 가상 라우터는 콘솔에서 생성 하였으나 VPN 연동은 수작업으로 연동 한 경우</h3>
+
+<p>Network > Connect Hub > 가상 라우터 생성 메뉴의 연동 유형 "IDC/고객사" 연동 세부 유형 "인터넷 연동" 확인이 불가할 경우 상단 오른쪽 "온라인 문의"를 통해 수작업 반영 요청주시기 바랍니다.</p>
+
+<img src="/static/images/network_hub4.png" alt="Connect Hub FAQ 2" width="700"><br><br>
+
+
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block css %}<link rel="stylesheet" href="{% static 'css/product_html.css' %}"> {% endblock %}
+{% block title %}<title>GSLB FAQ</title>{% endblock %}    
+{% block content %}
+
+<h1>GSLB FAQ</h1>
+<h2>FAQ</h2>
+<hr>
+<p>Q. 이용중인 kt cloud Server 사이에서도 GSLB를 로드밸런서로 사용할 수 있나요?</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>GSLB의 가장 기본적인 목표는 부하분산 보다, 서로 다른 지역(사이트)에 서버를 배치하여 지리적인 고 가용성과 재해 복구(DR) 효과를 목표로 하고 있습니다.</li>
+    <li>기본적으로 Round Robin 방식의 알고리즘을 지원하고 있으며, 대표적인 유즈케이스는 다음과 같습니다.</li>
+</div><br><br>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>서로 다른 가용성 존(Availability zone) 사이의 부하 분산</li>
+    <li>kt cloud 에 구동 중인 가상 서버와 고객 자체 Dedicated Zone 사이의 부하 분산</li>
+    <li>kt cloud 에 구동 중인 가상 서버와 고객이 보유한 타 사이트(타사 클라우드 등) 사이의 부하 분산</li>
+</div><br><br>
+ 
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>동일한 가용성 존(Availability zone) 안에서의 부하 분산은 '로드밸런서' 서비스 이용을 권고 드리고 있습니다.</li>
+</div><br>
+
+<p>Q. GSLB는 어떻게 목적지 IP를 알려주나요?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>GSLB는 사전에 고객이 타 DNS 호스팅 사이트에 등록한 CNAME 레코드를 통해 접근이 이루어 집니다.</li>
+    <li>'IP'를 알려준다는 점은 로드밸런서와 동일하지만, GSLB는 상위 DNS에 A 레코드를 전달하는 방식으로 응답하는 것이 차이점 입니다.</li>
+    <li>클라이언트는 2차 DNS로부터 전달 받은 A 레코드 정보로 실제 서버와 커넥션을 성립합니다.</li>
+    <li>향후 IPv6가 확산 되는 시점에 맞추어 AAAA Record도 반환 지원 예정입니다.</li>
+</div><br>
+
+<p>Q. GSLB를 구성했습니다. 구성이 잘 되었는지 확인하는 방법이 있을까요?</p>
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>kt cloud 카페(링크)에서 동작 확인할 수 있는 간단한 예시를 제공하고 있습니다. 참고로 활용 하시기 바랍니다.</li>
+</div><br>
+
+<p>Q. GSLB에 서비스IP 정보를 입력할 때 왜 Port정보가 동일해야 하나요?</p>
+
+<div style="background-color: #f0f7ff; padding: 12px; border-radius: 8px;">
+    <li>GSLB도 로드밸런서와 마찬가지로 'IP'주소를 알려주기 때문에 로드밸런서와 동일한 것으로 보일 수 있습니다.</li>
+    <li>GSLB는 DNS를 응용한 서비스 형태로써, Domain 응답 처리를 기반으로 하는 동작으로 port 번호를 구분하지 않습니다.</li>
+    <li>즉, GSLB는 IP 주소를 응답하지만 이는 Domain 서비스의 응답형태로써 'A record'를 반환한 것 입니다.</li>
+</div><br>
+
+
+{% endblock %}
