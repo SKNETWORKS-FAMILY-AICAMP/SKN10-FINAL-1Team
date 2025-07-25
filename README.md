@@ -120,11 +120,11 @@ source .venv/bin/activate
 ## 팀원 및 역할 (Roles and Responsibilities)
 | 이름 | 이미지 | 역할 |
 | ------ | ------ | ------ |
-| **신정우** (PM) | <img src="./img/신정우.png" width="150"> | 데이터 분석 에이전트 개발 및 머신러닝 모델링 (프로젝트 기획 및 일정/이슈 관리 포함) |
-| **경규휘** | <img src="./img/경규희.png" width="150"> | 문서 검색 전문 에이전트 (RAG) 개발 및 데이터 검색 (Product 문서 데이터 수집 및 RAG 테스트 포함) |
-| **남궁승원** | <img src="./img/남궁승원.png" width="150"> | 데이터 분석 에이전트 개발 및 머신러닝 모델링 (ML 부분 포함) (기술 문서 및 사내 정책 문서 데이터 수집 포함) |
-| **이태수** | <img src="./img/이태수.png" width="150"> | 시장 조사 및 문서 검색 전문 에이전트 (RAG) 개발 (뉴스 수집 API 개발 및 이슈/동향 수집 포함) |
-| **황인호** | <img src="./img/인호.jpeg" width="150"> | AI 에이전트 협업 시스템 (LangGraph Swarm), 코드 에이전트, 프론트엔드 개발 (ERD, 배포, 데이터 조회 프로그램 개발 포함) |
+| **신정우** (PM) | <img src="./img/신정우.png" width="150"> | PM & Backend & Github Connect |
+| **경규휘** | <img src="./img/경규희.png" width="150"> | Backend & Database |
+| **남궁승원** | <img src="./img/남궁승원.png" width="150"> | Data Analysis & Machine Learning |
+| **이태수** | <img src="./img/이태수.png" width="150"> | Backend & AWS |
+| **황인호** | <img src="./img/인호.jpeg" width="150"> | LLM Engineering & Frontend |
 
 ## 문서 구조 (Chapters)
 프로젝트의 핵심 구성 요소 및 개발 과정에 대한 자세한 내용은 다음 장에서 확인할 수 있습니다.
